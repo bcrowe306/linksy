@@ -39,15 +39,20 @@
         <span>Create New</span>
       </button>
 
-      <!-- WorkOS Authentication Button or User Profile -->
+      <!-- Authentication Navigation -->
       <div v-if="!authStore.isAuthenticated" class="pl-2 border-l border-gray-800 flex items-center gap-2">
-        <button
-          @click="authStore.login"
-          class="px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold flex items-center gap-1.5 transition-all"
+        <router-link
+          to="/login"
+          class="px-3 py-1.5 rounded-lg text-gray-300 hover:text-white hover:bg-gray-800 text-xs font-semibold transition-colors"
         >
-          <LogIn class="w-3.5 h-3.5" />
-          <span>WorkOS Sign In</span>
-        </button>
+          Sign In
+        </router-link>
+        <router-link
+          to="/signup"
+          class="px-3 py-1.5 rounded-lg bg-linksy-600 hover:bg-linksy-500 text-white text-xs font-semibold shadow-md shadow-linksy-600/20 transition-all"
+        >
+          Sign Up
+        </router-link>
       </div>
 
       <div v-else class="flex items-center gap-2.5 pl-3 border-l border-gray-800">
@@ -72,7 +77,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { Search, Plus, Sun, Moon, Monitor, LogIn, LogOut } from 'lucide-vue-next'
+import { Search, Plus, Sun, Moon, Monitor, LogOut } from 'lucide-vue-next'
 import { useThemeStore } from '../stores/theme'
 import { useAuthStore } from '../stores/auth'
 

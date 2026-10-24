@@ -44,6 +44,16 @@ jobs:
         run: |
           go build -v -o bin/linksy cmd/api/main.go
 
+      - name: Provision WorkOS Resources
+        if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && env.WORKOS_API_KEY != ''
+        env:
+          WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
+          WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
+          APP_URL: "https://test.lynqr.app"
+        run: |
+          chmod +x scripts/provision_workos.sh
+          ./scripts/provision_workos.sh
+
       - name: Deploy to Render via API
         if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && env.RENDER_API_KEY != ''
         env:

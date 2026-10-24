@@ -26,11 +26,15 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	app.Get("/api/docs", h.HandleAPIDocs)
 	app.Get("/api/v1/openapi.json", h.HandleOpenAPISpec)
 
-	// Authentication Routes (WorkOS AuthKit & User Management)
+	// Authentication Routes (Custom Headless Signup/Login + WorkOS Social OAuth)
 	app.Get("/api/v1/auth/config", authH.GetAuthConfig)
+	app.Post("/api/v1/auth/signup", authH.HandleSignUp)
+	app.Post("/api/v1/auth/login", authH.HandlePasswordLogin)
 	app.Get("/api/v1/auth/login", authH.HandleLogin)
+	app.Get("/api/v1/auth/oauth/:provider", authH.HandleOAuthLogin)
 	app.Get("/api/v1/auth/callback", authH.HandleCallback)
 	app.Get("/api/v1/auth/me", authH.GetCurrentUser)
+	app.Post("/api/v1/auth/logout", authH.HandleLogout)
 
 	// High throughput public redirectors
 	app.Get("/s/:slug", middleware.RedirectRateLimiter(), h.HandleShortLinkRedirect)

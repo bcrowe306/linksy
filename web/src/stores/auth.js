@@ -4,7 +4,9 @@ import { ref, computed } from 'vue'
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('linksy_token') || '')
   const user = ref(JSON.parse(localStorage.getItem('linksy_user') || 'null'))
-  const authConfig = ref({ enabled: false, login_url: '' })
+  const authConfig = ref({ enabled: false, login_url: '', providers: [] })
+  const loading = ref(false)
+  const error = ref('')
 
   const isAuthenticated = computed(() => !!token.value && !!user.value)
   const initials = computed(() => {
@@ -49,20 +51,86 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function login() {
-    if (authConfig.value.login_url) {
-      window.location.href = authConfig.value.login_url
-    } else {
-      window.location.href = '/api/v1/auth/login'
+  async function signup(firstName, lastName, email, password) {
+    loading.value = true
+    error.value = ''
+    try {
+      const res = await fetch('/api/v1/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          first_name: firstName,
+          last_name: lastName,
+          email,
+          password
+        })
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to create account')
+      }
+
+      token.value = data.token
+      user.value = data.user
+      localStorage.setItem('linksy_token', data.token)
+      localStorage.setItem('linksy_user', JSON.stringify(data.user))
+      return data
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
     }
   }
 
-  function logout() {
+  async function loginWithPassword(email, password) {
+    loading.value = true
+    error.value = ''
+    try {
+      const res = await fetch('/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Invalid email or password')
+      }
+
+      token.value = data.token
+      user.value = data.user
+      localStorage.setItem('linksy_token', data.token)
+      localStorage.setItem('linksy_user', JSON.stringify(data.user))
+      return data
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  function loginWithOAuth(provider, screenHint = '') {
+    let url = `/api/v1/auth/oauth/${provider}`
+    if (screenHint) {
+      url += `?screen_hint=${screenHint}`
+    }
+    window.location.href = url
+  }
+
+  async function logout() {
+    try {
+      await fetch('/api/v1/auth/logout', { method: 'POST' })
+    } catch (e) {
+      // ignore
+    }
     token.value = ''
     user.value = null
     localStorage.removeItem('linksy_token')
     localStorage.removeItem('linksy_user')
-    window.location.href = '/'
+    window.location.href = '/login'
   }
 
   // Initialize
@@ -73,9 +141,13 @@ export const useAuthStore = defineStore('auth', () => {
     token,
     user,
     authConfig,
+    loading,
+    error,
     isAuthenticated,
     initials,
-    login,
+    signup,
+    loginWithPassword,
+    loginWithOAuth,
     logout
   }
 })

@@ -1,5 +1,11 @@
 <template>
-  <div class="flex h-screen overflow-hidden bg-gray-950 text-gray-100 font-sans">
+  <!-- Full Screen for Auth Routes (Sign Up / Sign In) -->
+  <div v-if="isAuthRoute" class="min-h-screen bg-gray-950 text-gray-100 font-sans">
+    <router-view />
+  </div>
+
+  <!-- Standard Dashboard Layout -->
+  <div v-else class="flex h-screen overflow-hidden bg-gray-950 text-gray-100 font-sans">
     <!-- Sidebar Navigation -->
     <Sidebar @open-help="isHelpOpen = true" />
 
@@ -32,19 +38,25 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
 import Header from './components/Header.vue'
 import CreateModal from './components/CreateModal.vue'
 import HelpDrawer from './components/HelpDrawer.vue'
 import { useLinksyStore } from './stores/linksy'
 
+const route = useRoute()
 const store = useLinksyStore()
 const isCreateOpen = ref(false)
 const isHelpOpen = ref(false)
 
+const isAuthRoute = computed(() => {
+  return route.path === '/signup' || route.path === '/login'
+})
+
 function handleSearch(q) {
-  // Can filter store links or QRs
+  // Filter store links or QRs
 }
 
 function onAssetCreated() {
