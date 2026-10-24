@@ -60,7 +60,7 @@ Linksy supports specialized payloads encoded natively into QR codes or routed vi
 
 ### 1.7 Document Hosting & Reusable QR Codes
 - Secure document upload (PDF, DOCX, presentation, image menus, etc.).
-- Fast CDN / local storage delivery.
+- Pluggable storage backend: Local disk storage for local development; S3 / Cloudflare R2 / Render persistent disk for production.
 - **Reusability**: Replace the underlying document at any time while keeping the exact same physical QR code and short link intact (e.g. daily restaurant menus, quarterly reports, event agendas).
 
 ### 1.8 Team Collaboration & Multi-User Authentication
@@ -104,9 +104,11 @@ Linksy supports specialized payloads encoded natively into QR codes or routed vi
 | **HTTP Framework** | Go Fiber v3 (`github.com/gofiber/fiber/v3`) | Express-inspired ergonomics, fasthttp performance |
 | **Realtime / Sockets** | Go Fiber Websocket v3 (`contrib/v3/websocket`) | Live analytics stream to web clients |
 | **QR Generation** | `github.com/skip2/go-qrcode` + Go `image` / `fpdf` | Custom raster, vector SVG, logo injection, PDF export |
-| **Database** | PostgreSQL 16+ | Relational schema with JSONB support, indexing for analytics |
+| **Database** | PostgreSQL 16+ (Render / Prod) & SQLite (Local / Test) | Dual-mode SQL database support for zero-dependency local dev |
+| **Document Storage** | Storage Abstraction (Local Disk / S3 / R2) | Clean interface with local disk fallback and cloud support |
 | **Frontend Framework** | Vue 3 + Vite | Composition API, `<script setup>`, Pinia, Vue Router |
 | **Styling** | TailwindCSS + Heroicons / Lucide | Dark theme default, responsive mobile & desktop |
 | **Authentication** | WorkOS (`workos.com`) | SSO, Directory Sync, Multi-factor auth, Session management |
 | **Hosting & Cloud** | Render (`dashboard.render.com`) | Web service, managed PostgreSQL, background workers |
+| **Repository** | GitHub (`bcrowe306/linksy`) | Private repository |
 | **CI / CD** | GitHub Actions | Automated build, test, lint, and Render deploy hook trigger |
