@@ -1,0 +1,66 @@
+package api
+
+import (
+	"os"
+
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/static"
+
+	"github.com/bcrowe306/linksy/internal/api/handler"
+	"github.com/bcrowe306/linksy/internal/api/middleware"
+	"github.com/bcrowe306/linksy/internal/service"
+)
+
+func SetupRouter(app *fiber.App, svc *service.Service, appURL string) {
+	middleware.SetupCommon(app)
+
+	h := handler.New(svc, appURL)
+
+	// Public health check
+	app.Get("/health", h.Health)
+	app.Get("/api/v1/health", h.Health)
+
+	// API Interactive Documentation & OpenAPI Spec
+	app.Get("/api/docs", h.HandleAPIDocs)
+	app.Get("/api/v1/openapi.json", h.HandleOpenAPISpec)
+
+	// High throughput public redirectors
+	app.Get("/s/:slug", middleware.RedirectRateLimiter(), h.HandleShortLinkRedirect)
+	app.Get("/qr/r/:id", middleware.RedirectRateLimiter(), h.HandleQRScanRedirect)
+
+	// Static Document file downloads
+	app.Get("/api/v1/documents/files/:filename", h.DownloadDocumentFile)
+
+	// Protected / Authenticated API v1 routes
+	api := app.Group("/api/v1", middleware.AuthMiddleware())
+
+	// Short Links
+	api.Post("/links", h.CreateLink)
+	api.Get("/links", h.ListLinks)
+	api.Put("/links/:id", h.UpdateLink)
+	api.Delete("/links/:id", h.DeleteLink)
+
+	// QR Codes
+	api.Post("/qr", h.CreateQR)
+	api.Get("/qr", h.ListQR)
+	api.Get("/qr/:id", h.GetQR)
+	api.Put("/qr/:id", h.UpdateQR)
+	api.Delete("/qr/:id", h.DeleteQR)
+	api.Get("/qr/:id/export", h.ExportQR)
+
+	// Documents
+	api.Post("/documents/upload", h.UploadDocument)
+	api.Put("/documents/:id", h.UpdateDocumentFile)
+	api.Get("/documents", h.ListDocuments)
+
+	// Analytics
+	api.Get("/analytics/summary", h.GetAnalyticsSummary)
+
+	// If web/dist directory exists, serve Vue 3 SPA frontend
+	if _, err := os.Stat("./web/dist"); err == nil {
+		app.Use("/", static.New("./web/dist"))
+		app.Get("/*", func(c fiber.Ctx) error {
+			return c.SendFile("./web/dist/index.html")
+		})
+	}
+}
