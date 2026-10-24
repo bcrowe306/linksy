@@ -16,14 +16,18 @@
 
     <!-- Actions -->
     <div class="flex items-center gap-3">
-      <!-- Theme Switcher -->
+      <!-- Theme Switcher (System / Dark / Light) -->
       <button
-        @click="themeStore.toggleTheme"
-        class="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-        :title="themeStore.currentTheme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'"
+        @click="themeStore.cycleTheme"
+        class="px-2.5 py-1.5 text-xs text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-1.5"
+        :title="themeTitle"
       >
-        <Sun v-if="themeStore.currentTheme === 'dark'" class="w-4 h-4" />
-        <Moon v-else class="w-4 h-4" />
+        <Monitor v-if="themeStore.preference === 'system'" class="w-4 h-4 text-linksy-400" />
+        <Moon v-else-if="themeStore.preference === 'dark'" class="w-4 h-4 text-indigo-400" />
+        <Sun v-else class="w-4 h-4 text-amber-400" />
+        <span class="text-[11px] font-medium capitalize hidden sm:inline">
+          {{ themeStore.preference === 'system' ? 'OS Theme' : themeStore.preference }}
+        </span>
       </button>
 
       <!-- Create New Dropdown / Button -->
@@ -50,11 +54,18 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { Search, Plus, Sun, Moon } from 'lucide-vue-next'
+import { ref, computed } from 'vue'
+import { Search, Plus, Sun, Moon, Monitor } from 'lucide-vue-next'
 import { useThemeStore } from '../stores/theme'
 
 defineEmits(['open-create', 'search'])
 const themeStore = useThemeStore()
 const searchQuery = ref('')
+
+const themeTitle = computed(() => {
+  if (themeStore.preference === 'system') {
+    return `Theme: Following OS specification (${themeStore.effectiveTheme})`
+  }
+  return `Theme: ${themeStore.preference}`
+})
 </script>

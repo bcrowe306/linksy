@@ -3,18 +3,28 @@
     <!-- Top Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-800 pb-4">
       <div class="flex items-center gap-3">
-        <router-link
-          to="/qr-codes"
+        <button
+          @click="navigateBack"
           class="p-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
           title="Back to QR Codes"
         >
           <ArrowLeft class="w-4 h-4" />
-        </router-link>
+        </button>
         <div>
-          <h1 class="text-xl font-bold text-white flex items-center gap-2">
-            <span>{{ isEditing ? 'Edit QR Code' : 'QR Code Design Studio' }}</span>
-            <span class="text-[10px] px-2 py-0.5 rounded-full bg-linksy-500/20 text-linksy-400 font-mono">PRO</span>
-          </h1>
+          <div class="flex items-center gap-2.5">
+            <h1 class="text-xl font-bold text-white flex items-center gap-2">
+              <span>{{ isEditing ? 'Edit QR Code' : 'QR Code Design Studio' }}</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-linksy-500/20 text-linksy-400 font-mono">PRO</span>
+            </h1>
+            <!-- Unsaved changes warning badge -->
+            <span
+              v-if="isDirty"
+              class="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-medium flex items-center gap-1"
+            >
+              <AlertTriangle class="w-3 h-3" />
+              <span>Unsaved Changes</span>
+            </span>
+          </div>
           <p class="text-xs text-gray-400 mt-0.5">
             Full QR code spec customization: custom colors, gradients, module shapes, finder eyes, center logos, and frames.
           </p>
@@ -542,8 +552,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import {
   ArrowLeft,
   Save,
@@ -562,7 +572,8 @@ import {
   SunMedium,
   Square,
   Circle,
-  Loader2
+  Loader2,
+  AlertTriangle
 } from 'lucide-vue-next'
 import { api } from '../api/client'
 import { useLinksyStore } from '../stores/linksy'
@@ -723,6 +734,23 @@ const wifiData = ref({ ssid: '', password: '', encryption: 'WPA' })
 const vcardData = ref({ first_name: '', last_name: '', phone: '', email: '' })
 const selectedDocId = ref('')
 
+// Unsaved changes tracking (Requirement 2)
+const baselineSnapshot = ref('')
+
+function createSnapshot() {
+  return JSON.stringify({
+    qrData: qrData.value,
+    style: style.value,
+    wifiData: wifiData.value,
+    vcardData: vcardData.value
+  })
+}
+
+const isDirty = computed(() => {
+  if (!baselineSnapshot.value) return false
+  return createSnapshot() !== baselineSnapshot.value
+})
+
 function applyPreset(preset) {
   activePresetName.value = preset.name
   style.value = { ...style.value, ...preset.style }
@@ -842,6 +870,10 @@ const renderedSvg = computed(() => {
   return svg
 })
 
+function navigateBack() {
+  router.push('/qr-codes')
+}
+
 async function saveQRCode() {
   if (!qrData.value.title) {
     alert('Please enter a title for the QR code')
@@ -877,6 +909,8 @@ async function saveQRCode() {
       alert('New custom QR code created successfully!')
     }
 
+    // Reset baseline snapshot so navigation guard does not trigger
+    baselineSnapshot.value = createSnapshot()
     await store.fetchQRCodes()
     router.push('/qr-codes')
   } catch (err) {
@@ -887,13 +921,11 @@ async function saveQRCode() {
 }
 
 function downloadFormat(fmt) {
-  // If editing an existing QR code, download through backend high-res exporter
   if (isEditing.value) {
     window.open(`/api/v1/qr/${route.params.id}/export?format=${fmt}&download=true`, '_blank')
     return
   }
 
-  // If unsaved, save first or export client-side SVG
   if (fmt === 'svg') {
     const blob = new Blob([renderedSvg.value], { type: 'image/svg+xml' })
     const url = URL.createObjectURL(blob)
@@ -902,15 +934,41 @@ function downloadFormat(fmt) {
     a.download = `linksy-qr-${Date.now()}.svg`
     a.click()
   } else {
-    // Prompt to save to download high-res PNG/PDF/JPEG
     if (confirm('Save this QR code to download high-resolution PNG, JPEG, or PDF?')) {
       saveQRCode()
     }
   }
 }
 
+// Intercept in-app navigation if unsaved changes exist (Requirement 2)
+onBeforeRouteLeave((to, from, next) => {
+  if (isDirty.value) {
+    const answer = window.confirm(
+      'You have unsaved changes in the QR Code Studio. If you leave now, your customizations will be lost.\n\nDo you want to discard your changes and leave?'
+    )
+    if (answer) {
+      next()
+    } else {
+      next(false)
+    }
+  } else {
+    next()
+  }
+})
+
+// Intercept browser-level window close / page refresh
+function handleBeforeUnload(e) {
+  if (isDirty.value) {
+    e.preventDefault()
+    e.returnValue = ''
+    return ''
+  }
+}
+
 onMounted(async () => {
+  window.addEventListener('beforeunload', handleBeforeUnload)
   await store.fetchDocuments()
+
   if (isEditing.value) {
     try {
       const qr = await api.getQRCodes()
@@ -928,5 +986,12 @@ onMounted(async () => {
       console.error(e)
     }
   }
+
+  // Set baseline snapshot after initial data load
+  baselineSnapshot.value = createSnapshot()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 </script>
