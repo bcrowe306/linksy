@@ -1,17 +1,26 @@
 <template>
   <div class="space-y-6">
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
         <h1 class="text-xl font-bold text-white">Dynamic QR Codes</h1>
         <p class="text-xs text-gray-400 mt-0.5">Customize, export in high-res (PNG, JPEG, PDF, SVG), and update destinations.</p>
       </div>
-      <button
-        @click="$emit('open-create')"
-        class="bg-linksy-600 hover:bg-linksy-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
-      >
-        <Plus class="w-4 h-4" />
-        <span>Create QR Code</span>
-      </button>
+      <div class="flex items-center gap-2.5">
+        <router-link
+          to="/qr-studio"
+          class="bg-gray-800 hover:bg-gray-750 border border-gray-700 text-linksy-400 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+        >
+          <Sparkles class="w-4 h-4 text-amber-400" />
+          <span>Open Design Studio</span>
+        </router-link>
+        <button
+          @click="$emit('open-create')"
+          class="bg-linksy-600 hover:bg-linksy-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-linksy-600/20"
+        >
+          <Plus class="w-4 h-4" />
+          <span>Quick QR</span>
+        </button>
+      </div>
     </div>
 
     <!-- QR Grid -->
@@ -34,13 +43,22 @@
               </div>
             </div>
 
-            <button
-              @click="deleteQR(qr.id)"
-              class="text-gray-500 hover:text-rose-400 p-1 rounded-lg hover:bg-gray-800"
-              title="Delete QR"
-            >
-              <Trash2 class="w-3.5 h-3.5" />
-            </button>
+            <div class="flex items-center gap-1">
+              <router-link
+                :to="'/qr-studio/' + qr.id"
+                class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800"
+                title="Edit Style in Studio"
+              >
+                <Palette class="w-3.5 h-3.5" />
+              </router-link>
+              <button
+                @click="deleteQR(qr.id)"
+                class="text-gray-500 hover:text-rose-400 p-1 rounded-lg hover:bg-gray-800"
+                title="Delete QR"
+              >
+                <Trash2 class="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           <!-- QR Preview Image -->
@@ -64,15 +82,24 @@
         <div class="space-y-2 pt-3 border-t border-gray-700/60">
           <div class="flex items-center justify-between text-xs text-gray-400 mb-1">
             <span class="font-mono">{{ qr.scan_count }} scans</span>
-            <!-- Edit Destination Modal trigger -->
-            <button
-              v-if="qr.link_id"
-              @click="openEditQR(qr)"
-              class="text-linksy-400 hover:underline flex items-center gap-1 text-[11px]"
-            >
-              <Edit3 class="w-3 h-3" />
-              <span>Change Destination</span>
-            </button>
+            <div class="flex items-center gap-3">
+              <router-link
+                :to="'/qr-studio/' + qr.id"
+                class="text-amber-400 hover:underline flex items-center gap-1 text-[11px]"
+              >
+                <Palette class="w-3 h-3" />
+                <span>Customize</span>
+              </router-link>
+              <!-- Edit Destination Modal trigger -->
+              <button
+                v-if="qr.link_id"
+                @click="openEditQR(qr)"
+                class="text-linksy-400 hover:underline flex items-center gap-1 text-[11px]"
+              >
+                <Edit3 class="w-3 h-3" />
+                <span>Destination</span>
+              </button>
+            </div>
           </div>
 
           <!-- 4 Format Export Row (Requirement 5) -->
@@ -106,7 +133,7 @@
       </div>
 
       <div v-if="!store.qrCodes.length" class="col-span-full py-16 text-center text-xs text-gray-500 bg-gray-800/40 rounded-2xl border border-dashed border-gray-700">
-        No QR codes created yet. Click "Create QR Code" to generate your first custom styled code.
+        No QR codes created yet. Click "Open Design Studio" to craft a custom styled code with borders, logos, and gradients.
       </div>
     </div>
 
@@ -145,7 +172,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { Plus, Trash2, Edit3 } from 'lucide-vue-next'
+import { Plus, Trash2, Edit3, Palette, Sparkles } from 'lucide-vue-next'
 import { useLinksyStore } from '../stores/linksy'
 import { api } from '../api/client'
 
