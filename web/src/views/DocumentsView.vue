@@ -54,6 +54,16 @@
                 {{ new Date(doc.updated_at).toLocaleString() }}
               </td>
               <td class="px-5 py-3.5 text-right space-x-2">
+                <!-- Create QR Code for Document -->
+                <button
+                  @click="generateQRForDoc(doc)"
+                  class="px-2.5 py-1.5 rounded-lg bg-linksy-600/20 hover:bg-linksy-600/30 text-linksy-300 text-xs font-medium inline-flex items-center gap-1.5"
+                  title="Generate dynamic QR code for this document"
+                >
+                  <QrCode class="w-3.5 h-3.5 text-linksy-400" />
+                  <span>Generate QR</span>
+                </button>
+
                 <!-- Replace Document File (Requirement 8) -->
                 <button
                   @click="triggerReplace(doc)"
@@ -92,7 +102,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { FileUp, FileText, RefreshCw, Download } from 'lucide-vue-next'
+import { FileUp, FileText, QrCode, RefreshCw, Download } from 'lucide-vue-next'
 import { useLinksyStore } from '../stores/linksy'
 import { api } from '../api/client'
 
@@ -107,6 +117,27 @@ async function onUploadNew(e) {
   try {
     await api.uploadDocument(file)
     await store.fetchDocuments()
+    await store.fetchQRCodes()
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+async function generateQRForDoc(doc) {
+  try {
+    const downloadURL = `${window.location.origin}/api/v1/documents/files/${doc.stored_path}`
+    await api.createQRCode({
+      type: 'document',
+      title: `Doc: ${doc.filename}`,
+      target_url: downloadURL,
+      is_dynamic: true,
+      style: {
+        fg_color: '#000000',
+        bg_color: '#ffffff',
+        border_width: 0
+      }
+    })
+    alert(`Dynamic QR code created for "${doc.filename}"! You can find it under the QR Codes tab.`)
     await store.fetchQRCodes()
   } catch (err) {
     alert(err.message)

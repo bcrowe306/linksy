@@ -99,9 +99,11 @@
             <label class="block text-xs font-semibold text-gray-300 mb-1">QR Code Type</label>
             <select
               v-model="qrForm.type"
+              @change="onQRTypeChange"
               class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-linksy-500"
             >
               <option value="website">Website / URL (Dynamic)</option>
+              <option value="document">Document (PDF / Menu / Report) (Dynamic)</option>
               <option value="vcard">Contact Card (vCard)</option>
               <option value="wifi">Wi-Fi Network</option>
               <option value="email">Email Pre-fill</option>
@@ -129,6 +131,106 @@
               placeholder="https://mywebsite.com"
               class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-linksy-500"
             />
+          </div>
+
+          <!-- Document QR Code: Select from existing uploaded documents or upload new -->
+          <div v-else-if="qrForm.type === 'document'" class="space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-semibold text-gray-300">Document Source</label>
+              <div class="flex rounded-lg bg-gray-800 p-0.5 border border-gray-700 text-[11px]">
+                <button
+                  type="button"
+                  @click="docSource = 'existing'"
+                  :class="docSource === 'existing' ? 'bg-linksy-600 text-white font-semibold' : 'text-gray-400 hover:text-white'"
+                  class="px-2.5 py-1 rounded transition-colors"
+                >
+                  Choose Existing ({{ store.documents.length }})
+                </button>
+                <button
+                  type="button"
+                  @click="docSource = 'new'"
+                  :class="docSource === 'new' ? 'bg-linksy-600 text-white font-semibold' : 'text-gray-400 hover:text-white'"
+                  class="px-2.5 py-1 rounded transition-colors"
+                >
+                  Upload New
+                </button>
+              </div>
+            </div>
+
+            <!-- Existing Documents Picker -->
+            <div v-if="docSource === 'existing'">
+              <div v-if="store.documents.length > 0" class="space-y-2">
+                <div class="text-[11px] text-gray-400">Select from your uploaded documents:</div>
+                <div class="max-h-48 overflow-y-auto space-y-1.5 pr-1 border border-gray-750 rounded-xl p-2 bg-gray-800/40">
+                  <div
+                    v-for="doc in store.documents"
+                    :key="doc.id"
+                    @click="selectDocument(doc)"
+                    class="p-2.5 rounded-lg border cursor-pointer transition-all flex items-center justify-between"
+                    :class="selectedExistingDocId === doc.id
+                      ? 'bg-linksy-600/20 border-linksy-500 text-white'
+                      : 'bg-gray-800/70 border-gray-700 hover:border-gray-600 text-gray-300'"
+                  >
+                    <div class="flex items-center gap-2.5 truncate max-w-[340px]">
+                      <FileText class="w-4 h-4 text-rose-400 shrink-0" />
+                      <div class="truncate">
+                        <div class="font-medium text-xs truncate">{{ doc.filename }}</div>
+                        <div class="text-[10px] text-gray-500 font-mono">
+                          v{{ doc.version }} • {{ (doc.file_size / 1024 / 1024).toFixed(2) }} MB • {{ new Date(doc.updated_at).toLocaleDateString() }}
+                        </div>
+                      </div>
+                    </div>
+                    <div class="shrink-0 pl-2">
+                      <span
+                        v-if="selectedExistingDocId === doc.id"
+                        class="w-5 h-5 rounded-full bg-linksy-500 text-white flex items-center justify-center"
+                      >
+                        <Check class="w-3 h-3 stroke-[3]" />
+                      </span>
+                      <span v-else class="text-xs text-gray-500 hover:text-gray-300">Select</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="selectedDocumentObj" class="p-2.5 rounded-lg bg-linksy-950/40 border border-linksy-500/30 text-xs text-linksy-300 flex items-center gap-2">
+                  <CheckCircle2 class="w-4 h-4 text-linksy-400 shrink-0" />
+                  <span class="truncate">Linked to <strong>{{ selectedDocumentObj.filename }}</strong> (v{{ selectedDocumentObj.version }})</span>
+                </div>
+              </div>
+              <div v-else class="p-4 rounded-xl bg-gray-800/40 border border-dashed border-gray-700 text-center space-y-2">
+                <FileText class="w-8 h-8 text-gray-500 mx-auto" />
+                <div class="text-xs text-gray-300 font-medium">No documents uploaded yet</div>
+                <p class="text-[11px] text-gray-500">Upload your first document to reuse across QR codes.</p>
+                <button
+                  type="button"
+                  @click="docSource = 'new'"
+                  class="px-3 py-1.5 rounded-lg bg-linksy-600 hover:bg-linksy-500 text-white text-xs font-semibold inline-flex items-center gap-1.5"
+                >
+                  <FileUp class="w-3.5 h-3.5" />
+                  <span>Upload Document Now</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Upload New Document in QR Form -->
+            <div v-else class="space-y-2">
+              <div
+                @dragover.prevent
+                @drop.prevent="handleDocFileDrop"
+                class="border-2 border-dashed border-gray-700 hover:border-linksy-500 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-colors"
+                @click="$refs.qrDocFileInput.click()"
+              >
+                <input ref="qrDocFileInput" type="file" @change="handleDocFileSelect" class="hidden" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" />
+                <FileUp class="w-8 h-8 text-linksy-400 mb-1.5" />
+                <span class="text-xs font-semibold text-gray-200">
+                  {{ qrDocFile ? qrDocFile.name : 'Choose document file to link' }}
+                </span>
+                <span class="text-[10px] text-gray-500 mt-0.5">PDF, Menus, Documents up to 15MB</span>
+              </div>
+              <div v-if="qrDocFile" class="text-xs text-emerald-400 flex items-center gap-1.5 justify-center">
+                <Check class="w-3.5 h-3.5" />
+                <span>{{ qrDocFile.name }} ({{ (qrDocFile.size / 1024 / 1024).toFixed(2) }} MB)</span>
+              </div>
+            </div>
           </div>
 
           <div v-else-if="qrForm.type === 'wifi'" class="grid grid-cols-2 gap-3">
@@ -191,7 +293,7 @@
           </div>
         </div>
 
-        <!-- 3. DOCUMENT UPLOAD FORM -->
+        <!-- 3. DOCUMENT UPLOAD TAB -->
         <div v-else-if="activeTab === 'doc'" class="space-y-4">
           <div
             @dragover.prevent
@@ -235,12 +337,23 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { Plus, X, Link2, QrCode, FileUp, AlertCircle, Check, Loader2 } from 'lucide-vue-next'
+import { ref, computed, watch } from 'vue'
+import {
+  Plus,
+  X,
+  Link2,
+  QrCode,
+  FileUp,
+  FileText,
+  AlertCircle,
+  Check,
+  CheckCircle2,
+  Loader2
+} from 'lucide-vue-next'
 import { api } from '../api/client'
 import { useLinksyStore } from '../stores/linksy'
 
-defineProps({
+const props = defineProps({
   isOpen: { type: Boolean, default: false }
 })
 const emit = defineEmits(['close', 'created'])
@@ -270,9 +383,63 @@ const qrForm = ref({
   }
 })
 
+// Document QR selection state
+const docSource = ref('existing') // 'existing' | 'new'
+const selectedExistingDocId = ref('')
+const qrDocFile = ref(null)
+
 const wifiData = ref({ ssid: '', password: '', encryption: 'WPA' })
 const vcardData = ref({ first_name: '', last_name: '', phone: '', email: '' })
 const selectedFile = ref(null)
+
+const selectedDocumentObj = computed(() => {
+  return store.documents.find(d => d.id === selectedExistingDocId.value)
+})
+
+watch(() => props.isOpen, (newVal) => {
+  if (newVal) {
+    store.fetchDocuments()
+    // Default to existing if documents exist
+    if (store.documents.length > 0 && !selectedExistingDocId.value) {
+      selectDocument(store.documents[0])
+    }
+  }
+})
+
+function onQRTypeChange() {
+  if (qrForm.value.type === 'document') {
+    docSource.value = store.documents.length > 0 ? 'existing' : 'new'
+    if (store.documents.length > 0 && !selectedExistingDocId.value) {
+      selectDocument(store.documents[0])
+    }
+  }
+}
+
+function selectDocument(doc) {
+  selectedExistingDocId.value = doc.id
+  qrForm.value.target_url = `${window.location.origin}/api/v1/documents/files/${doc.stored_path}`
+  if (!qrForm.value.title || qrForm.value.title.startsWith('Doc: ') || qrForm.value.title.startsWith('QR: ')) {
+    qrForm.value.title = `Doc: ${doc.filename}`
+  }
+}
+
+function handleDocFileSelect(e) {
+  if (e.target.files?.[0]) {
+    qrDocFile.value = e.target.files[0]
+    if (!qrForm.value.title) {
+      qrForm.value.title = `Doc: ${qrDocFile.value.name}`
+    }
+  }
+}
+
+function handleDocFileDrop(e) {
+  if (e.dataTransfer.files?.[0]) {
+    qrDocFile.value = e.dataTransfer.files[0]
+    if (!qrForm.value.title) {
+      qrForm.value.title = `Doc: ${qrDocFile.value.name}`
+    }
+  }
+}
 
 function handleFileSelect(e) {
   if (e.target.files?.[0]) selectedFile.value = e.target.files[0]
@@ -298,6 +465,22 @@ async function submit() {
         rawData = JSON.stringify(wifiData.value)
       } else if (qrForm.value.type === 'vcard') {
         rawData = JSON.stringify(vcardData.value)
+      } else if (qrForm.value.type === 'document') {
+        qrForm.value.is_dynamic = true
+        if (docSource.value === 'existing') {
+          if (!selectedExistingDocId.value) {
+            throw new Error('Please select an uploaded document from the list')
+          }
+          const doc = store.documents.find(d => d.id === selectedExistingDocId.value)
+          if (!doc) throw new Error('Selected document not found')
+          qrForm.value.target_url = `${window.location.origin}/api/v1/documents/files/${doc.stored_path}`
+        } else {
+          if (!qrDocFile.value) {
+            throw new Error('Please choose a document file to upload')
+          }
+          const uploadRes = await api.uploadDocument(qrDocFile.value)
+          qrForm.value.target_url = uploadRes.download_url
+        }
       }
 
       await api.createQRCode({
