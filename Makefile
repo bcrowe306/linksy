@@ -5,8 +5,8 @@ all: test build
 build: build-frontend build-backend
 
 build-frontend:
-	@echo "==> Building Vue 3 frontend..."
-	cd web && npm run build
+	@echo "==> Installing and building Vue 3 frontend..."
+	cd web && npm install && npm run build
 
 build-backend:
 	@echo "==> Building Go binary..."

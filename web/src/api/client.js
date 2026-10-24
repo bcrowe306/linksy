@@ -1,15 +1,26 @@
 const BASE_URL = ''
 
+function getHeaders(custom = {}) {
+  const token = localStorage.getItem('linksy_token')
+  const headers = { ...custom }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  return headers
+}
+
 export const api = {
   // Links
   async getLinks(limit = 50, offset = 0) {
-    const res = await fetch(`${BASE_URL}/api/v1/links?limit=${limit}&offset=${offset}`)
+    const res = await fetch(`${BASE_URL}/api/v1/links?limit=${limit}&offset=${offset}`, {
+      headers: getHeaders()
+    })
     return res.json()
   },
   async createLink(data) {
     const res = await fetch(`${BASE_URL}/api/v1/links`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(data)
     })
     if (!res.ok) {
@@ -21,7 +32,7 @@ export const api = {
   async updateLink(id, data) {
     const res = await fetch(`${BASE_URL}/api/v1/links/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(data)
     })
     if (!res.ok) {
@@ -31,20 +42,25 @@ export const api = {
     return res.json()
   },
   async deleteLink(id) {
-    const res = await fetch(`${BASE_URL}/api/v1/links/${id}`, { method: 'DELETE' })
+    const res = await fetch(`${BASE_URL}/api/v1/links/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    })
     if (!res.ok) throw new Error('Failed to delete link')
     return true
   },
 
   // QR Codes
   async getQRCodes(limit = 50, offset = 0) {
-    const res = await fetch(`${BASE_URL}/api/v1/qr?limit=${limit}&offset=${offset}`)
+    const res = await fetch(`${BASE_URL}/api/v1/qr?limit=${limit}&offset=${offset}`, {
+      headers: getHeaders()
+    })
     return res.json()
   },
   async createQRCode(data) {
     const res = await fetch(`${BASE_URL}/api/v1/qr`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(data)
     })
     if (!res.ok) {
@@ -56,7 +72,7 @@ export const api = {
   async updateQRCode(id, data) {
     const res = await fetch(`${BASE_URL}/api/v1/qr/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(data)
     })
     if (!res.ok) {
@@ -66,7 +82,10 @@ export const api = {
     return res.json()
   },
   async deleteQRCode(id) {
-    const res = await fetch(`${BASE_URL}/api/v1/qr/${id}`, { method: 'DELETE' })
+    const res = await fetch(`${BASE_URL}/api/v1/qr/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    })
     if (!res.ok) throw new Error('Failed to delete QR code')
     return true
   },
@@ -80,6 +99,7 @@ export const api = {
     formData.append('file', file)
     const res = await fetch(`${BASE_URL}/api/v1/documents/upload`, {
       method: 'POST',
+      headers: getHeaders(),
       body: formData
     })
     if (!res.ok) {
@@ -93,6 +113,7 @@ export const api = {
     formData.append('file', file)
     const res = await fetch(`${BASE_URL}/api/v1/documents/${id}`, {
       method: 'PUT',
+      headers: getHeaders(),
       body: formData
     })
     if (!res.ok) {
@@ -102,7 +123,9 @@ export const api = {
     return res.json()
   },
   async getDocuments() {
-    const res = await fetch(`${BASE_URL}/api/v1/documents`)
+    const res = await fetch(`${BASE_URL}/api/v1/documents`, {
+      headers: getHeaders()
+    })
     return res.json()
   },
 
@@ -114,7 +137,9 @@ export const api = {
     if (qrId) params.append('qr_id', qrId)
     if (params.toString()) url += `?${params.toString()}`
 
-    const res = await fetch(url)
+    const res = await fetch(url, {
+      headers: getHeaders()
+    })
     return res.json()
   }
 }

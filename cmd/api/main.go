@@ -19,7 +19,7 @@ import (
 
 func main() {
 	cfg := config.LoadConfig()
-	log.Printf("[Linksy] Starting server in %s mode (DB: %s)...", cfg.LogLevel, cfg.DBType)
+	log.Printf("[Linksy] Starting server in %s mode (DB: %s, Storage: %s)...", cfg.LogLevel, cfg.DBType, cfg.StorageType)
 
 	// Initialize Database
 	database, err := db.Connect(cfg.DBType, cfg.DBDSN)
@@ -35,10 +35,21 @@ func main() {
 		log.Printf("[Linksy] Note ensuring default team: %v", err)
 	}
 
-	// Initialize Document Storage
-	store, err := storage.NewLocalStorage(cfg.StoragePath, cfg.AppURL)
-	if err != nil {
-		log.Fatalf("[Linksy] Failed to initialize storage: %v", err)
+	// Initialize Document Storage (Cloudflare R2 or Local)
+	var store storage.StorageProvider
+	if cfg.StorageType == "r2" {
+		log.Printf("[Linksy] Initializing Cloudflare R2 storage (Bucket: %s, Endpoint: %s)...", cfg.R2Bucket, cfg.R2Endpoint)
+		r2Store, err := storage.NewR2Storage(cfg.R2Endpoint, cfg.R2AccessKeyID, cfg.R2SecretAccessKey, cfg.R2Bucket, cfg.AppURL)
+		if err != nil {
+			log.Fatalf("[Linksy] Failed to initialize R2 storage: %v", err)
+		}
+		store = r2Store
+	} else {
+		localStore, err := storage.NewLocalStorage(cfg.StoragePath, cfg.AppURL)
+		if err != nil {
+			log.Fatalf("[Linksy] Failed to initialize storage: %v", err)
+		}
+		store = localStore
 	}
 
 	// Initialize Services
@@ -49,7 +60,7 @@ func main() {
 		AppName: "Linksy Dynamic QR & Link Manager",
 	})
 
-	api.SetupRouter(app, svc, cfg.AppURL)
+	api.SetupRouter(app, svc, cfg)
 
 	// Graceful shutdown handling
 	sigChan := make(chan os.Signal, 1)

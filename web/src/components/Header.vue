@@ -39,15 +39,32 @@
         <span>Create New</span>
       </button>
 
-      <!-- Team Badge / Profile -->
-      <div class="flex items-center gap-2.5 pl-3 border-l border-gray-800">
+      <!-- WorkOS Authentication Button or User Profile -->
+      <div v-if="!authStore.isAuthenticated" class="pl-2 border-l border-gray-800 flex items-center gap-2">
+        <button
+          @click="authStore.login"
+          class="px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold flex items-center gap-1.5 transition-all"
+        >
+          <LogIn class="w-3.5 h-3.5" />
+          <span>WorkOS Sign In</span>
+        </button>
+      </div>
+
+      <div v-else class="flex items-center gap-2.5 pl-3 border-l border-gray-800">
         <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-linksy-600 to-indigo-400 flex items-center justify-center font-bold text-xs text-white">
-          JD
+          {{ authStore.initials }}
         </div>
         <div class="hidden md:flex flex-col text-left">
-          <span class="text-xs font-semibold text-gray-200">Main Workspace</span>
-          <span class="text-[10px] text-linksy-400 font-mono">Owner</span>
+          <span class="text-xs font-semibold text-gray-200">{{ authStore.user.name }}</span>
+          <span class="text-[10px] text-linksy-400 font-mono">{{ authStore.user.email }}</span>
         </div>
+        <button
+          @click="authStore.logout"
+          title="Sign Out"
+          class="p-1.5 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-gray-800 transition-colors ml-1"
+        >
+          <LogOut class="w-3.5 h-3.5" />
+        </button>
       </div>
     </div>
   </header>
@@ -55,11 +72,13 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { Search, Plus, Sun, Moon, Monitor } from 'lucide-vue-next'
+import { Search, Plus, Sun, Moon, Monitor, LogIn, LogOut } from 'lucide-vue-next'
 import { useThemeStore } from '../stores/theme'
+import { useAuthStore } from '../stores/auth'
 
 defineEmits(['open-create', 'search'])
 const themeStore = useThemeStore()
+const authStore = useAuthStore()
 const searchQuery = ref('')
 
 const themeTitle = computed(() => {

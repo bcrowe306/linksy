@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: linksy-app
+    name: lynqr-test
     runtime: go
-    plan: starter
+    plan: free
     region: oregon
-    buildCommand: "cd web && npm install && npm run build && cd .. && go build -o bin/linksy cmd/api/main.go"
+    buildCommand: "make build"
     startCommand: "./bin/linksy"
     envVars:
       - key: PORT
@@ -13,26 +13,30 @@ services:
         value: postgres
       - key: DATABASE_URL
         fromDatabase:
-          name: linksy-postgres
-          property: connectionString
+          name: linksy-db
+          property: internalConnectionString
       - key: STORAGE_TYPE
-        value: local
-      - key: STORAGE_PATH
-        value: /var/data/uploads
+        value: r2
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        value: lynqr-storage
       - key: APP_URL
-        value: https://linksy-app.onrender.com
+        value: https://test.lynqr.app
       - key: WORKOS_API_KEY
         sync: false
       - key: WORKOS_CLIENT_ID
         sync: false
-    disk:
-      name: linksy-storage
-      mountPath: /var/data
-      sizeGB: 10
+      - key: WORKOS_REDIRECT_URI
+        value: https://test.lynqr.app/api/v1/auth/callback
 
 databases:
-  - name: linksy-postgres
-    plan: starter
+  - name: linksy-db
+    plan: free
     region: oregon
-    databaseName: linksy
-    user: linksy_user
+    databaseName: linksy_db
+    user: linksy_db_user

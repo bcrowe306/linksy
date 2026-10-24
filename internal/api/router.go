@@ -8,13 +8,15 @@ import (
 
 	"github.com/bcrowe306/linksy/internal/api/handler"
 	"github.com/bcrowe306/linksy/internal/api/middleware"
+	"github.com/bcrowe306/linksy/internal/config"
 	"github.com/bcrowe306/linksy/internal/service"
 )
 
-func SetupRouter(app *fiber.App, svc *service.Service, appURL string) {
+func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	middleware.SetupCommon(app)
 
-	h := handler.New(svc, appURL)
+	h := handler.New(svc, cfg.AppURL)
+	authH := handler.NewAuthHandler(cfg)
 
 	// Public health check
 	app.Get("/health", h.Health)
@@ -23,6 +25,12 @@ func SetupRouter(app *fiber.App, svc *service.Service, appURL string) {
 	// API Interactive Documentation & OpenAPI Spec
 	app.Get("/api/docs", h.HandleAPIDocs)
 	app.Get("/api/v1/openapi.json", h.HandleOpenAPISpec)
+
+	// Authentication Routes (WorkOS AuthKit & User Management)
+	app.Get("/api/v1/auth/config", authH.GetAuthConfig)
+	app.Get("/api/v1/auth/login", authH.HandleLogin)
+	app.Get("/api/v1/auth/callback", authH.HandleCallback)
+	app.Get("/api/v1/auth/me", authH.GetCurrentUser)
 
 	// High throughput public redirectors
 	app.Get("/s/:slug", middleware.RedirectRateLimiter(), h.HandleShortLinkRedirect)
