@@ -41,6 +41,11 @@ Thumbs.db
 *.swp
 *.swo
 
+# Local SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
 # Uploaded documents / storage in local dev
 /uploads/
 /storage/
