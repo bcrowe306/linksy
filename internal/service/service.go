@@ -158,8 +158,14 @@ func (s *Service) ResolveShortLink(slug string) (*models.Link, error) {
 	return link, nil
 }
 
-func (s *Service) UpdateShortLink(id string, targetURL, title, description string, isActive bool, expiresAt *time.Time) (*models.Link, error) {
-	link, err := s.repo.GetLinkByID(id)
+func (s *Service) UpdateShortLink(id string, targetURL, title, description string, isActive bool, expiresAt *time.Time, teamID ...string) (*models.Link, error) {
+	var link *models.Link
+	var err error
+	if len(teamID) > 0 && teamID[0] != "" {
+		link, err = s.repo.GetLinkByIDAndTeam(id, teamID[0])
+	} else {
+		link, err = s.repo.GetLinkByID(id)
+	}
 	if err != nil {
 		return nil, ErrLinkNotFound
 	}
@@ -190,6 +196,13 @@ func (s *Service) ListLinks(teamID string, limit, offset int) ([]models.Link, er
 		limit = 50
 	}
 	return s.repo.ListLinks(teamID, limit, offset)
+}
+
+func (s *Service) GetLink(id string, teamID ...string) (*models.Link, error) {
+	if len(teamID) > 0 && teamID[0] != "" {
+		return s.repo.GetLinkByIDAndTeam(id, teamID[0])
+	}
+	return s.repo.GetLinkByID(id)
 }
 
 func (s *Service) DeleteLink(id string, teamID ...string) error {
@@ -267,8 +280,14 @@ func (s *Service) CreateQRCode(input CreateQRInput) (*models.QRCode, error) {
 	return qrCode, nil
 }
 
-func (s *Service) UpdateQRCode(id string, title, targetURL, rawData string, style models.QRStyle) (*models.QRCode, error) {
-	existing, err := s.repo.GetQRCodeByID(id)
+func (s *Service) UpdateQRCode(id string, title, targetURL, rawData string, style models.QRStyle, teamID ...string) (*models.QRCode, error) {
+	var existing *models.QRCode
+	var err error
+	if len(teamID) > 0 && teamID[0] != "" {
+		existing, err = s.repo.GetQRCodeByIDAndTeam(id, teamID[0])
+	} else {
+		existing, err = s.repo.GetQRCodeByID(id)
+	}
 	if err != nil {
 		return nil, ErrQRNotFound
 	}

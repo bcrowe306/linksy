@@ -67,6 +67,7 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	// Short Links
 	api.Post("/links", h.CreateLink)
 	api.Get("/links", h.ListLinks)
+	api.Get("/links/:id", h.GetLink)
 	api.Put("/links/:id", h.UpdateLink)
 	api.Delete("/links/:id", h.DeleteLink)
 

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -173,6 +174,20 @@ func (h *Handler) ListLinks(c fiber.Ctx) error {
 	})
 }
 
+func (h *Handler) GetLink(c fiber.Ctx) error {
+	id := c.Params("id")
+	auth := middleware.GetAuth(c)
+	teamID := ""
+	if auth != nil {
+		teamID = auth.TeamID
+	}
+	link, err := h.svc.GetLink(id, teamID)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Link not found"})
+	}
+	return c.JSON(link)
+}
+
 type UpdateLinkRequest struct {
 	TargetURL   string     `json:"target_url"`
 	Title       string     `json:"title"`
@@ -183,6 +198,7 @@ type UpdateLinkRequest struct {
 
 func (h *Handler) UpdateLink(c fiber.Ctx) error {
 	id := c.Params("id")
+	auth := middleware.GetAuth(c)
 	var req UpdateLinkRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
@@ -193,8 +209,15 @@ func (h *Handler) UpdateLink(c fiber.Ctx) error {
 		isActive = *req.IsActive
 	}
 
-	updated, err := h.svc.UpdateShortLink(id, req.TargetURL, req.Title, req.Description, isActive, req.ExpiresAt)
+	teamID := ""
+	if auth != nil {
+		teamID = auth.TeamID
+	}
+	updated, err := h.svc.UpdateShortLink(id, req.TargetURL, req.Title, req.Description, isActive, req.ExpiresAt, teamID)
 	if err != nil {
+		if errors.Is(err, service.ErrLinkNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Link not found"})
+		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -293,6 +316,7 @@ type UpdateQRRequest struct {
 
 func (h *Handler) UpdateQR(c fiber.Ctx) error {
 	id := c.Params("id")
+	auth := middleware.GetAuth(c)
 	var req UpdateQRRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
@@ -302,8 +326,15 @@ func (h *Handler) UpdateQR(c fiber.Ctx) error {
 		req.TargetURL = req.Payload
 	}
 
-	updated, err := h.svc.UpdateQRCode(id, req.Title, req.TargetURL, req.RawData, req.Style)
+	teamID := ""
+	if auth != nil {
+		teamID = auth.TeamID
+	}
+	updated, err := h.svc.UpdateQRCode(id, req.Title, req.TargetURL, req.RawData, req.Style, teamID)
 	if err != nil {
+		if errors.Is(err, service.ErrQRNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "QR code not found"})
+		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
