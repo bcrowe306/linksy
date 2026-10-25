@@ -27,6 +27,7 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	// API Interactive Documentation & OpenAPI Spec
 	app.Get("/api/docs", h.HandleAPIDocs)
 	app.Get("/api/v1/openapi.json", h.HandleOpenAPISpec)
+	app.Get("/api/v1/openapi.yaml", h.HandleOpenAPIYAML)
 
 	// Authentication (WorkOS password, email verification, OAuth / AuthKit)
 	authLimit := middleware.AuthRateLimiter()

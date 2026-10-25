@@ -1,70 +1,103 @@
 <template>
   <div class="space-y-6">
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h1 class="page-title">API Reference</h1>
-        <p class="page-subtitle">Every endpoint, with an interactive console. Authenticate with a Bearer API key from your profile.</p>
+    <PageHeader title="API Reference" subtitle="Automate links, QR codes, documents and analytics. Authenticate with an API key from your profile.">
+      <template #actions>
+        <a href="/api/v1/openapi.yaml" class="btn-secondary font-mono text-xs" download><FileCode class="h-4 w-4" /> openapi.yaml</a>
+        <a href="/api/docs" target="_blank" rel="noopener" class="btn-secondary"><ExternalLink class="h-4 w-4" /> Full screen</a>
+        <router-link v-if="auth.isAuthenticated" to="/profile?tab=api-keys" class="btn-primary"><KeyRound class="h-4 w-4" /> Get an API key</router-link>
+      </template>
+    </PageHeader>
+
+    <section class="card overflow-hidden">
+      <header class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
+        <h2 class="text-sm font-semibold text-fg">Quick start: create a dynamic QR code</h2>
+        <div class="flex gap-1 rounded-xl bg-subtle p-1" role="tablist">
+          <button v-for="l in langs" :key="l" role="tab" :aria-selected="lang === l" class="rounded-lg px-3 py-1 text-xs font-medium" :class="lang === l ? 'bg-surface text-fg shadow-card' : 'text-fg-muted'" @click="lang = l">{{ l }}</button>
+        </div>
+      </header>
+      <div class="relative">
+        <pre class="overflow-x-auto bg-[#0c0c0e] p-5 font-mono text-[12px] leading-relaxed text-zinc-200"><code>{{ samples[lang] }}</code></pre>
+        <div class="absolute right-3 top-3"><CopyButton :value="samples[lang]" label="Copy code" /></div>
       </div>
+    </section>
 
-      <div class="flex items-center gap-3">
-        <a
-          href="/api/v1/openapi.json"
-          target="_blank"
-          class="btn-secondary font-mono text-xs"
-        >
-          <FileCode class="w-3.5 h-3.5" />
-          <span>openapi.json</span>
-        </a>
-        <a
-          href="/api/docs"
-          target="_blank"
-          class="btn-primary"
-        >
-          <ExternalLink class="w-3.5 h-3.5" />
-          <span>Full Scalar Portal</span>
-        </a>
-      </div>
-    </div>
-
-    <!-- Quick Code Snippet Examples -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div class="card p-5 space-y-2">
-        <span class="text-xs font-bold text-brand-500 flex items-center gap-1.5">
-          <Terminal class="w-3.5 h-3.5" />
-          <span>Generate Dynamic QR Code (cURL)</span>
-        </span>
-        <pre class="bg-[#0c0c0e] p-3 rounded-xl font-mono text-[11px] text-zinc-300 overflow-x-auto leading-relaxed">curl -X POST https://lynqr.app/api/v1/qr \
-  -H "Authorization: Bearer lk_live_…" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "website",
-    "title": "Summer Menu",
-    "target_url": "https://example.com/menu",
-    "is_dynamic": true,
-    "style": { "fg_color": "#1E40AF", "border_width": 2 }
-  }'</pre>
-      </div>
-
-      <div class="card p-5 space-y-2">
-        <span class="text-xs font-bold text-emerald-500 flex items-center gap-1.5">
-          <Download class="w-3.5 h-3.5" />
-          <span>Export Formats (PNG, JPEG, PDF, SVG)</span>
-        </span>
-        <pre class="bg-[#0c0c0e] p-3 rounded-xl font-mono text-[11px] text-zinc-300 overflow-x-auto leading-relaxed"># Download Print-Ready PDF
-GET /api/v1/qr/{id}/export?format=pdf&download=true
-
-# High Res SVG Vector
-GET /api/v1/qr/{id}/export?format=svg&size=1024</pre>
-      </div>
-    </div>
-
-    <!-- Embedded Scalar API Reference Iframe -->
-    <div class="card overflow-hidden h-[75vh] min-h-[600px]">
-      <iframe src="/api/docs" title="Lynqr API reference" class="w-full h-full border-0"></iframe>
+    <div class="card h-[78vh] min-h-[600px] overflow-hidden">
+      <iframe :key="theme.effectiveTheme" :src="`/api/docs?theme=${theme.effectiveTheme}`" title="Lynqr API reference" class="h-full w-full border-0" />
     </div>
   </div>
 </template>
 
 <script setup>
-import { FileCode, ExternalLink, Terminal, Download } from 'lucide-vue-next'
+import { ref } from 'vue'
+import { FileCode, ExternalLink, KeyRound } from 'lucide-vue-next'
+import { useThemeStore } from '../stores/theme'
+import { useAuthStore } from '../stores/auth'
+import PageHeader from '../components/ui/PageHeader.vue'
+import CopyButton from '../components/ui/CopyButton.vue'
+
+const theme = useThemeStore()
+const auth = useAuthStore()
+const origin = window.location.origin
+const langs = ['cURL', 'Python', 'JavaScript', 'Go']
+const lang = ref('cURL')
+const body = '{"type":"website","title":"Poster","target_url":"https://example.com","is_dynamic":true}'
+
+const samples = {
+  cURL: `# 1. Create the code
+curl -X POST ${origin}/api/v1/qr \\
+  -H "Authorization: Bearer $LYNQR_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '${body}'
+
+# 2. Download it as SVG
+curl -o poster.svg "${origin}/api/v1/qr/<id>/export?format=svg" \\
+  -H "Authorization: Bearer $LYNQR_KEY"`,
+  Python: `import os, requests
+
+API = "${origin}/api/v1"
+headers = {"Authorization": f"Bearer {os.environ['LYNQR_KEY']}"}
+
+qr = requests.post(f"{API}/qr", headers=headers, json={
+    "type": "website", "title": "Poster",
+    "target_url": "https://example.com", "is_dynamic": True,
+}).json()
+
+svg = requests.get(f"{API}/qr/{qr['id']}/export", params={"format": "svg"}, headers=headers)
+open("poster.svg", "wb").write(svg.content)
+print("Scan URL:", qr["scan_url"])`,
+  JavaScript: `const API = "${origin}/api/v1";
+const headers = { Authorization: \`Bearer \${process.env.LYNQR_KEY}\`, "Content-Type": "application/json" };
+
+const qr = await fetch(\`\${API}/qr\`, {
+  method: "POST",
+  headers,
+  body: JSON.stringify({ type: "website", title: "Poster", target_url: "https://example.com", is_dynamic: true }),
+}).then((r) => r.json());
+
+const svg = await fetch(\`\${API}/qr/\${qr.id}/export?format=svg\`, { headers }).then((r) => r.text());
+console.log("Scan URL:", qr.scan_url);`,
+  Go: `package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"strings"
+)
+
+func main() {
+	req, _ := http.NewRequest("POST", "${origin}/api/v1/qr",
+		strings.NewReader(\`${body}\`))
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("LYNQR_KEY"))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	out, _ := io.ReadAll(resp.Body)
+	fmt.Println(string(out))
+}`
+}
 </script>

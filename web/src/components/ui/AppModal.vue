@@ -10,6 +10,7 @@
           ref="panel"
           role="dialog"
           aria-modal="true"
+          :data-open="open"
           :aria-labelledby="title ? titleId : undefined"
           tabindex="-1"
           class="relative w-full bg-elevated border border-line shadow-pop flex flex-col max-h-[92vh] animate-scale-in

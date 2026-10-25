@@ -20,7 +20,7 @@
           {{ t.label }}
         </button>
       </div>
-      <p class="hint">{{ typeMeta(model.type).description }}</p>
+      <p class="hint flex flex-wrap items-center gap-x-2">{{ typeMeta(model.type).description }} <HelpLink guide="qr-types" :anchor="model.type" /></p>
     </div>
     <div v-else class="flex items-center gap-2 rounded-xl bg-subtle px-3 py-2 text-sm text-fg-muted">
       <component :is="typeMeta(model.type).icon" class="h-4 w-4" />
@@ -37,6 +37,7 @@
         <input id="qr-url" v-model="model.target_url" type="url" placeholder="https://example.com/spring-menu" class="input" data-testid="qr-target-url" />
       </div>
       <DynamicToggle v-if="!lockType" v-model="model.is_dynamic" />
+      <HelpLink guide="dynamic-vs-static">Dynamic or static?</HelpLink>
     </template>
 
     <!-- Document -->
@@ -157,6 +158,7 @@
 </template>
 
 <script setup>
+import HelpLink from '../ui/HelpLink.vue'
 import { ref, computed, defineComponent, h } from 'vue'
 import { Loader2 } from 'lucide-vue-next'
 import { QR_TYPES, typeMeta, defaultsFor } from '../../lib/qrContent'

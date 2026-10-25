@@ -504,3 +504,28 @@ def test_dashboard_and_analytics(page: Page, base_url: str):
         with page.expect_download() as dl:
             page.locator(f"text=({fmt})").click()
         assert dl.value.suggested_filename.startswith("lynqr-"), dl.value.suggested_filename
+
+
+def test_help_drawer_shortcuts_and_api_reference(page: Page, base_url: str):
+    """Keyboard shortcuts, searchable guides with deep links, and the embedded API reference."""
+    authenticate_page(page, base_url)
+    page.goto(f"{base_url}/")
+    page.wait_for_load_state("networkidle")
+    page.keyboard.press("?")
+    expect(page.locator("[data-testid=shortcuts-modal]")).to_be_visible()
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(400)
+    page.keyboard.press("g")
+    page.keyboard.press("a")
+    page.wait_for_url("**/analytics")
+
+    page.keyboard.press("h")
+    page.fill("[data-testid=help-search]", "wifi")
+    page.click("[data-testid=guide-qr-types]")
+    expect(page.locator("[data-testid=guide-article]")).to_contain_text("Wi-Fi network")
+    page.keyboard.press("Escape")
+
+    spec = requests.get(f"{base_url}/api/v1/openapi.json", timeout=10).json()
+    assert spec["openapi"] == "3.1.0" and "/api/v1/qr/{id}/export" in spec["paths"]
+    page.goto(f"{base_url}/api-docs")
+    expect(page.frame_locator("iframe[title='Lynqr API reference']").get_by_text("Lynqr API").first).to_be_visible(timeout=15000)

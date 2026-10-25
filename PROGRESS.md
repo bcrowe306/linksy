@@ -13,8 +13,8 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 | 3 | QR studio: real preview, all types, styling, exports | `feat/qr-studio` | ✅ merged (#3), live API 64/64 + UI 14/14 |
 | 4 | Links: password, UTM, expiry & pause | `feat/link-controls` | ✅ merged (#4), live API 64/64 + UI 15/15 |
 | 5 | Team & user management UI | `feat/team-management-ui` | ✅ merged (#5, #6), live API 64/64 + UI 15/15 |
-| 6 | Dashboard & analytics (charts, ranges, geo, export, live feed, CF geo headers) | `feat/analytics` | 🚧 PR open |
-| 7 | Tooltips, Quick Docs, shortcuts, user guides | `feat/help-docs` | ⏳ |
+| 6 | Dashboard & analytics (charts, ranges, geo, export, live feed, CF geo headers) | `feat/analytics` | ✅ merged (#7), live API 64/64 + UI 16/16 |
+| 7 | Tooltips, Quick Docs, shortcuts, user guides | `feat/help-docs` | 🚧 PR open |
 | 8 | Stripe billing (7-day no-card trial · $5/mo annual or $8.99 monthly · per workspace) | `feat/billing` | ⏳ keys + pricing received 2026-10-25 |
 | 9 | SEO & public marketing site | `feat/seo-marketing` | ⏳ requested 2026-10-25 |
 | 10 | Test suites (Go, Vitest, Playwright, live test-drive) | `feat/test-suites` | ⏳ (tests also added per area) |
@@ -94,6 +94,15 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 - [x] Charts built to the dataviz method: validated two-series palette (light+dark), sequential blue ramp, thin marks, crosshair tooltips, legends, partial-period fading, and a table view for every chart
 - [x] Dashboard: greeting, onboarding checklist, KPI tiles with deltas + sparklines, trend, live activity, top links/QR/countries, recent assets; Analytics: date-range presets/custom, asset filter, shareable URL, KPIs, trend, world choropleth, locations, tech breakdowns, channels, referrers, heatmap, top assets
 - [x] Tests: ingestion enrichment & bot filtering, tz/DST-correct series and heatmap, previous period, report/export e2e (incl. CSV injection, tenant isolation), websocket e2e (incl. cross-origin rejection); live Playwright analytics test
+- [x] CI + merge + live test-drive
+
+## 7. Help, docs & usability (feat/help-docs)
+- [x] Nine user guides in `docs/guides/*.md` (getting started, dynamic vs static, QR types with per-type anchors, design for scannability, short links, documents, analytics, teams & roles, API), embedded in the binary for reuse by public SEO pages
+- [x] Help drawer: searchable guide library, reader with deep-linkable sections, related guides; contextual "Learn more" links on Links, QR Studio (per type, design tips), Documents, Analytics, Team settings, API keys, onboarding
+- [x] Keyboard shortcuts with an overlay (`?`): `/` search, `H` help, `T` theme, `N`+`L/Q/D/S` create, `G`+`H/L/Q/D/A/S/P` navigate; disabled while typing or in dialogs
+- [x] Complete OpenAPI 3.1 spec (`docs/openapi.yaml`, served as JSON/YAML): every API-key endpoint, schemas for every QR content type and style option, errors, rate limits, and code samples in cURL/Go/Python/JavaScript; drift test fails if a public route is undocumented
+- [x] API Reference page: four-language quick start, theme-matched embedded Scalar reference, spec download
+- [x] Tooltips across forms (already added per item); chart axis end-label fix
 - [ ] CI + merge + live test-drive
 
 ## 8. Stripe billing (plan)

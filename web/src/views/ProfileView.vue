@@ -112,7 +112,10 @@
           </tbody>
         </table>
       </section>
-      <router-link to="/api-docs" class="inline-flex items-center gap-1.5 text-sm text-brand-500 hover:underline"><BookOpen class="h-4 w-4" /> Read the API reference</router-link>
+      <div class="flex flex-wrap gap-4">
+        <router-link to="/api-docs" class="inline-flex items-center gap-1.5 text-sm text-brand-500 hover:underline"><BookOpen class="h-4 w-4" /> Read the API reference</router-link>
+        <HelpLink guide="api">Quick start guide</HelpLink>
+      </div>
     </div>
 
     <!-- Workspaces -->
@@ -205,6 +208,7 @@
 </template>
 
 <script setup>
+import HelpLink from '../components/ui/HelpLink.vue'
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import {

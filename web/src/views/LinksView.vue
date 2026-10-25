@@ -1,6 +1,7 @@
 <template>
   <div>
     <PageHeader title="Short Links" subtitle="Branded, trackable links you can re-point at any time.">
+      <template #title-extra><HelpLink guide="short-links" /></template>
       <template #actions>
         <button v-if="canEdit" class="btn-primary" data-testid="new-link" @click="$emit('open-create', 'link')">
           <Plus class="w-4 h-4" /> New link
@@ -170,6 +171,7 @@
 </template>
 
 <script setup>
+import HelpLink from '../components/ui/HelpLink.vue'
 import { ref, computed, h } from 'vue'
 import { useRoute } from 'vue-router'
 import { Plus, Link2, Search, SearchX, Pencil, Trash2, Pause, Play, BarChart3, Loader2, Lock, Tag, QrCode } from 'lucide-vue-next'

@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-3">
+    <div class="flex justify-end"><HelpLink guide="short-links">About link options</HelpLink></div>
     <!-- Password -->
     <details class="group rounded-xl border border-line" :open="openSection === 'password' || undefined">
       <summary class="flex cursor-pointer list-none items-center gap-3 px-3.5 py-2.5 text-sm">
@@ -89,6 +90,7 @@
 </template>
 
 <script setup>
+import HelpLink from './ui/HelpLink.vue'
 import { ref, computed } from 'vue'
 import { Lock, Tag, CalendarClock, ChevronDown, Eye, EyeOff } from 'lucide-vue-next'
 import Tip from './ui/Tip.vue'
