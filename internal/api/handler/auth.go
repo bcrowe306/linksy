@@ -159,7 +159,7 @@ func (a *AuthHandler) HandleSignUp(c fiber.Ctx) error {
 
 	jsonBytes, _ := json.Marshal(workOSUserReq)
 	createReq, _ := http.NewRequest("POST", "https://api.workos.com/user_management/users", bytes.NewBuffer(jsonBytes))
-	createReq.Header.Set("Authorization", "Bearer "+a.cfg.WorkOSAPIKey)
+	createReq.Header.Set("Authorization", "Bearer "+a.getActiveWorkOSKey())
 	createReq.Header.Set("Content-Type", "application/json")
 
 	createResp, err := a.httpClient.Do(createReq)
@@ -183,6 +183,15 @@ func (a *AuthHandler) HandleSignUp(c fiber.Ctx) error {
 
 	var createdUser WorkOSUser
 	_ = json.Unmarshal(bodyBytes, &createdUser)
+
+	if a.svc != nil && createdUser.ID != "" {
+		_ = a.svc.UpdateUserProfile(&models.User{
+			ID:        createdUser.ID,
+			Email:     createdUser.Email,
+			FirstName: createdUser.FirstName,
+			LastName:  createdUser.LastName,
+		})
+	}
 
 	// 2. Attempt WorkOS password authentication grant
 	authErr := a.authenticateWithPassword(c, req.Email, req.Password)
@@ -238,46 +247,103 @@ func (a *AuthHandler) HandlePasswordLogin(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Email and password are required"})
 	}
 
-	return a.authenticateWithPassword(c, req.Email, req.Password)
+	if err := a.authenticateWithPassword(c, req.Email, req.Password); err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+	return nil
 }
 
 func (a *AuthHandler) authenticateWithPassword(c fiber.Ctx, email, password string) error {
-	authReq := map[string]interface{}{
-		"client_id":  a.cfg.WorkOSClient,
-		"grant_type": "password",
-		"email":      email,
-		"password":   password,
-		"ip_address": c.IP(),
-		"user_agent": c.Get("User-Agent"),
+	type credentialPair struct {
+		clientID string
+		secret   string
 	}
 
-	jsonBytes, _ := json.Marshal(authReq)
-	httpReq, _ := http.NewRequest("POST", "https://api.workos.com/user_management/authenticate", bytes.NewBuffer(jsonBytes))
-	httpReq.Header.Set("Authorization", "Bearer "+a.cfg.WorkOSAPIKey)
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := a.httpClient.Do(httpReq)
-	if err != nil {
-		return fmt.Errorf("authentication service error: %w", err)
+	pairs := []credentialPair{
+		{a.cfg.WorkOSClient, a.cfg.WorkOSAPIKey},
 	}
-	defer resp.Body.Close()
-
-	respBytes, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		var errObj map[string]interface{}
-		_ = json.Unmarshal(respBytes, &errObj)
-		errMsg := "Invalid email or password"
-		if desc, ok := errObj["error_description"].(string); ok {
-			errMsg = desc
-		} else if msg, ok := errObj["message"].(string); ok {
-			errMsg = msg
-		}
-		return fmt.Errorf("%s", errMsg)
+	if a.cfg.WorkOSClientIDProd != "" && a.cfg.WorkOSAPIKeyProd != "" {
+		pairs = append(pairs, credentialPair{a.cfg.WorkOSClientIDProd, a.cfg.WorkOSAPIKeyProd})
+	}
+	if a.cfg.WorkOSClientIDStaging != "" && a.cfg.WorkOSAPIKeyTest != "" {
+		pairs = append(pairs, credentialPair{a.cfg.WorkOSClientIDStaging, a.cfg.WorkOSAPIKeyTest})
 	}
 
 	var authResp WorkOSAuthResponse
-	if err := json.Unmarshal(respBytes, &authResp); err != nil {
-		return fmt.Errorf("failed to parse authentication response")
+	var lastErr string
+	success := false
+
+	for _, pair := range pairs {
+		if pair.clientID == "" || pair.secret == "" {
+			continue
+		}
+
+		authReq := map[string]interface{}{
+			"client_id":     pair.clientID,
+			"client_secret": pair.secret,
+			"grant_type":    "password",
+			"email":         email,
+			"password":      password,
+			"ip_address":    c.IP(),
+			"user_agent":    c.Get("User-Agent"),
+		}
+
+		jsonBytes, err := json.Marshal(authReq)
+		if err != nil {
+			continue
+		}
+
+		httpReq, err := http.NewRequest("POST", "https://api.workos.com/user_management/authenticate", bytes.NewBuffer(jsonBytes))
+		if err != nil {
+			continue
+		}
+		httpReq.Header.Set("Authorization", "Bearer "+pair.secret)
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		resp, err := a.httpClient.Do(httpReq)
+		if err != nil {
+			lastErr = err.Error()
+			continue
+		}
+
+		respBytes, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			if err := json.Unmarshal(respBytes, &authResp); err == nil {
+				success = true
+				break
+			}
+		} else {
+			var errObj map[string]interface{}
+			_ = json.Unmarshal(respBytes, &errObj)
+			if desc, ok := errObj["error_description"].(string); ok && desc != "" {
+				lastErr = desc
+			} else if msg, ok := errObj["message"].(string); ok && msg != "" {
+				lastErr = msg
+			} else {
+				lastErr = fmt.Sprintf("Authentication failed with status %d", resp.StatusCode)
+			}
+		}
+	}
+
+	if !success {
+		if lastErr == "" {
+			lastErr = "Invalid email or password"
+		}
+		return fmt.Errorf("%s", lastErr)
+	}
+
+	// Sync user profile to database
+	if a.svc != nil && authResp.User.ID != "" {
+		_ = a.svc.UpdateUserProfile(&models.User{
+			ID:        authResp.User.ID,
+			Email:     authResp.User.Email,
+			FirstName: authResp.User.FirstName,
+			LastName:  authResp.User.LastName,
+		})
 	}
 
 	// Set session cookie
