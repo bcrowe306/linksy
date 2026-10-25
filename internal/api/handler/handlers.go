@@ -635,6 +635,22 @@ func (h *Handler) GetAnalyticsSummary(c fiber.Ctx) error {
 	return c.JSON(summary)
 }
 
+// renderNotice shows a neutral confirmation page in the branded layout.
+func (h *Handler) renderNotice(c fiber.Ctx, title, message string) error {
+	c.Set("Cache-Control", "no-store")
+	page := fmt.Sprintf(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"><title>%s | Lynqr</title><style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:#0c0c0e;color:#f4f4f6;padding:24px}
+.card{max-width:420px;width:100%%;background:#16161a;border:1px solid #2c2c32;border-radius:20px;padding:32px;text-align:center}
+.icon{width:48px;height:48px;margin:0 auto 16px;border-radius:14px;background:rgba(16,185,129,.15);display:flex;align-items:center;justify-content:center;color:#34d399}
+h1{font-size:20px;margin:0 0 8px}p{color:#acacb4;font-size:14px;line-height:1.55;margin:0 0 20px}
+a{display:block;padding:12px;border-radius:12px;background:linear-gradient(#6366f1,#4f46e5);color:#fff;font-weight:600;text-decoration:none}
+</style></head><body><div class="card"><div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></div>
+<h1>%s</h1><p>%s</p><a href="/profile?tab=notifications">Email settings</a></div></body></html>`,
+		html.EscapeString(title), html.EscapeString(title), html.EscapeString(message))
+	return c.Type("html").SendString(page)
+}
+
 func (h *Handler) renderBrandedError(c fiber.Ctx, title, message string, statusCode int) error {
 	accept := c.Get("Accept")
 	if strings.Contains(accept, "application/json") && !strings.Contains(accept, "text/html") {

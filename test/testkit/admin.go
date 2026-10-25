@@ -27,7 +27,7 @@ func (k *Kit) AdminLogin(addr string) *User {
 	k.Svc.SetAdminEmails([]string{addr})
 	u := k.Login(addr)
 	k.Expect(k.Do("POST", "/api/v1/admin/session/code", u.Token, nil), http.StatusOK, "send admin code")
-	msg, ok := mail.Last(addr)
+	msg, ok := mail.LastTagged(addr, "admin_code")
 	if !ok {
 		k.T.Fatal("no admin code email")
 	}

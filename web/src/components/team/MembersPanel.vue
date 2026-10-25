@@ -115,7 +115,8 @@
       <div v-if="createdInvite" class="space-y-3">
         <div class="flex items-start gap-3 rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
           <CheckCircle2 class="mt-0.5 h-4 w-4 shrink-0" />
-          <span>Invitation created for <strong>{{ createdInvite.email }}</strong>. Share this link with them. It's shown only once.</span>
+          <span v-if="createdInvite.emailed">We emailed an invitation to <strong>{{ createdInvite.email }}</strong>. You can also share this link with them; it's shown only once.</span>
+          <span v-else>Invitation created for <strong>{{ createdInvite.email }}</strong>. Share this link with them. It's shown only once.</span>
         </div>
         <div class="flex items-center gap-2 rounded-xl border border-line bg-subtle/60 p-2">
           <code class="flex-1 truncate px-1 text-xs text-fg" data-testid="invite-url">{{ createdInvite.accept_url }}</code>

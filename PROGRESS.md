@@ -18,8 +18,7 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 | 8 | Stripe billing (7-day no-card trial · $5/mo annual or $8.99 monthly · per workspace) | `feat/billing` | ✅ PR open 2026-10-25 |
 | 9 | SEO & public marketing site | `feat/seo-marketing` | ⏳ requested 2026-10-25 |
 | 10 | Test suites (Go, Vitest, Playwright, live test-drive) | `feat/test-suites` | ⏳ (tests also added per area) |
-| 11 | Email notifications (Resend) | `feat/email` | ⏳ ready: send-only key + from `noreply@lynqr.app` |
-
+| 11 | Email notifications (Resend) | `feat/email` | ✅ PR open 2026-10-25 |
 ## 1. Auth & tenancy (feat/auth-tenancy)
 - [x] Opaque, server-side sessions (`lqs_` tokens, SHA-256 at rest, HttpOnly + Secure + SameSite=Lax cookie, 30-day sliding expiry, revocable)
 - [x] Removed forgeable auth: raw `user_` ids, unsigned `sess_<id>` tokens, unverified JWTs, `usr_` fallbacks, demo user
@@ -158,3 +157,10 @@ Original plan:
 ## Notes
 - Production data was reset by migration `0001_init` (approved: test data only).
 - Local dev without WorkOS: `DEV_LOGIN=true APP_URL=http://localhost:8080 make dev-backend` shows a dev sign-in on /login.
+
+## 11. Email notifications (Resend)
+Done (`feat/email`):
+- [x] `internal/email`: Resend sender, a branded HTML and plain-text layout, and one-click `List-Unsubscribe`
+- [x] Sent: welcome; new-browser sign-in and password-change security alerts (always on); invitations (with the accept link) and "member joined" for the inviter; role changes; subscription confirmed, payment failed, subscription ended; trial reminders at 3 days, 1 day and on end; an opt-in weekly analytics report; abuse reports to staff
+- [x] Preferences respected (team activity, usage alerts, weekly report); signed `/email/unsubscribe` links; scheduled emails recorded in `email_log` so each goes out once
+- [x] Test-suite addresses are never emailed (`EMAIL_SUPPRESS_PATTERN`); password reset and verification emails stay with WorkOS

@@ -43,7 +43,7 @@ func TestAdminAccessRequiresFlagAndReauth(t *testing.T) {
 		t.Fatalf("status: %v", st)
 	}
 	k.Expect(k.Do("POST", "/api/v1/admin/session/code", boss.Token, nil), http.StatusOK, "send code")
-	msg, _ := mail.Last("boss@lynqr.test")
+	msg, _ := mail.LastTagged("boss@lynqr.test", "admin_code")
 	code := strings.Fields(strings.TrimPrefix(msg.Subject, "Your Lynqr admin code: "))[0]
 	k.Expect(k.Do("POST", "/api/v1/admin/session", boss.Token, map[string]any{"code": "000000"}), http.StatusBadRequest, "wrong code")
 	k.Expect(k.Do("POST", "/api/v1/admin/session", boss.Token, map[string]any{"code": code}), http.StatusOK, "right code")

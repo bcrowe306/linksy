@@ -80,6 +80,7 @@ type Service struct {
 	lapses    lapseCache
 	admin     adminConfig
 	blocklist blocklistCache
+	mail      mailer
 }
 
 func New(repo *repository.Repository, storage storage.StorageProvider, appURL string) *Service {

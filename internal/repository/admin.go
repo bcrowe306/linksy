@@ -509,3 +509,50 @@ func (r *Repository) DailyCounts(table, where string, since time.Time) ([]models
 	}
 	return out, rows.Err()
 }
+
+// ----------------- Email log -----------------
+
+// MarkEmailSent records a scheduled email; false means it was already sent.
+func (r *Repository) MarkEmailSent(kind, ref string) (bool, error) {
+	res, err := r.exec(`INSERT INTO email_log (kind, ref, sent_at) VALUES (?, ?, ?) ON CONFLICT (kind, ref) DO NOTHING`, kind, ref, now())
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+// UsersWithPreference lists users who turned on a boolean notification preference.
+func (r *Repository) UsersWithPreference(key string) ([]models.User, error) {
+	rows, err := r.query(`SELECT `+userSelectCols+` FROM users WHERE suspended_reason = '' AND preferences LIKE ?`, `%"`+key+`":true%`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.User{}
+	for rows.Next() {
+		u, err := scanUser(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *u)
+	}
+	return out, rows.Err()
+}
+
+func (r *Repository) ListPlatformAdmins() ([]models.User, error) {
+	rows, err := r.query(`SELECT `+userSelectCols+` FROM users WHERE is_platform_admin = ? AND suspended_reason = ''`, true)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.User{}
+	for rows.Next() {
+		u, err := scanUser(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *u)
+	}
+	return out, rows.Err()
+}

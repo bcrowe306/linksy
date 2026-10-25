@@ -448,6 +448,7 @@ func (a *AuthHandler) HandleChangePassword(c fiber.Ctx) error {
 		_ = a.svc.EndOtherSessions(ac.UserID, ac.Session.ID)
 	}
 	a.svc.Audit(middleware.Actor(c), "user.password_change", "user", ac.UserID, nil)
+	a.svc.NotifyPasswordChanged(ac.UserID, middleware.ClientIP(c))
 	return c.JSON(fiber.Map{"message": "Password updated successfully. Other sessions were signed out."})
 }
 

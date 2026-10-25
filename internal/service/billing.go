@@ -368,6 +368,7 @@ func (s *Service) syncSubscription(subID, customer string) error {
 	s.forgetLapse(t.ID)
 	if after := b.State(time.Now()); after != before {
 		s.audit(Actor{UserID: "stripe", TeamID: t.ID}, "billing.status_change", "team", t.ID, map[string]any{"from": before, "to": after})
+		s.notifyBillingChange(t.ID, before, after)
 	}
 	return nil
 }
