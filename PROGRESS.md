@@ -18,7 +18,7 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 | 8 | Stripe billing (7-day no-card trial · $5/mo annual or $8.99 monthly · per workspace) | `feat/billing` | ⏳ keys + pricing received 2026-10-25 |
 | 9 | SEO & public marketing site | `feat/seo-marketing` | ⏳ requested 2026-10-25 |
 | 10 | Test suites (Go, Vitest, Playwright, live test-drive) | `feat/test-suites` | ⏳ (tests also added per area) |
-| 11 | Email notifications (Resend) | `feat/email` | ⏳ RESEND_API_KEY (send-only) added 2026-10-25; need verified from-address |
+| 11 | Email notifications (Resend) | `feat/email` | ⏳ ready: send-only key + from `noreply@lynqr.app` |
 
 ## 1. Auth & tenancy (feat/auth-tenancy)
 - [x] Opaque, server-side sessions (`lqs_` tokens, SHA-256 at rest, HttpOnly + Secure + SameSite=Lax cookie, 30-day sliding expiry, revocable)
@@ -112,7 +112,7 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 
 ## Open questions / blocked items
 - Stripe: decided (see item 8). The live key is used on test.lynqr.app by choice, so automated tests stop at the Checkout page.
-- Email: Resend chosen; key is send-only. Need the verified sending domain/from-address (e.g. `notifications@lynqr.app`).
+- Email: Resend, from `noreply@lynqr.app` (provided 2026-10-25).
 - WorkOS: confirm whether the environment emails password-reset links itself (otherwise item 8 sends them).
 
 ## Notes
