@@ -14,11 +14,12 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 | 4 | Links: password, UTM, expiry & pause | `feat/link-controls` | ✅ merged (#4), live API 64/64 + UI 15/15 |
 | 5 | Team & user management UI | `feat/team-management-ui` | ✅ merged (#5, #6), live API 64/64 + UI 15/15 |
 | 6 | Dashboard & analytics (charts, ranges, geo, export, live feed, CF geo headers) | `feat/analytics` | ✅ merged (#7), live API 64/64 + UI 16/16 |
-| 7 | Tooltips, Quick Docs, shortcuts, user guides | `feat/help-docs` | 🚧 PR open |
-| 8 | Stripe billing (7-day no-card trial · $5/mo annual or $8.99 monthly · per workspace) | `feat/billing` | ✅ PR open 2026-10-25 |
-| 9 | SEO & public marketing site | `feat/seo-marketing` | ⏳ requested 2026-10-25 |
-| 10 | Test suites (Go, Vitest, Playwright, live test-drive) | `feat/test-suites` | ⏳ (tests also added per area) |
-| 11 | Email notifications (Resend) | `feat/email` | ✅ PR open 2026-10-25 |
+| 7 | Tooltips, Quick Docs, shortcuts, user guides | `feat/help-docs` | ✅ merged (#8), live API 64/64 + UI 17/17 |
+| 8 | Stripe billing (7-day no-card trial · $5/mo annual or $8.99 monthly · per workspace) | `feat/billing` | ✅ merged (#9), live API 69/69 + UI 17/17 |
+| 8b | Platform admin console | `feat/admin` | ✅ merged (#10), live API 73/73 + UI 17/17 |
+| 9 | SEO & public marketing site (landing, guides, legal, free QR generator) | `feat/landing`, `feat/public-pages`, `feat/qr-generator` | ✅ merged (#11, #12, #14, #15) |
+| 10 | Test suites (Go, Vitest, Playwright, live test-drive) | `feat/vitest` | ✅ merged (#16), Go + 35 Vitest + live 73/73 + UI 17/17 |
+| 11 | Email notifications (Resend) | `feat/email` | ✅ merged (#13), live API 73/73 + UI 17/17 |
 ## 1. Auth & tenancy (feat/auth-tenancy)
 - [x] Opaque, server-side sessions (`lqs_` tokens, SHA-256 at rest, HttpOnly + Secure + SameSite=Lax cookie, 30-day sliding expiry, revocable)
 - [x] Removed forgeable auth: raw `user_` ids, unsigned `sess_<id>` tokens, unverified JWTs, `usr_` fallbacks, demo user
@@ -102,7 +103,7 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 - [x] Complete OpenAPI 3.1 spec (`docs/openapi.yaml`, served as JSON/YAML): every API-key endpoint, schemas for every QR content type and style option, errors, rate limits, and code samples in cURL/Go/Python/JavaScript; drift test fails if a public route is undocumented
 - [x] API Reference page: four-language quick start, theme-matched embedded Scalar reference, spec download
 - [x] Tooltips across forms (already added per item); chart axis end-label fix
-- [ ] CI + merge + live test-drive
+- [x] CI + merge + live test-drive
 
 ## 8. Stripe billing
 Done:
@@ -138,7 +139,7 @@ Original plan:
 - **Abuse moderation:** search links/QR by destination or domain, disable or restore with reason (shows a "disabled for abuse" page), domain blocklist checked at create/update time, user reports from the public error page
 - **Platform audit log:** every admin action with actor, target, before/after and IP; append-only
 
-## 9. SEO & marketing site (plan)
+## 9. SEO & marketing site
 - [x] **Landing page (requested 2026-10-25):** static, crawlable `home.html` (a second Vite entry) served at `/` to visitors without a session; signed-in users get the app. It has a hero with real product screenshots (light and dark), features, QR Studio and analytics spotlights, how it works, pricing with an annual/monthly toggle, FAQ, and a CTA. `?code=` is carried through sign-up to Billing.
 - [x] Public guides at `/guides` and `/guides/{slug}`, server-rendered from `docs/guides` (goldmark) with the landing page's CSS/JS, plus TechArticle JSON-LD and a sign-up CTA
 - [x] Terms of Service, Privacy Policy and Acceptable Use Policy at `/terms`, `/privacy` and `/acceptable-use` (`docs/legal`), linked from the footer and sign-up form. **Needs a lawyer's review before relying on it.**
@@ -172,3 +173,10 @@ Done (`feat/email`):
 - [x] Go: unit, service and e2e suites against SQLite and Postgres 16 in CI, with fakes for Stripe and email
 - [x] Vitest (`npm test`, also in `make test` and CI): formatting and range math, link forms, QR content serialization, guides, API client error and session signals, Toggle, the billing banner states, admin helpers, and the free generator payload. It caught the generator sending text codes as JSON.
 - [x] Live: `scripts/test_drive.py` (73 API checks including billing, admin and reports) and `tests/test_ui_playwright.py` (17 browser flows) after every deploy
+
+## Open items that need the owner
+- Legal pages (`/terms`, `/privacy`, `/acceptable-use`) need a lawyer's review. They don't yet name a legal entity or a governing law.
+- Confirm the support@lynqr.app mailbox exists (used across the app, emails and legal pages).
+- Confirm lynqr.app is a verified sending domain in Resend (no real email has been confirmed delivered yet).
+- Add lynqr.app to Google Search Console and submit https://lynqr.app/sitemap.xml.
+- lynqr.app and test.lynqr.app share one Render service and database (APP_URL is test.lynqr.app). Split them before real customers arrive so test runs don't touch production data.
