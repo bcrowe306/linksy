@@ -1,28 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { THEME_KEY, readThemePreference, applyTheme, prefersDark, onSystemThemeChange } from '../lib/theme'
 
-const STORAGE_KEY = 'lynqr_theme_pref'
-const media = window.matchMedia('(prefers-color-scheme: dark)')
-
-function readPreference() {
-  const saved = localStorage.getItem(STORAGE_KEY)
-  return ['system', 'dark', 'light'].includes(saved) ? saved : 'dark' // Dark by default (PRD §1.12)
-}
-
-// Applies the theme class before Vue mounts to avoid a flash of the wrong theme.
-export function applyTheme(pref = readPreference()) {
-  const dark = pref === 'dark' || (pref === 'system' && media.matches)
-  const root = document.documentElement
-  root.classList.toggle('dark', dark)
-  root.style.colorScheme = dark ? 'dark' : 'light'
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0c0c0e' : '#f8f8fa')
-  return dark
-}
+export { applyTheme }
 
 export const useThemeStore = defineStore('theme', () => {
   // 'system' | 'dark' | 'light'
-  const preference = ref(readPreference())
-  const systemPrefersDark = ref(media.matches)
+  const preference = ref(readThemePreference())
+  const systemPrefersDark = ref(prefersDark())
 
   const effectiveTheme = computed(() => {
     if (preference.value === 'system') return systemPrefersDark.value ? 'dark' : 'light'
@@ -31,7 +16,7 @@ export const useThemeStore = defineStore('theme', () => {
 
   function setTheme(pref) {
     preference.value = pref
-    localStorage.setItem(STORAGE_KEY, pref)
+    localStorage.setItem(THEME_KEY, pref)
     applyTheme(pref)
   }
 
@@ -40,7 +25,7 @@ export const useThemeStore = defineStore('theme', () => {
     setTheme(order[(order.indexOf(preference.value) + 1) % order.length])
   }
 
-  media.addEventListener('change', (e) => {
+  onSystemThemeChange((e) => {
     systemPrefersDark.value = e.matches
     if (preference.value === 'system') applyTheme('system')
   })

@@ -742,7 +742,17 @@ class LinksyTestHarness:
                                  headers={"Stripe-Signature": "t=1,v1=deadbeef"}, auth=False)
         self.check("Stripe Webhook Signature Enforcement", status == 400, f"forged event rejected with {status}")
 
-        # 16. User Logout & Session Cleared
+        # 16. Platform admin console is staff-only; abuse reporting is public
+        status, d = self.request("GET", "/api/v1/admin/metrics")
+        self.check("Admin Console Gate", status == 403 and isinstance(d, dict) and d.get("code") in ("not_admin", "admin_reauth"), f"{status}: {d}")
+        status, d = self.request("GET", "/api/v1/admin/session")
+        self.check("Admin Session Status", status == 200 and isinstance(d, dict) and d.get("elevated") is False, f"{status}: {d}")
+        status, d = self.request("GET", "/report", auth=False)
+        self.check("Public Report Page (/report)", status == 200 and "Report a link" in str(d), f"{status}")
+        status, d = self.request("POST", "/api/v1/report", data={"url": "https://lynqr.app/s/does-not-exist-xyz", "reason": "spam"}, auth=False)
+        self.check("Report Validation", status == 400, f"unknown link rejected with {status}")
+
+        # 17. User Logout & Session Cleared
         status, data = self.request("POST", "/api/v1/auth/logout")
         if status == 200 and isinstance(data, dict) and data.get("success") is True:
             self.passed += 1

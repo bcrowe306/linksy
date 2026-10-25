@@ -140,7 +140,8 @@ Original plan:
 - **Platform audit log:** every admin action with actor, target, before/after and IP; append-only
 
 ## 9. SEO & marketing site (plan)
-- **Landing page first (requested 2026-10-25):** a public home page at `/` for visitors without a session that shows off the features (short links, QR studio, analytics, teams) and leads to sign-up; signed-in users still land in the app
+- [x] **Landing page (requested 2026-10-25):** static, crawlable `home.html` (a second Vite entry) served at `/` to visitors without a session; signed-in users get the app. It has a hero with real product screenshots (light and dark), features, QR Studio and analytics spotlights, how it works, pricing with an annual/monthly toggle, FAQ, and a CTA. `?code=` is carried through sign-up to Billing.
+- [x] Open Graph/Twitter card image, JSON-LD (Organization, SoftwareApplication with offers, FAQPage), canonical URL, `robots.txt` and `sitemap.xml`; test and preview hosts get `noindex` and `Disallow: /`
 - Server-rendered (Go `html/template`) public pages, served to visitors without a session so crawlers get real HTML: landing `/`, `/pricing`, `/features`, `/about`, legal (`/terms`, `/privacy`)
 - Free public QR generator (no login, static codes, rate-limited) plus one landing page per type (`/qr-code-generator/wifi`, `/vcard`, `/pdf`, `/app-store`, …) targeting high-volume searches, with signup CTAs for dynamic codes and analytics
 - Guides/blog section (`/guides/...`) from embedded Markdown, shared with in-app help (item 7)
