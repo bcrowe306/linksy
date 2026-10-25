@@ -7,7 +7,7 @@
           <span>Total Link Clicks</span>
           <MousePointerClick class="w-4 h-4 text-lynqr-400" />
         </div>
-        <div class="text-3xl font-extrabold text-white tracking-tight">
+        <div class="text-3xl font-extrabold text-gray-50 tracking-tight">
           {{ formatNumber(summary?.total_clicks || 0) }}
         </div>
         <div class="text-[11px] text-gray-500 mt-1 flex items-center gap-1">
@@ -21,7 +21,7 @@
           <span>Total QR Scans</span>
           <QrCode class="w-4 h-4 text-emerald-400" />
         </div>
-        <div class="text-3xl font-extrabold text-white tracking-tight">
+        <div class="text-3xl font-extrabold text-gray-50 tracking-tight">
           {{ formatNumber(summary?.total_scans || 0) }}
         </div>
         <div class="text-[11px] text-gray-500 mt-1 flex items-center gap-1">
@@ -35,7 +35,7 @@
           <span>Top Traffic Source</span>
           <Globe2 class="w-4 h-4 text-amber-400" />
         </div>
-        <div class="text-xl font-bold text-white tracking-tight truncate">
+        <div class="text-xl font-bold text-gray-50 tracking-tight truncate">
           {{ summary?.by_referrer?.[0]?.name || 'Direct / None' }}
         </div>
         <div class="text-[11px] text-gray-500 mt-1">
@@ -48,7 +48,7 @@
           <span>Primary Device</span>
           <Monitor class="w-4 h-4 text-purple-400" />
         </div>
-        <div class="text-xl font-bold text-white tracking-tight">
+        <div class="text-xl font-bold text-gray-50 tracking-tight">
           {{ summary?.by_device?.[0]?.name || 'Mobile' }}
         </div>
         <div class="text-[11px] text-gray-500 mt-1">

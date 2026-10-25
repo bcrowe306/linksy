@@ -12,13 +12,13 @@
             {{ userInitials }}
           </div>
           <div class="absolute -bottom-1 -right-1 w-6 h-6 rounded-lg bg-emerald-500 border-2 border-gray-900 flex items-center justify-center" title="Active Account">
-            <Check class="w-3.5 h-3.5 text-white stroke-[3]" />
+            <Check class="w-3.5 h-3.5 text-gray-50 stroke-[3]" />
           </div>
         </div>
 
         <div>
           <div class="flex items-center gap-3 mb-1">
-            <h1 class="text-2xl font-extrabold text-white tracking-tight">{{ profile.name || 'Account User' }}</h1>
+            <h1 class="text-2xl font-extrabold text-gray-50 tracking-tight">{{ profile.name || 'Account User' }}</h1>
             <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-lynqr-500/15 text-lynqr-400 border border-lynqr-500/20 capitalize font-mono">
               {{ profile.role || 'Owner' }}
             </span>
@@ -79,7 +79,7 @@
     <div v-if="activeTab === 'profile'" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <div class="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-2xl p-6 sm:p-8 space-y-6">
         <div>
-          <h2 class="text-lg font-bold text-white mb-1">Personal Details</h2>
+          <h2 class="text-lg font-bold text-gray-50 mb-1">Personal Details</h2>
           <p class="text-xs text-gray-400">Update your public name and display avatar across Lynqr reports.</p>
         </div>
 
@@ -146,7 +146,7 @@
       <!-- Side Profile Info Card -->
       <div class="space-y-6">
         <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-4">
-          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <h3 class="text-sm font-bold text-gray-50 flex items-center gap-2">
             <ShieldCheck class="w-4 h-4 text-lynqr-400" />
             <span>Workspace & Role</span>
           </h3>
@@ -173,7 +173,7 @@
       <!-- Self-Service Password Reset via WorkOS -->
       <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 sm:p-8 space-y-5">
         <div>
-          <h2 class="text-lg font-bold text-white mb-1 flex items-center gap-2">
+          <h2 class="text-lg font-bold text-gray-50 mb-1 flex items-center gap-2">
             <Mail class="w-5 h-5 text-lynqr-400" />
             <span>Password Reset (Email)</span>
           </h2>
@@ -184,12 +184,12 @@
 
         <div class="p-4 rounded-xl bg-gray-800/60 border border-gray-700/60 space-y-3">
           <div class="text-xs text-gray-300">
-            Recipient: <span class="font-semibold text-white font-mono">{{ profile.email }}</span>
+            Recipient: <span class="font-semibold text-gray-50 font-mono">{{ profile.email }}</span>
           </div>
           <button
             @click="sendPasswordResetEmail"
             :disabled="isSendingReset"
-            class="w-full py-2.5 px-4 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+            class="w-full py-2.5 px-4 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-xl text-sm font-semibold text-gray-50 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
           >
             <Loader2 v-if="isSendingReset" class="w-4 h-4 animate-spin" />
             <Send v-else class="w-4 h-4 text-lynqr-400" />
@@ -225,7 +225,7 @@
       <!-- Direct Password Update Form -->
       <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 sm:p-8 space-y-5">
         <div>
-          <h2 class="text-lg font-bold text-white mb-1 flex items-center gap-2">
+          <h2 class="text-lg font-bold text-gray-50 mb-1 flex items-center gap-2">
             <KeyRound class="w-5 h-5 text-indigo-400" />
             <span>Set New Password</span>
           </h2>
@@ -288,7 +288,7 @@
       <!-- Section Header -->
       <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 class="text-lg font-bold text-white mb-1 flex items-center gap-2">
+          <h2 class="text-lg font-bold text-gray-50 mb-1 flex items-center gap-2">
             <Terminal class="w-5 h-5 text-lynqr-400" />
             <span>Developer API Keys</span>
           </h2>
@@ -357,11 +357,11 @@
     <div v-if="showCreateKeyModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-950/80 backdrop-blur-sm">
       <div class="bg-gray-900 border border-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
         <div class="flex items-center justify-between">
-          <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <h3 class="text-base font-bold text-gray-50 flex items-center gap-2">
             <KeyRound class="w-4 h-4 text-lynqr-400" />
             <span>Generate New API Key</span>
           </h3>
-          <button @click="showCreateKeyModal = false" class="text-gray-400 hover:text-white">
+          <button @click="showCreateKeyModal = false" class="text-gray-400 hover:text-gray-50">
             <X class="w-4 h-4" />
           </button>
         </div>
@@ -394,7 +394,7 @@
         <div class="flex items-center justify-end gap-3 pt-2">
           <button
             @click="showCreateKeyModal = false"
-            class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+            class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:text-gray-50 hover:bg-gray-800 transition-colors"
           >
             Cancel
           </button>
@@ -418,7 +418,7 @@
             <Check class="w-5 h-5 stroke-[2.5]" />
           </div>
           <div>
-            <h3 class="text-base font-bold text-white">API Key Created Successfully</h3>
+            <h3 class="text-base font-bold text-gray-50">API Key Created Successfully</h3>
             <p class="text-xs text-gray-400">Copy this secret key now. It will not be shown again.</p>
           </div>
         </div>

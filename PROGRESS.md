@@ -8,15 +8,15 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 
 | # | Area | Branch | Status |
 |---|------|--------|--------|
-| 1 | Auth & tenancy hardening | `feat/auth-tenancy` | 🚧 PR open |
-| 2 | Theme system + modern UI redesign | `feat/ui-redesign` | ⏳ |
+| 1 | Auth & tenancy hardening | `feat/auth-tenancy` | ✅ merged (#1), live test-drive 63/63 API + 13/13 UI |
+| 2 | Theme system + modern UI redesign | `feat/ui-redesign` | 🚧 PR open |
 | 3 | QR editor: real preview, 8 types, styling, exports | `feat/qr-studio` | ⏳ |
 | 4 | Links: password, UTM, expiry & pause | `feat/link-controls` | ⏳ |
 | 5 | Team & user management UI | `feat/team-management-ui` | ⏳ |
 | 6 | Dashboard & analytics (charts, ranges, geo, export, live feed, CF geo headers) | `feat/analytics` | ⏳ |
 | 7 | Tooltips, Quick Docs, shortcuts, user guides | `feat/help-docs` | ⏳ |
-| 8 | Stripe billing + email notifications | `feat/billing-email` | ❓ needs Stripe + email provider keys |
-| 9 | Test suites (Go, Vitest, Playwright, live test-drive) | `feat/test-suites` | ⏳ (tests also added per area) |
+| 8 | Test suites (Go, Vitest, Playwright, live test-drive) | `feat/test-suites` | ⏳ (tests also added per area) |
+| 9 | Stripe billing + email notifications | `feat/billing-email` | ⏸ deferred by user (2026-10-25); revisit last |
 
 ## 1. Auth & tenancy (feat/auth-tenancy)
 - [x] Opaque, server-side sessions (`lqs_` tokens, SHA-256 at rest, HttpOnly + Secure + SameSite=Lax cookie, 30-day sliding expiry, revocable)
@@ -37,7 +37,16 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 - [x] Versioned embedded migrations (`migrations/{postgres,sqlite}`), single-dialect queries via `Rebind`
 - [x] Tests: RBAC matrix, sessions, tenancy isolation, hierarchy, invitations, forged tokens, header spoofing, CSRF, API key scope (SQLite + Postgres in CI)
 - [x] Test-drive + pytest suites updated for cookie sessions and pre-verified WorkOS fixtures
-- [ ] Merge, set `APP_SECRET` on Render, run the live test-drive
+- [x] Merged, `APP_SECRET` set on Render, live test-drive green (API 63/63, Playwright UI 13/13, pytest API 14/15 → stale `client_id` assertion fixed)
+
+## 2. Theme system & UI redesign (feat/ui-redesign)
+- [x] Token-based theming: neutral scale + semantic tokens (`canvas/surface/elevated/subtle/line/fg*`) as CSS variables; light/dark/system, dark by default (PRD §1.12), applied before mount, persisted, follows OS changes
+- [x] Design system in `style.css` (buttons, inputs, cards, badges, tables, kbd, skeletons) + UI kit: modal, toasts, confirm dialog, tooltip, dropdown menu, switch, file drop, empty state, page header, copy button, logo
+- [x] New shell: grouped, collapsible sidebar (mobile drawer), sticky blurred header with global search (`/`), theme menu, create menu, user menu, workspace switcher
+- [x] Rebuilt: auth pages (split-screen brand layout, OAuth buttons, password strength), invite & reset pages, create modal, Links (filters/sort/pause/edit/delete), QR gallery (downloads, type filter), Documents (versions, replace, bulk delete), API reference, help drawer
+- [x] Remaining views (dashboard, analytics, studio, settings, profile) theme-correct now; fully rebuilt in items 3, 5 and 6
+- [x] Fixed: embedded API reference blocked by X-Frame-Options DENY
+- [ ] CI + merge + live test-drive
 
 ## Open questions / blocked items
 - Stripe: need `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and the plan/pricing structure.

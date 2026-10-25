@@ -1,502 +1,276 @@
 <template>
-  <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-    <!-- Backdrop -->
-    <div @click="$emit('close')" class="absolute inset-0 bg-black/75 backdrop-blur-sm transition-opacity"></div>
+  <AppModal :open="isOpen" size="lg" title="Create new" description="Short links, QR codes and hosted documents for your workspace." @close="close">
+    <!-- Tabs -->
+    <div class="mb-5 grid grid-cols-3 gap-1 rounded-xl bg-subtle p-1" role="tablist">
+      <button
+        v-for="t in tabs"
+        :key="t.id"
+        role="tab"
+        :aria-selected="activeTab === t.id"
+        class="flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all"
+        :class="activeTab === t.id ? 'bg-surface text-fg shadow-card' : 'text-fg-muted hover:text-fg'"
+        :data-testid="`create-tab-${t.id}`"
+        @click="activeTab = t.id"
+      >
+        <component :is="t.icon" class="w-4 h-4" />{{ t.label }}
+      </button>
+    </div>
 
-    <!-- Modal Content -->
-    <div class="relative bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl z-10 flex flex-col">
-      <!-- Modal Header -->
-      <div class="px-6 py-4 border-b border-gray-800 flex items-center justify-between sticky top-0 bg-gray-900/95 backdrop-blur z-20">
-        <div class="flex items-center gap-2">
-          <div class="w-7 h-7 rounded-lg bg-lynqr-600/20 text-lynqr-400 flex items-center justify-center">
-            <Plus class="w-4 h-4" />
+    <div v-if="errorMessage" class="mb-4 flex items-start gap-2 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-600 dark:text-rose-400">
+      <AlertCircle class="mt-0.5 h-4 w-4 shrink-0" /><span>{{ errorMessage }}</span>
+    </div>
+
+    <form id="create-form" class="space-y-4" @submit.prevent="submit">
+      <!-- ---------- Short link ---------- -->
+      <template v-if="activeTab === 'link'">
+        <div>
+          <label class="label" for="link-target">Destination URL</label>
+          <input id="link-target" v-model="linkForm.target_url" type="url" required placeholder="https://example.com/landing-page" class="input" data-testid="link-target" />
+        </div>
+        <div>
+          <label class="label" for="link-slug">
+            Custom back-half <span class="text-fg-subtle font-normal">(optional)</span>
+            <Tip text="3–64 letters, numbers, dashes or underscores. Leave blank for a random collision-resistant ID." />
+          </label>
+          <div class="flex items-stretch overflow-hidden rounded-xl border border-line focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-500/15">
+            <span class="flex items-center bg-subtle px-3 text-sm text-fg-subtle font-mono">{{ origin }}/s/</span>
+            <input id="link-slug" v-model="linkForm.custom_slug" pattern="[A-Za-z0-9][A-Za-z0-9_\-]{2,63}" placeholder="summer-sale" class="flex-1 bg-surface px-3 py-2 text-sm text-fg outline-none" data-testid="link-slug" />
           </div>
-          <h2 class="text-lg font-bold text-white">Create New Asset</h2>
         </div>
-        <button @click="$emit('close')" class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800">
-          <X class="w-5 h-5" />
-        </button>
-      </div>
-
-      <!-- Mode Selector Tabs -->
-      <div class="p-6 pb-2">
-        <div class="flex rounded-xl bg-gray-800/80 p-1 border border-gray-750">
-          <button
-            @click="activeTab = 'link'"
-            class="flex-1 py-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-all"
-            :class="activeTab === 'link' ? 'bg-lynqr-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'"
-          >
-            <Link2 class="w-4 h-4" />
-            <span>Short Link</span>
-          </button>
-          <button
-            @click="activeTab = 'qr'"
-            class="flex-1 py-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-all"
-            :class="activeTab === 'qr' ? 'bg-lynqr-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'"
-          >
-            <QrCode class="w-4 h-4" />
-            <span>Custom QR Code</span>
-          </button>
-          <button
-            @click="activeTab = 'doc'"
-            class="flex-1 py-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-all"
-            :class="activeTab === 'doc' ? 'bg-lynqr-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'"
-          >
-            <FileUp class="w-4 h-4" />
-            <span>Document QR</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Form Body -->
-      <div class="p-6 pt-3 space-y-4 flex-1">
-        <!-- Error Alert -->
-        <div v-if="errorMessage" class="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
-          <AlertCircle class="w-4 h-4 shrink-0" />
-          <span>{{ errorMessage }}</span>
-        </div>
-
-        <!-- 1. SHORT LINK FORM -->
-        <div v-if="activeTab === 'link'" class="space-y-4">
+        <div class="grid gap-4 sm:grid-cols-2">
           <div>
-            <label class="block text-xs font-semibold text-gray-300 mb-1">Destination URL *</label>
-            <input
-              v-model="linkForm.target_url"
-              type="url"
-              placeholder="https://example.com/very-long-url-to-shorten"
-              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
-            />
+            <label class="label" for="link-title">Title <span class="text-fg-subtle font-normal">(optional)</span></label>
+            <input id="link-title" v-model="linkForm.title" placeholder="Summer campaign" class="input" />
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs font-semibold text-gray-300 mb-1">Title (Optional)</label>
-              <input
-                v-model="linkForm.title"
-                type="text"
-                placeholder="Marketing Promo Link"
-                class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
-              />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-300 mb-1">Custom Slug (Optional)</label>
-              <div class="flex items-center">
-                <span class="text-xs text-gray-500 bg-gray-800 px-2 py-2 border border-r-0 border-gray-700 rounded-l-lg font-mono">/s/</span>
-                <input
-                  v-model="linkForm.custom_slug"
-                  type="text"
-                  placeholder="launch2026"
-                  class="w-full bg-gray-800 border border-gray-700 rounded-r-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500 font-mono"
-                />
-              </div>
-            </div>
+          <div>
+            <label class="label" for="link-expiry">
+              Expires <span class="text-fg-subtle font-normal">(optional)</span>
+              <Tip text="After this moment the link shows a branded 'expired' page instead of redirecting." />
+            </label>
+            <input id="link-expiry" v-model="linkForm.expires_local" type="datetime-local" class="input" />
           </div>
         </div>
+      </template>
 
-        <!-- 2. CUSTOM QR CODE FORM -->
-        <div v-else-if="activeTab === 'qr'" class="space-y-4">
-          <!-- QR Type Selection -->
+      <!-- ---------- QR code ---------- -->
+      <template v-else-if="activeTab === 'qr'">
+        <div class="grid gap-4 sm:grid-cols-2">
           <div>
-            <label class="block text-xs font-semibold text-gray-300 mb-1">QR Code Type</label>
-            <select
-              v-model="qrForm.type"
-              @change="onQRTypeChange"
-              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
-            >
-              <option value="website">Website / URL (Dynamic)</option>
-              <option value="document">Document (PDF / Menu / Report) (Dynamic)</option>
-              <option value="vcard">Contact Card (vCard)</option>
-              <option value="wifi">Wi-Fi Network</option>
-              <option value="email">Email Pre-fill</option>
-              <option value="sms">SMS Text Message</option>
-              <option value="text">Plain Text</option>
+            <label class="label" for="qr-title">Name</label>
+            <input id="qr-title" v-model="qrForm.title" required placeholder="Storefront window decal" class="input" data-testid="qr-title" />
+          </div>
+          <div>
+            <label class="label" for="qr-type">Type</label>
+            <select id="qr-type" v-model="qrForm.type" class="input" @change="onQRTypeChange">
+              <option value="website">Website / URL</option>
+              <option value="document">Document / file</option>
+              <option value="vcard">Contact card (vCard)</option>
+              <option value="wifi">Wi-Fi network</option>
+              <option value="email">Email</option>
+              <option value="sms">SMS</option>
+              <option value="text">Plain text</option>
             </select>
           </div>
+        </div>
 
+        <div v-if="qrForm.type === 'website'" class="space-y-3">
           <div>
-            <label class="block text-xs font-semibold text-gray-300 mb-1">QR Title *</label>
-            <input
-              v-model="qrForm.title"
-              type="text"
-              placeholder="e.g. Table 5 Menu or Guest Wi-Fi"
-              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
-            />
+            <label class="label" for="qr-target">Destination URL</label>
+            <input id="qr-target" v-model="qrForm.target_url" type="url" required placeholder="https://example.com" class="input" data-testid="qr-target" />
           </div>
-
-          <!-- Dynamic inputs based on QR type -->
-          <div v-if="qrForm.type === 'website'">
-            <label class="block text-xs font-semibold text-gray-300 mb-1">Target URL *</label>
-            <input
-              v-model="qrForm.target_url"
-              type="url"
-              placeholder="https://mywebsite.com"
-              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
-            />
-          </div>
-
-          <!-- Document QR Code: Select from existing uploaded documents or upload new -->
-          <div v-else-if="qrForm.type === 'document'" class="space-y-3">
-            <div class="flex items-center justify-between">
-              <label class="block text-xs font-semibold text-gray-300">Document Source</label>
-              <div class="flex rounded-lg bg-gray-800 p-0.5 border border-gray-700 text-[11px]">
-                <button
-                  type="button"
-                  @click="docSource = 'existing'"
-                  :class="docSource === 'existing' ? 'bg-lynqr-600 text-white font-semibold' : 'text-gray-400 hover:text-white'"
-                  class="px-2.5 py-1 rounded transition-colors"
-                >
-                  Choose Existing ({{ store.documents.length }})
-                </button>
-                <button
-                  type="button"
-                  @click="docSource = 'new'"
-                  :class="docSource === 'new' ? 'bg-lynqr-600 text-white font-semibold' : 'text-gray-400 hover:text-white'"
-                  class="px-2.5 py-1 rounded transition-colors"
-                >
-                  Upload New
-                </button>
-              </div>
-            </div>
-
-            <!-- Existing Documents Picker -->
-            <div v-if="docSource === 'existing'">
-              <div v-if="store.documents.length > 0" class="space-y-2">
-                <div class="text-[11px] text-gray-400">Select from your uploaded documents:</div>
-                <div class="max-h-48 overflow-y-auto space-y-1.5 pr-1 border border-gray-750 rounded-xl p-2 bg-gray-800/40">
-                  <div
-                    v-for="doc in store.documents"
-                    :key="doc.id"
-                    @click="selectDocument(doc)"
-                    class="p-2.5 rounded-lg border cursor-pointer transition-all flex items-center justify-between"
-                    :class="selectedExistingDocId === doc.id
-                      ? 'bg-lynqr-600/20 border-lynqr-500 text-white'
-                      : 'bg-gray-800/70 border-gray-700 hover:border-gray-600 text-gray-300'"
-                  >
-                    <div class="flex items-center gap-2.5 truncate max-w-[340px]">
-                      <FileText class="w-4 h-4 text-rose-400 shrink-0" />
-                      <div class="truncate">
-                        <div class="font-medium text-xs truncate">{{ doc.filename }}</div>
-                        <div class="text-[10px] text-gray-500 font-mono">
-                          v{{ doc.version }} • {{ (doc.file_size / 1024 / 1024).toFixed(2) }} MB • {{ new Date(doc.updated_at).toLocaleDateString() }}
-                        </div>
-                      </div>
-                    </div>
-                    <div class="shrink-0 pl-2">
-                      <span
-                        v-if="selectedExistingDocId === doc.id"
-                        class="w-5 h-5 rounded-full bg-lynqr-500 text-white flex items-center justify-center"
-                      >
-                        <Check class="w-3 h-3 stroke-[3]" />
-                      </span>
-                      <span v-else class="text-xs text-gray-500 hover:text-gray-300">Select</span>
-                    </div>
-                  </div>
-                </div>
-                <div v-if="selectedDocumentObj" class="p-2.5 rounded-lg bg-lynqr-950/40 border border-lynqr-500/30 text-xs text-lynqr-300 flex items-center gap-2">
-                  <CheckCircle2 class="w-4 h-4 text-lynqr-400 shrink-0" />
-                  <span class="truncate">Linked to <strong>{{ selectedDocumentObj.filename }}</strong> (v{{ selectedDocumentObj.version }})</span>
-                </div>
-              </div>
-              <div v-else class="p-4 rounded-xl bg-gray-800/40 border border-dashed border-gray-700 text-center space-y-2">
-                <FileText class="w-8 h-8 text-gray-500 mx-auto" />
-                <div class="text-xs text-gray-300 font-medium">No documents uploaded yet</div>
-                <p class="text-[11px] text-gray-500">Upload your first document to reuse across QR codes.</p>
-                <button
-                  type="button"
-                  @click="docSource = 'new'"
-                  class="px-3 py-1.5 rounded-lg bg-lynqr-600 hover:bg-lynqr-500 text-white text-xs font-semibold inline-flex items-center gap-1.5"
-                >
-                  <FileUp class="w-3.5 h-3.5" />
-                  <span>Upload Document Now</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- Upload New Document in QR Form -->
-            <div v-else class="space-y-2">
-              <div
-                @dragover.prevent
-                @drop.prevent="handleDocFileDrop"
-                class="border-2 border-dashed border-gray-700 hover:border-lynqr-500 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-colors"
-                @click="$refs.qrDocFileInput.click()"
-              >
-                <input ref="qrDocFileInput" type="file" @change="handleDocFileSelect" class="hidden" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" />
-                <FileUp class="w-8 h-8 text-lynqr-400 mb-1.5" />
-                <span class="text-xs font-semibold text-gray-200">
-                  {{ qrDocFile ? qrDocFile.name : 'Choose document file to link' }}
-                </span>
-                <span class="text-[10px] text-gray-500 mt-0.5">PDF, Menus, Documents up to 15MB</span>
-              </div>
-              <div v-if="qrDocFile" class="text-xs text-emerald-400 flex items-center gap-1.5 justify-center">
-                <Check class="w-3.5 h-3.5" />
-                <span>{{ qrDocFile.name }} ({{ (qrDocFile.size / 1024 / 1024).toFixed(2) }} MB)</span>
-              </div>
-            </div>
-          </div>
-
-          <div v-else-if="qrForm.type === 'wifi'" class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-semibold text-gray-300 mb-1">SSID Network Name</label>
-              <input v-model="wifiData.ssid" type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-300 mb-1">Password</label>
-              <input v-model="wifiData.password" type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100" />
-            </div>
-          </div>
-
-          <div v-else-if="qrForm.type === 'vcard'" class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-semibold text-gray-300 mb-1">First Name</label>
-              <input v-model="vcardData.first_name" type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-300 mb-1">Last Name</label>
-              <input v-model="vcardData.last_name" type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-300 mb-1">Phone</label>
-              <input v-model="vcardData.phone" type="tel" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-300 mb-1">Email</label>
-              <input v-model="vcardData.email" type="email" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100" />
-            </div>
-          </div>
-
-          <!-- Styling customization controls -->
-          <div class="border-t border-gray-800 pt-3">
-            <span class="text-xs font-semibold text-gray-400 block mb-2">Style & Colors</span>
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div>
-                <label class="block text-[11px] text-gray-400 mb-1">Foreground</label>
-                <div class="flex items-center gap-2">
-                  <input v-model="qrForm.style.fg_color" type="color" class="w-8 h-8 rounded border-0 bg-transparent cursor-pointer" />
-                  <span class="text-xs font-mono text-gray-300">{{ qrForm.style.fg_color }}</span>
-                </div>
-              </div>
-              <div>
-                <label class="block text-[11px] text-gray-400 mb-1">Background</label>
-                <div class="flex items-center gap-2">
-                  <input v-model="qrForm.style.bg_color" type="color" class="w-8 h-8 rounded border-0 bg-transparent cursor-pointer" />
-                  <span class="text-xs font-mono text-gray-300">{{ qrForm.style.bg_color }}</span>
-                </div>
-              </div>
-              <div>
-                <label class="block text-[11px] text-gray-400 mb-1">Border (px)</label>
-                <input v-model.number="qrForm.style.border_width" type="number" min="0" max="10" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-100" />
-              </div>
-              <div>
-                <label class="block text-[11px] text-gray-400 mb-1">Label Tag</label>
-                <input v-model="qrForm.style.label_text" type="text" placeholder="SCAN ME" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-100" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 3. DOCUMENT UPLOAD TAB -->
-        <div v-else-if="activeTab === 'doc'" class="space-y-4">
-          <div
-            @dragover.prevent
-            @drop.prevent="handleFileDrop"
-            class="border-2 border-dashed border-gray-700 hover:border-lynqr-500 rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-colors"
-            @click="$refs.fileInput.click()"
-          >
-            <input ref="fileInput" type="file" @change="handleFileSelect" class="hidden" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" />
-            <FileUp class="w-10 h-10 text-lynqr-400 mb-2" />
-            <span class="text-sm font-semibold text-gray-200">
-              {{ selectedFile ? selectedFile.name : 'Choose a file or drag & drop here' }}
+          <label class="flex items-center justify-between gap-4 rounded-xl border border-line px-3.5 py-2.5">
+            <span class="text-sm">
+              <span class="font-medium text-fg">Dynamic QR</span>
+              <span class="block text-xs text-fg-muted">Change the destination later without reprinting.</span>
             </span>
-            <span class="text-xs text-gray-500 mt-1">PDF, Docs, Menus, Presentations up to 15MB</span>
+            <Toggle v-model="qrForm.is_dynamic" />
+          </label>
+        </div>
+
+        <div v-else-if="qrForm.type === 'document'" class="space-y-3">
+          <div class="grid grid-cols-2 gap-1 rounded-xl bg-subtle p-1">
+            <button type="button" class="rounded-lg py-1.5 text-xs font-medium" :class="docSource === 'existing' ? 'bg-surface shadow-card text-fg' : 'text-fg-muted'" @click="docSource = 'existing'">Existing document</button>
+            <button type="button" class="rounded-lg py-1.5 text-xs font-medium" :class="docSource === 'new' ? 'bg-surface shadow-card text-fg' : 'text-fg-muted'" @click="docSource = 'new'">Upload new</button>
           </div>
-          <div v-if="selectedFile" class="text-xs text-emerald-400 flex items-center gap-1.5 justify-center">
-            <Check class="w-4 h-4" />
-            <span>Ready to upload ({{ (selectedFile.size / 1024 / 1024).toFixed(2) }} MB)</span>
+          <select v-if="docSource === 'existing'" v-model="selectedExistingDocId" class="input" required>
+            <option value="" disabled>Select a document…</option>
+            <option v-for="d in store.documents" :key="d.id" :value="d.id">{{ d.filename }} (v{{ d.version }})</option>
+          </select>
+          <FileDrop v-else v-model="qrDocFile" />
+        </div>
+
+        <div v-else-if="qrForm.type === 'wifi'" class="grid gap-4 sm:grid-cols-2">
+          <div><label class="label">Network name (SSID)</label><input v-model="wifiData.ssid" required class="input" /></div>
+          <div><label class="label">Password</label><input v-model="wifiData.password" class="input" /></div>
+          <div>
+            <label class="label">Security</label>
+            <select v-model="wifiData.encryption" class="input">
+              <option value="WPA">WPA / WPA2 / WPA3</option><option value="WEP">WEP</option><option value="nopass">None</option>
+            </select>
           </div>
         </div>
-      </div>
 
-      <!-- Footer Buttons -->
-      <div class="px-6 py-4 bg-gray-900 border-t border-gray-800 flex items-center justify-end gap-3 sticky bottom-0">
-        <button
-          @click="$emit('close')"
-          class="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          @click="submit"
-          :disabled="isSubmitting"
-          class="px-5 py-2 rounded-lg text-sm font-semibold bg-lynqr-600 hover:bg-lynqr-500 text-white shadow-lg shadow-lynqr-600/25 transition-all flex items-center gap-2"
-        >
-          <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
-          <span>{{ isSubmitting ? 'Creating...' : 'Create Asset' }}</span>
-        </button>
-      </div>
-    </div>
-  </div>
+        <div v-else-if="qrForm.type === 'vcard'" class="grid gap-4 sm:grid-cols-2">
+          <div><label class="label">First name</label><input v-model="vcardData.first_name" class="input" /></div>
+          <div><label class="label">Last name</label><input v-model="vcardData.last_name" class="input" /></div>
+          <div><label class="label">Phone</label><input v-model="vcardData.phone" type="tel" class="input" /></div>
+          <div><label class="label">Email</label><input v-model="vcardData.email" type="email" class="input" /></div>
+        </div>
+
+        <div v-else-if="qrForm.type === 'email'" class="space-y-4">
+          <div><label class="label">To</label><input v-model="emailData.email" type="email" required class="input" /></div>
+          <div><label class="label">Subject</label><input v-model="emailData.subject" class="input" /></div>
+          <div><label class="label">Body</label><textarea v-model="emailData.body" rows="3" class="input" /></div>
+        </div>
+
+        <div v-else-if="qrForm.type === 'sms'" class="space-y-4">
+          <div><label class="label">Phone number</label><input v-model="smsData.phone" type="tel" required class="input" /></div>
+          <div><label class="label">Message</label><textarea v-model="smsData.message" rows="3" class="input" /></div>
+        </div>
+
+        <div v-else-if="qrForm.type === 'text'">
+          <label class="label">Text</label>
+          <textarea v-model="textData" rows="4" maxlength="2000" required class="input" />
+          <p class="hint">{{ textData.length }} / 2000 characters</p>
+        </div>
+
+        <p class="text-xs text-fg-muted">
+          Want custom colors, logos and frames?
+          <router-link to="/qr-studio" class="font-medium text-brand-500 hover:underline" @click="close">Open QR Studio</router-link>
+        </p>
+      </template>
+
+      <!-- ---------- Document ---------- -->
+      <template v-else>
+        <FileDrop v-model="selectedFile" />
+        <p class="text-xs text-fg-muted">A dynamic QR code is created automatically. Replace the file any time and the QR keeps working.</p>
+      </template>
+    </form>
+
+    <template #footer>
+      <button class="btn-secondary" type="button" @click="close">Cancel</button>
+      <button class="btn-primary" type="submit" form="create-form" :disabled="isSubmitting" data-testid="create-submit">
+        <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
+        {{ submitLabel }}
+      </button>
+    </template>
+  </AppModal>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import {
-  Plus,
-  X,
-  Link2,
-  QrCode,
-  FileUp,
-  FileText,
-  AlertCircle,
-  Check,
-  CheckCircle2,
-  Loader2
-} from 'lucide-vue-next'
+import { Link2, QrCode, FileUp, AlertCircle, Loader2 } from 'lucide-vue-next'
 import { api } from '../api/client'
 import { useLynqrStore } from '../stores/lynqr'
+import { useToast } from '../composables/useToast'
+import AppModal from './ui/AppModal.vue'
+import Tip from './ui/Tip.vue'
+import Toggle from './ui/Toggle.vue'
+import FileDrop from './ui/FileDrop.vue'
 
 const props = defineProps({
-  isOpen: { type: Boolean, default: false }
+  isOpen: { type: Boolean, default: false },
+  initialTab: { type: String, default: 'link' }
 })
 const emit = defineEmits(['close', 'created'])
 const store = useLynqrStore()
+const toast = useToast()
+const origin = window.location.host
 
+const tabs = [
+  { id: 'link', label: 'Short link', icon: Link2 },
+  { id: 'qr', label: 'QR code', icon: QrCode },
+  { id: 'doc', label: 'Document', icon: FileUp }
+]
 const activeTab = ref('link')
 const isSubmitting = ref(false)
 const errorMessage = ref('')
 
-const linkForm = ref({
-  target_url: '',
-  title: '',
-  custom_slug: ''
-})
-
-const qrForm = ref({
-  type: 'website',
-  title: '',
-  target_url: '',
-  is_dynamic: true,
-  style: {
-    fg_color: '#000000',
-    bg_color: '#ffffff',
-    border_width: 0,
-    border_color: '#3b82f6',
-    label_text: ''
-  }
-})
-
-// Document QR selection state
-const docSource = ref('existing') // 'existing' | 'new'
+const blankLink = () => ({ target_url: '', title: '', custom_slug: '', expires_local: '' })
+const blankQR = () => ({ type: 'website', title: '', target_url: '', is_dynamic: true })
+const linkForm = ref(blankLink())
+const qrForm = ref(blankQR())
+const docSource = ref('existing')
 const selectedExistingDocId = ref('')
 const qrDocFile = ref(null)
-
+const selectedFile = ref(null)
 const wifiData = ref({ ssid: '', password: '', encryption: 'WPA' })
 const vcardData = ref({ first_name: '', last_name: '', phone: '', email: '' })
-const selectedFile = ref(null)
+const emailData = ref({ email: '', subject: '', body: '' })
+const smsData = ref({ phone: '', message: '' })
+const textData = ref('')
 
-const selectedDocumentObj = computed(() => {
-  return store.documents.find(d => d.id === selectedExistingDocId.value)
-})
+const submitLabel = computed(() => ({ link: 'Create link', qr: 'Create QR code', doc: 'Upload document' })[activeTab.value])
 
-watch(() => props.isOpen, (newVal) => {
-  if (newVal) {
-    store.fetchDocuments()
-    // Default to existing if documents exist
-    if (store.documents.length > 0 && !selectedExistingDocId.value) {
-      selectDocument(store.documents[0])
-    }
-  }
+watch(() => props.isOpen, (open) => {
+  if (!open) return
+  activeTab.value = props.initialTab || 'link'
+  errorMessage.value = ''
+  store.fetchDocuments()
 })
 
 function onQRTypeChange() {
-  if (qrForm.value.type === 'document') {
-    docSource.value = store.documents.length > 0 ? 'existing' : 'new'
-    if (store.documents.length > 0 && !selectedExistingDocId.value) {
-      selectDocument(store.documents[0])
-    }
-  }
+  if (qrForm.value.type === 'document') docSource.value = store.documents.length ? 'existing' : 'new'
 }
 
-function selectDocument(doc) {
-  selectedExistingDocId.value = doc.id
-  qrForm.value.target_url = `${window.location.origin}/api/v1/documents/files/${doc.stored_path}`
-  if (!qrForm.value.title || qrForm.value.title.startsWith('Doc: ') || qrForm.value.title.startsWith('QR: ')) {
-    qrForm.value.title = `Doc: ${doc.filename}`
-  }
+function reset() {
+  linkForm.value = blankLink()
+  qrForm.value = blankQR()
+  selectedFile.value = null
+  qrDocFile.value = null
+  selectedExistingDocId.value = ''
+  textData.value = ''
 }
 
-function handleDocFileSelect(e) {
-  if (e.target.files?.[0]) {
-    qrDocFile.value = e.target.files[0]
-    if (!qrForm.value.title) {
-      qrForm.value.title = `Doc: ${qrDocFile.value.name}`
-    }
-  }
-}
-
-function handleDocFileDrop(e) {
-  if (e.dataTransfer.files?.[0]) {
-    qrDocFile.value = e.dataTransfer.files[0]
-    if (!qrForm.value.title) {
-      qrForm.value.title = `Doc: ${qrDocFile.value.name}`
-    }
-  }
-}
-
-function handleFileSelect(e) {
-  if (e.target.files?.[0]) selectedFile.value = e.target.files[0]
-}
-
-function handleFileDrop(e) {
-  if (e.dataTransfer.files?.[0]) selectedFile.value = e.dataTransfer.files[0]
+function close() {
+  emit('close')
 }
 
 async function submit() {
   errorMessage.value = ''
   isSubmitting.value = true
-
   try {
     if (activeTab.value === 'link') {
-      if (!linkForm.value.target_url) throw new Error('Please enter a destination URL')
-      await api.createLink(linkForm.value)
+      const { expires_local, ...rest } = linkForm.value
+      const link = await api.createLink({ ...rest, expires_at: expires_local ? new Date(expires_local).toISOString() : null })
+      toast.success(`${window.location.host}/s/${link.slug} is live`, { title: 'Short link created' })
     } else if (activeTab.value === 'qr') {
-      if (!qrForm.value.title) throw new Error('Please enter a title for the QR code')
-
-      let rawData = ''
-      if (qrForm.value.type === 'wifi') {
-        rawData = JSON.stringify(wifiData.value)
-      } else if (qrForm.value.type === 'vcard') {
-        rawData = JSON.stringify(vcardData.value)
-      } else if (qrForm.value.type === 'document') {
-        qrForm.value.is_dynamic = true
+      const payload = { ...qrForm.value, raw_data: '' }
+      const type = payload.type
+      if (type === 'wifi') payload.raw_data = JSON.stringify(wifiData.value)
+      else if (type === 'vcard') payload.raw_data = JSON.stringify(vcardData.value)
+      else if (type === 'email') payload.raw_data = JSON.stringify(emailData.value)
+      else if (type === 'sms') payload.raw_data = JSON.stringify(smsData.value)
+      else if (type === 'text') payload.raw_data = textData.value
+      else if (type === 'document') {
+        payload.is_dynamic = true
+        let doc
         if (docSource.value === 'existing') {
-          if (!selectedExistingDocId.value) {
-            throw new Error('Please select an uploaded document from the list')
-          }
-          const doc = store.documents.find(d => d.id === selectedExistingDocId.value)
-          if (!doc) throw new Error('Selected document not found')
-          qrForm.value.target_url = `${window.location.origin}/api/v1/documents/files/${doc.stored_path}`
+          doc = store.documents.find((d) => d.id === selectedExistingDocId.value)
+          if (!doc) throw new Error('Select a document to link')
+          payload.target_url = `${window.location.origin}/api/v1/documents/files/${doc.stored_path}`
         } else {
-          if (!qrDocFile.value) {
-            throw new Error('Please choose a document file to upload')
-          }
-          const uploadRes = await api.uploadDocument(qrDocFile.value)
-          qrForm.value.target_url = uploadRes.download_url
+          if (!qrDocFile.value) throw new Error('Choose a file to upload')
+          const up = await api.uploadDocument(qrDocFile.value)
+          doc = up.document
+          payload.target_url = up.download_url
         }
+        payload.document_id = doc.id
       }
-
-      await api.createQRCode({
-        ...qrForm.value,
-        raw_data: rawData
-      })
-    } else if (activeTab.value === 'doc') {
-      if (!selectedFile.value) throw new Error('Please choose a document to upload')
+      if (type !== 'website' && type !== 'document') payload.is_dynamic = false
+      await api.createQRCode(payload)
+      toast.success(qrForm.value.title, { title: 'QR code created' })
+    } else {
+      if (!selectedFile.value) throw new Error('Choose a file to upload')
       await api.uploadDocument(selectedFile.value)
+      toast.success(selectedFile.value.name, { title: 'Document uploaded' })
     }
-
+    reset()
     await store.refreshAll()
     emit('created')
     emit('close')
   } catch (err) {
-    errorMessage.value = err.message || 'An error occurred'
+    errorMessage.value = err.message || 'Something went wrong'
   } finally {
     isSubmitting.value = false
   }

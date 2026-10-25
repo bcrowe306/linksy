@@ -2,7 +2,7 @@
   <div class="space-y-6 max-w-4xl">
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-xl font-bold text-white">Team & User Management</h1>
+        <h1 class="text-xl font-bold text-gray-50">Team & User Management</h1>
         <p class="text-xs text-gray-400 mt-0.5">
           Manage workspace team members, WorkOS enterprise authentication, invitations, and developer API keys.
         </p>
@@ -36,7 +36,7 @@
         <AlertTriangle v-else class="w-4 h-4 shrink-0" />
         <span>{{ statusMessage.text }}</span>
       </div>
-      <button @click="statusMessage = null" class="text-gray-400 hover:text-white cursor-pointer ml-3">
+      <button @click="statusMessage = null" class="text-gray-400 hover:text-gray-50 cursor-pointer ml-3">
         <X class="w-3.5 h-3.5" />
       </button>
     </div>
@@ -49,7 +49,7 @@
             <ShieldCheck class="w-5 h-5" />
           </div>
           <div>
-            <h3 class="text-sm font-bold text-white">WorkOS Directory & SSO Authentication</h3>
+            <h3 class="text-sm font-bold text-gray-50">WorkOS Directory & SSO Authentication</h3>
             <span class="text-xs text-gray-400">Enterprise Single Sign-On (SAML / OIDC), invitations, and credentials</span>
           </div>
         </div>
@@ -71,7 +71,7 @@
     >
       <AlertCircle class="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
       <div>
-        <div class="font-semibold text-white">Member Access (Read Only for Team Administration)</div>
+        <div class="font-semibold text-gray-50">Member Access (Read Only for Team Administration)</div>
         <div class="text-amber-300/80 mt-0.5">
           You are currently signed in as a workspace member. Inviting users, adjusting member roles, credential resets, and user deletions require Admin or Owner privileges.
         </div>
@@ -82,7 +82,7 @@
     <div class="bg-gray-800/60 border border-gray-700/80 rounded-2xl p-6 space-y-4 shadow-xl">
       <div class="flex items-center justify-between">
         <div>
-          <h3 class="text-sm font-bold text-white">Workspace Members ({{ members.length }})</h3>
+          <h3 class="text-sm font-bold text-gray-50">Workspace Members ({{ members.length }})</h3>
           <span class="text-xs text-gray-400">Manage user roles, credentials, and access permissions.</span>
         </div>
         <button
@@ -172,7 +172,7 @@
     <div v-if="pendingInvitations.length > 0" class="bg-gray-800/60 border border-gray-700/80 rounded-2xl p-6 space-y-4 shadow-xl">
       <div class="flex items-center justify-between">
         <div>
-          <h3 class="text-sm font-bold text-white">Pending Invitations ({{ pendingInvitations.length }})</h3>
+          <h3 class="text-sm font-bold text-gray-50">Pending Invitations ({{ pendingInvitations.length }})</h3>
           <span class="text-xs text-gray-400">Invited users who have not yet accepted their WorkOS AuthKit invite.</span>
         </div>
       </div>
@@ -228,11 +228,11 @@
               <UserPlus class="w-5 h-5" />
             </div>
             <div>
-              <h3 class="text-base font-bold text-white">Invite Team Member</h3>
+              <h3 class="text-base font-bold text-gray-50">Invite Team Member</h3>
               <p class="text-xs text-gray-400">Dispatch WorkOS AuthKit email invitation.</p>
             </div>
           </div>
-          <button @click="closeInviteModal" class="text-gray-400 hover:text-white cursor-pointer">
+          <button @click="closeInviteModal" class="text-gray-400 hover:text-gray-50 cursor-pointer">
             <X class="w-4 h-4" />
           </button>
         </div>
@@ -245,7 +245,7 @@
               type="email"
               required
               placeholder="teammate@company.com"
-              class="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-lynqr-500"
+              class="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-xs text-gray-50 placeholder-gray-500 focus:outline-none focus:border-lynqr-500"
             />
           </div>
 
@@ -253,7 +253,7 @@
             <label class="block text-xs font-medium text-gray-300 mb-1">Role & Permissions</label>
             <select
               v-model="inviteForm.role"
-              class="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-xs text-white focus:outline-none focus:border-lynqr-500"
+              class="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-xs text-gray-50 focus:outline-none focus:border-lynqr-500"
             >
               <option value="member">Member - Can create, edit, and export links and QR codes</option>
               <option value="admin">Admin - Full access to invite, manage roles, and delete members</option>
@@ -282,7 +282,7 @@
             <button
               type="button"
               @click="closeInviteModal"
-              class="px-4 py-2 rounded-xl text-xs font-medium text-gray-300 hover:text-white bg-gray-700/60 hover:bg-gray-700 cursor-pointer"
+              class="px-4 py-2 rounded-xl text-xs font-medium text-gray-300 hover:text-gray-50 bg-gray-700/60 hover:bg-gray-700 cursor-pointer"
             >
               {{ generatedInviteUrl ? 'Close' : 'Cancel' }}
             </button>
@@ -311,20 +311,20 @@
             <Trash2 class="w-5 h-5" />
           </div>
           <div>
-            <h3 class="text-base font-bold text-white">Remove User</h3>
+            <h3 class="text-base font-bold text-gray-50">Remove User</h3>
             <p class="text-xs text-gray-400">Remove user from workspace and revoke access.</p>
           </div>
         </div>
 
         <div class="p-3 bg-gray-900/60 rounded-xl border border-gray-750 text-xs text-gray-300">
-          Are you sure you want to remove <strong class="text-white">{{ targetMemberToRemove?.name || targetMemberToRemove?.email }}</strong> from the workspace?
+          Are you sure you want to remove <strong class="text-gray-50">{{ targetMemberToRemove?.name || targetMemberToRemove?.email }}</strong> from the workspace?
           Their WorkOS directory account will be permanently deactivated.
         </div>
 
         <div class="flex items-center justify-end gap-2.5 pt-2">
           <button
             @click="showRemoveModal = false"
-            class="px-4 py-2 rounded-xl text-xs font-medium text-gray-300 hover:text-white bg-gray-700/60 hover:bg-gray-700 cursor-pointer"
+            class="px-4 py-2 rounded-xl text-xs font-medium text-gray-300 hover:text-gray-50 bg-gray-700/60 hover:bg-gray-700 cursor-pointer"
           >
             Cancel
           </button>
@@ -344,7 +344,7 @@
     <div class="bg-gray-800/60 border border-gray-700/80 rounded-2xl p-6 space-y-4 shadow-xl">
       <div class="flex items-center justify-between">
         <div>
-          <h3 class="text-sm font-bold text-white">Developer API Keys</h3>
+          <h3 class="text-sm font-bold text-gray-50">Developer API Keys</h3>
           <span class="text-xs text-gray-400">Authenticate public REST API requests programmatically via Bearer token.</span>
         </div>
         <button
@@ -403,14 +403,14 @@
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
     >
       <div class="bg-gray-800 border border-gray-700 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
-        <h3 class="text-base font-bold text-white">Create Developer API Key</h3>
+        <h3 class="text-base font-bold text-gray-50">Create Developer API Key</h3>
         <div>
           <label class="block text-xs font-medium text-gray-300 mb-1">Key Name / Description</label>
           <input
             v-model="newKeyName"
             type="text"
             placeholder="Production Integration Key"
-            class="w-full px-3.5 py-2 bg-gray-900 border border-gray-700 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-lynqr-500"
+            class="w-full px-3.5 py-2 bg-gray-900 border border-gray-700 rounded-xl text-xs text-gray-50 placeholder-gray-500 focus:outline-none focus:border-lynqr-500"
           />
         </div>
         <div class="flex items-center justify-end gap-2.5 pt-2">

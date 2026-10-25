@@ -3,7 +3,7 @@
     <!-- Top Greeting & Quick Hero -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-extrabold text-white tracking-tight">Overview Dashboard</h1>
+        <h1 class="text-2xl font-extrabold text-gray-50 tracking-tight">Overview Dashboard</h1>
         <p class="text-xs text-gray-400 mt-1">
           Monitor your dynamic QR codes, short links, and engagement analytics in real-time.
         </p>
@@ -28,7 +28,7 @@
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-2">
             <Link2 class="w-4 h-4 text-lynqr-400" />
-            <h2 class="text-sm font-bold text-white">Recent Short Links</h2>
+            <h2 class="text-sm font-bold text-gray-50">Recent Short Links</h2>
           </div>
           <router-link to="/links" class="text-xs text-lynqr-400 hover:underline">View All</router-link>
         </div>
@@ -70,7 +70,7 @@
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-2">
             <QrCode class="w-4 h-4 text-emerald-400" />
-            <h2 class="text-sm font-bold text-white">Recent QR Codes</h2>
+            <h2 class="text-sm font-bold text-gray-50">Recent QR Codes</h2>
           </div>
           <router-link to="/qr-codes" class="text-xs text-lynqr-400 hover:underline">View All</router-link>
         </div>

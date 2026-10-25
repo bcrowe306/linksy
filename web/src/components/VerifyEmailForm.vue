@@ -1,6 +1,6 @@
 <template>
   <form @submit.prevent="submit" class="space-y-4" data-testid="verify-email-form">
-    <div class="p-3 rounded-xl bg-lynqr-500/10 border border-lynqr-500/20 text-xs text-lynqr-200 flex items-start gap-2">
+    <div class="p-3 rounded-xl bg-brand-500/10 border border-brand-500/20 text-xs text-brand-700 dark:text-brand-200 flex items-start gap-2">
       <MailCheck class="w-4 h-4 shrink-0 mt-0.5" />
       <span>We sent a 6-digit verification code to <strong>{{ email }}</strong>. Enter it below to finish signing in.</span>
     </div>
@@ -11,7 +11,7 @@
     </div>
 
     <div>
-      <label for="verify-code" class="block text-xs font-medium text-gray-300 mb-1">Verification code</label>
+      <label for="verify-code" class="label">Verification code</label>
       <input
         id="verify-code"
         v-model="code"
@@ -20,19 +20,19 @@
         maxlength="8"
         required
         placeholder="123456"
-        class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2 text-lg tracking-[0.4em] font-mono text-center text-gray-100 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
+        class="input text-lg tracking-[0.4em] font-mono text-center"
       />
     </div>
 
     <button
       type="submit"
       :disabled="busy || code.trim().length < 4"
-      class="w-full py-2.5 px-4 bg-lynqr-600 hover:bg-lynqr-500 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+      class="btn-primary btn-lg w-full"
     >
       <Loader2 v-if="busy" class="w-4 h-4 animate-spin" />
       <span v-else>Verify &amp; continue</span>
     </button>
-    <button type="button" @click="$emit('cancel')" class="w-full text-xs text-gray-400 hover:text-gray-200">
+    <button type="button" @click="$emit('cancel')" class="w-full text-xs text-fg-muted hover:text-fg">
       Use a different account
     </button>
   </form>

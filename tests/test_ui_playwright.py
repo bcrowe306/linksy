@@ -55,7 +55,7 @@ def authenticate_page(page: Page, base_url: str):
     """Ensure the page has an active authenticated session"""
     page.goto(f"{base_url}/")
     page.wait_for_load_state("networkidle")
-    if page.locator("header a[href='/profile']").is_visible():
+    if page.locator("[data-testid=user-menu]").is_visible():
         return
     email, password = ensure_fixture_user()
     ui_login(page, base_url, email, password)
@@ -168,24 +168,32 @@ def test_theme_system_toggle_and_persistence(page: Page, base_url: str):
     page.goto(base_url)
     page.wait_for_load_state("networkidle")
     
-    # Locate theme switcher button in header
-    theme_btn = page.locator("header button[title*='Theme']")
-    expect(theme_btn).to_be_visible()
-    
-    # Check initial preference
-    initial_pref = page.evaluate("() => localStorage.getItem('lynqr_theme_pref') || localStorage.getItem('linksy_theme_pref') || 'system'")
-    assert initial_pref in ["system", "dark", "light"]
-    
-    # Click to toggle theme
-    theme_btn.click()
-    new_pref = page.evaluate("() => localStorage.getItem('lynqr_theme_pref') || localStorage.getItem('linksy_theme_pref')")
-    assert new_pref != initial_pref, f"Theme preference did not change: {new_pref}"
-    
-    # Verify reload preserves theme preference
+    html_is_dark = "() => document.documentElement.classList.contains('dark')"
+    for pref, dark in (("light", False), ("dark", True), ("light", False)):
+        page.click("[data-testid=theme-toggle]")
+        page.click(f"[data-testid=theme-{pref}]")
+        assert page.evaluate("() => localStorage.getItem('lynqr_theme_pref')") == pref
+        assert page.evaluate(html_is_dark) is dark, f"<html> dark class wrong for {pref}"
+
+    # Reload preserves the preference and applies it before render
     page.reload()
     page.wait_for_load_state("networkidle")
-    preserved_pref = page.evaluate("() => localStorage.getItem('lynqr_theme_pref') || localStorage.getItem('linksy_theme_pref')")
-    assert preserved_pref == new_pref, f"Theme not preserved after reload: {preserved_pref}"
+    assert page.evaluate("() => localStorage.getItem('lynqr_theme_pref')") == "light"
+    assert page.evaluate(html_is_dark) is False
+    bg = page.evaluate("() => getComputedStyle(document.body).backgroundColor")
+    assert bg != "rgb(12, 12, 14)", f"Light theme still renders the dark canvas: {bg}"
+
+    # System preference follows the OS setting
+    page.click("[data-testid=theme-toggle]")
+    page.click("[data-testid=theme-system]")
+    page.emulate_media(color_scheme="dark")
+    page.wait_for_timeout(200)
+    assert page.evaluate(html_is_dark) is True
+    page.emulate_media(color_scheme="light")
+    page.wait_for_timeout(200)
+    assert page.evaluate(html_is_dark) is False
+    page.click("[data-testid=theme-toggle]")
+    page.click("[data-testid=theme-dark]")
 
 # ==============================================================================
 # 4. PLAYWRIGHT UI TESTS: USER REGISTRATION & AUTHENTICATION
@@ -212,15 +220,16 @@ def test_signup_and_login_ui(page: Page, base_url: str):
 
     email, password = ensure_fixture_user()
     ui_login(page, base_url, email, password)
-    expect(page.locator("header a[href='/profile']")).to_be_visible(timeout=8000)
+    expect(page.locator("[data-testid=user-menu]")).to_be_visible(timeout=8000)
     session_cookie = next((c for c in page.context.cookies() if c["name"] == "lynqr_session"), None)
     assert session_cookie and session_cookie["httpOnly"], "Session cookie must be HttpOnly"
     assert page.evaluate("() => document.cookie.includes('lynqr_session')") is False
 
-    page.locator("header button[title='Sign Out']").click()
+    page.click("[data-testid=user-menu]")
+    page.click("[data-testid=sign-out]")
     page.wait_for_url(lambda u: "/login" in u, timeout=10000)
     ui_login(page, base_url, email, password)
-    expect(page.locator("header a[href='/profile']")).to_be_visible(timeout=8000)
+    expect(page.locator("[data-testid=user-menu]")).to_be_visible(timeout=8000)
 
 # ==============================================================================
 # 5. PLAYWRIGHT UI TESTS: PROFILE & DEVELOPER API KEYS
@@ -230,9 +239,8 @@ def test_profile_and_developer_api_keys(page: Page, base_url: str):
     authenticate_page(page, base_url)
     
     # Navigate to Profile via avatar link
-    avatar_link = page.locator("header a[href='/profile']")
-    expect(avatar_link).to_be_visible()
-    avatar_link.click()
+    page.click("[data-testid=user-menu]")
+    page.get_by_role("menuitem", name="Profile & security").click()
     page.wait_for_url("**/profile", timeout=10000)
     
     # 1. Update Profile Form
@@ -318,26 +326,18 @@ def test_short_link_creation_and_redirection(page: Page, base_url: str):
     page.goto(f"{base_url}/links")
     page.wait_for_load_state("networkidle")
     
-    # Click New Link button
-    new_link_btn = page.locator("button:has-text('New Link')").first
-    new_link_btn.click()
-    
-    # Modal should appear
-    expect(page.locator("h2:has-text('Create New Asset')")).to_be_visible()
-    
+    page.click("[data-testid=new-link]")
+    expect(page.get_by_role("dialog", name="Create new")).to_be_visible()
+
     slug = f"qa-link-{int(time.time())}"
     SHARED_STATE["slug"] = slug
-    
-    page.fill("input[type='url']", "https://lynqr.app")
-    page.fill("input[placeholder*='Marketing Promo']", "QA Automation Link")
-    page.fill("input[placeholder='launch2026']", slug)
-    
-    page.click("button:has-text('Create Asset')")
-    
-    # Verify link appears in table
-    page.wait_for_timeout(2000)
-    expect(page.get_by_text(f"/s/{slug}")).to_be_visible(timeout=8000)
-    
+    page.fill("[data-testid=link-target]", "https://lynqr.app")
+    page.fill("[data-testid=link-slug]", slug)
+    page.click("[data-testid=create-submit]")
+
+    expect(page.get_by_text("Short link created")).to_be_visible(timeout=8000)
+    expect(page.locator("[data-testid=links-table]").get_by_text(f"/s/{slug}")).to_be_visible(timeout=8000)
+
     # Test HTTP Redirection
     redirect_resp = requests.get(f"{base_url}/s/{slug}", allow_redirects=False, timeout=10)
     assert redirect_resp.status_code in [301, 302, 307, 308], f"Expected redirect, got status {redirect_resp.status_code}"
@@ -384,35 +384,25 @@ def test_workos_user_verification_and_cleanup():
 # 9. PLAYWRIGHT UI TESTS: DOCUMENTS SELECTION & BULK DELETION
 # ==============================================================================
 def test_documents_page_checkbox_selection_and_delete(page: Page, base_url: str):
-    """Verify documents page table checkboxes on the right, top delete button, and confirmation modal"""
+    """Upload a document, select it, open the bulk delete dialog, then delete it with its QR code."""
     authenticate_page(page, base_url)
     page.goto(f"{base_url}/documents")
     page.wait_for_load_state("networkidle")
+    expect(page.locator("h1:has-text('Documents')")).to_be_visible()
 
-    # Verify header and top Delete Selected button exists
-    expect(page.locator("h1:has-text('Document Sharing')")).to_be_visible()
-    del_btn = page.locator("button:has-text('Delete Selected')")
-    expect(del_btn).to_be_visible()
+    name = f"qa-menu-{int(time.time())}.pdf"
+    page.set_input_files("input[type=file] >> nth=0", files=[{"name": name, "mimeType": "application/pdf", "buffer": b"%PDF-1.4 qa document"}])
+    expect(page.get_by_text("Document uploaded")).to_be_visible(timeout=10000)
+    row = page.locator("[data-testid=documents-table] tbody tr", has_text=name)
+    expect(row).to_be_visible()
 
-    # If documents exist in table, test selection checkbox
-    row_checkbox = page.locator("table tbody tr input[type='checkbox']").first
-    if row_checkbox.is_visible():
-        # Check first document
-        row_checkbox.check()
-        page.wait_for_timeout(300)
-        # Verify Delete Selected button is active and displays count
-        expect(del_btn).to_be_enabled()
-        expect(page.locator("button:has-text('Delete Selected') span:has-text('1')")).to_be_visible()
-
-        # Click Delete Selected to open confirmation modal
-        del_btn.click()
-        expect(page.locator("h3:has-text('Delete Document(s)')")).to_be_visible()
-        expect(page.locator("text=Delete associated dynamic QR code(s)")).to_be_visible()
-
-        # Click Cancel to safely close modal without deleting test assets
-        page.click("button:has-text('Cancel')")
-        page.wait_for_timeout(300)
-        expect(page.locator("h3:has-text('Delete Document(s)')")).not_to_be_visible()
+    row.locator("input[type='checkbox']").check()
+    expect(page.locator("[data-testid=delete-selected]")).to_contain_text("1")
+    page.click("[data-testid=delete-selected]")
+    expect(page.get_by_role("dialog", name="Delete document?")).to_be_visible()
+    page.click("[data-testid=confirm-delete-documents]")
+    expect(page.get_by_text("Deleted 1 document(s)")).to_be_visible(timeout=8000)
+    expect(row).to_have_count(0)
 
 
 # ==============================================================================

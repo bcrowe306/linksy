@@ -1,105 +1,186 @@
 <template>
-  <header class="h-16 bg-gray-900 border-b border-gray-800 px-6 flex items-center justify-between z-10">
-    <div class="flex items-center gap-4 flex-1 max-w-2xl">
-      <WorkspaceSwitcher v-if="authStore.isAuthenticated" />
-      <!-- Search Input -->
-      <div class="relative w-full">
-        <Search class="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
-        <input
-          v-model="searchQuery"
-          @input="$emit('search', searchQuery)"
-          type="text"
-          placeholder="Search links, QR codes, tags... (Press '/' to focus)"
-          class="w-full bg-gray-800/80 border border-gray-700/80 rounded-lg pl-9 pr-4 py-1.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500 focus:border-transparent transition-all"
-        />
+  <header class="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-line bg-canvas/80 px-4 backdrop-blur-xl sm:px-6">
+    <button class="btn-ghost btn-icon lg:hidden" aria-label="Open navigation" @click="$emit('open-mobile-nav')">
+      <Menu class="w-5 h-5" />
+    </button>
+
+    <WorkspaceSwitcher v-if="authStore.isAuthenticated" />
+
+    <!-- Search -->
+    <div class="relative hidden md:block flex-1 max-w-md">
+      <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
+      <input
+        ref="searchInput"
+        v-model="query"
+        type="search"
+        placeholder="Search links, QR codes, documents…"
+        class="input pl-9 pr-10 py-1.5 bg-subtle/60 border-transparent shadow-none"
+        aria-label="Search"
+        data-testid="global-search"
+        @focus="searchOpen = true"
+        @keydown.down.prevent="move(1)"
+        @keydown.up.prevent="move(-1)"
+        @keydown.enter.prevent="go(results[activeIndex])"
+        @keydown.esc="blurSearch"
+      />
+      <span class="kbd absolute right-2.5 top-1/2 -translate-y-1/2">/</span>
+
+      <div v-if="searchOpen && query.trim()" class="absolute left-0 right-0 top-full mt-2 rounded-xl border border-line bg-elevated p-1.5 shadow-pop">
+        <p v-if="!results.length" class="px-3 py-6 text-center text-sm text-fg-muted">No matches for “{{ query }}”</p>
+        <button
+          v-for="(r, i) in results"
+          :key="r.key"
+          class="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left"
+          :class="i === activeIndex ? 'bg-subtle' : 'hover:bg-subtle'"
+          @mousedown.prevent="go(r)"
+          @mouseenter="activeIndex = i"
+        >
+          <component :is="r.icon" class="w-4 h-4 text-fg-subtle shrink-0" />
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-sm text-fg">{{ r.title }}</p>
+            <p class="truncate text-xs text-fg-subtle">{{ r.subtitle }}</p>
+          </div>
+          <span class="badge-neutral">{{ r.kind }}</span>
+        </button>
       </div>
     </div>
 
-    <!-- Actions -->
-    <div class="flex items-center gap-3">
-      <!-- Theme Switcher (System / Dark / Light) -->
-      <button
-        @click="themeStore.cycleTheme"
-        class="px-2.5 py-1.5 text-xs text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-1.5"
-        :title="themeTitle"
-      >
-        <Monitor v-if="themeStore.preference === 'system'" class="w-4 h-4 text-lynqr-400" />
-        <Moon v-else-if="themeStore.preference === 'dark'" class="w-4 h-4 text-indigo-400" />
-        <Sun v-else class="w-4 h-4 text-amber-400" />
-        <span class="text-[11px] font-medium capitalize hidden sm:inline">
-          {{ themeStore.preference === 'system' ? 'OS Theme' : themeStore.preference }}
-        </span>
-      </button>
+    <div class="ml-auto flex items-center gap-1.5">
+      <!-- Theme -->
+      <DropdownMenu>
+        <template #trigger>
+          <Tip text="Theme" placement="bottom">
+            <button class="btn-ghost btn-icon" aria-label="Change theme" data-testid="theme-toggle">
+              <Sun v-if="themeStore.effectiveTheme === 'light'" class="w-[18px] h-[18px]" />
+              <Moon v-else class="w-[18px] h-[18px]" />
+            </button>
+          </Tip>
+        </template>
+        <MenuItem v-for="t in themes" :key="t.value" :icon="t.icon" :data-testid="`theme-${t.value}`" @click="themeStore.setTheme(t.value)">
+          <span class="flex items-center justify-between gap-6">
+            {{ t.label }}
+            <Check v-if="themeStore.preference === t.value" class="w-3.5 h-3.5 text-brand-500" />
+          </span>
+        </MenuItem>
+      </DropdownMenu>
 
-      <!-- Create New Dropdown / Button -->
-      <button
-        @click="$emit('open-create')"
-        class="bg-lynqr-600 hover:bg-lynqr-500 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-lg shadow-lynqr-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
-      >
-        <Plus class="w-4 h-4 stroke-[2.5]" />
-        <span>Create New</span>
-      </button>
+      <!-- Create -->
+      <DropdownMenu v-if="authStore.can('assets:edit')">
+        <template #trigger>
+          <button class="btn-primary btn-sm sm:btn" data-testid="create-new">
+            <Plus class="w-4 h-4" /><span class="hidden sm:inline">Create</span>
+          </button>
+        </template>
+        <MenuItem :icon="Link2" shortcut="L" @click="$emit('open-create', 'link')">Short link</MenuItem>
+        <MenuItem :icon="QrCode" shortcut="Q" @click="$emit('open-create', 'qr')">QR code</MenuItem>
+        <MenuItem :icon="Wand2" to="/qr-studio">Design in QR Studio</MenuItem>
+        <MenuItem :icon="FileUp" shortcut="D" @click="$emit('open-create', 'doc')">Upload document</MenuItem>
+      </DropdownMenu>
 
-      <!-- Authentication Navigation / User Profile -->
-      <div v-if="!authStore.isAuthenticated" class="pl-2 border-l border-gray-800 flex items-center gap-2">
-        <router-link
-          to="/login"
-          class="px-3 py-1.5 rounded-lg text-gray-300 hover:text-white hover:bg-gray-800 text-xs font-semibold transition-colors"
-        >
-          Sign In
-        </router-link>
-        <router-link
-          to="/signup"
-          class="px-3 py-1.5 rounded-lg bg-lynqr-600 hover:bg-lynqr-500 text-white text-xs font-semibold shadow-md shadow-lynqr-600/20 transition-all"
-        >
-          Sign Up
-        </router-link>
-      </div>
-
-      <div v-else class="flex items-center gap-2.5 pl-3 border-l border-gray-800">
-        <!-- Clickable Avatar to Profile -->
-        <router-link
-          to="/profile"
-          class="flex items-center gap-2.5 p-1 -m-1 rounded-xl hover:bg-gray-800/80 transition-colors group cursor-pointer"
-          title="Account Profile & Settings"
-        >
-          <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-lynqr-600 to-indigo-400 flex items-center justify-center font-bold text-xs text-white shadow-sm group-hover:scale-105 transition-transform">
-            {{ authStore.initials }}
-          </div>
-          <div class="hidden md:flex flex-col text-left">
-            <span class="text-xs font-semibold text-gray-200 group-hover:text-lynqr-400 transition-colors">{{ authStore.user.name }}</span>
-            <span class="text-[10px] text-gray-400 font-mono">{{ authStore.user.email }}</span>
-          </div>
-        </router-link>
-
-        <button
-          @click="authStore.logout"
-          title="Sign Out"
-          class="p-1.5 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-gray-800 transition-colors ml-1"
-        >
-          <LogOut class="w-3.5 h-3.5" />
-        </button>
-      </div>
+      <!-- User -->
+      <DropdownMenu v-if="authStore.isAuthenticated">
+        <template #trigger>
+          <button class="ml-1 flex items-center gap-2 rounded-full p-0.5 hover:ring-4 hover:ring-subtle transition" aria-label="Account menu" data-testid="user-menu">
+            <img v-if="authStore.user.avatar_url" :src="authStore.user.avatar_url" alt="" class="h-8 w-8 rounded-full object-cover" />
+            <span v-else class="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-violet-500 text-xs font-bold text-white">
+              {{ authStore.initials }}
+            </span>
+          </button>
+        </template>
+        <div class="px-2.5 pb-2 pt-1.5 border-b border-line mb-1.5">
+          <p class="truncate text-sm font-semibold text-fg">{{ authStore.user.name || authStore.user.email }}</p>
+          <p class="truncate text-xs text-fg-subtle">{{ authStore.user.email }}</p>
+        </div>
+        <MenuItem :icon="UserCircle" to="/profile">Profile & security</MenuItem>
+        <MenuItem :icon="KeyRound" to="/profile?tab=api-keys">API keys</MenuItem>
+        <MenuItem :icon="Settings" to="/settings">Team settings</MenuItem>
+        <div class="my-1.5 border-t border-line" />
+        <MenuItem :icon="LogOut" danger data-testid="sign-out" @click="authStore.logout">Sign out</MenuItem>
+      </DropdownMenu>
     </div>
   </header>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { Search, Plus, Sun, Moon, Monitor, LogOut } from 'lucide-vue-next'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
+import {
+  Search, Plus, Sun, Moon, Monitor, LogOut, Menu, Check, Link2, QrCode, Wand2, FileUp, UserCircle, KeyRound, Settings, FileText
+} from 'lucide-vue-next'
 import { useThemeStore } from '../stores/theme'
 import { useAuthStore } from '../stores/auth'
+import { useLynqrStore } from '../stores/lynqr'
 import WorkspaceSwitcher from './WorkspaceSwitcher.vue'
+import DropdownMenu from './ui/DropdownMenu.vue'
+import MenuItem from './ui/MenuItem.vue'
+import Tip from './ui/Tip.vue'
 
-defineEmits(['open-create', 'search'])
+defineEmits(['open-create', 'open-mobile-nav'])
 const themeStore = useThemeStore()
 const authStore = useAuthStore()
-const searchQuery = ref('')
+const store = useLynqrStore()
+const router = useRouter()
 
-const themeTitle = computed(() => {
-  if (themeStore.preference === 'system') {
-    return `Theme: Following OS specification (${themeStore.effectiveTheme})`
+const themes = [
+  { value: 'dark', label: 'Dark', icon: Moon },
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'system', label: 'System', icon: Monitor }
+]
+
+// ---- Global search across the workspace's assets ----
+const query = ref('')
+const searchOpen = ref(false)
+const activeIndex = ref(0)
+const searchInput = ref(null)
+
+const results = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  if (!q) return []
+  const match = (...fields) => fields.some((f) => (f || '').toLowerCase().includes(q))
+  const links = store.links
+    .filter((l) => match(l.title, l.slug, l.target_url))
+    .map((l) => ({ key: `l-${l.id}`, kind: 'Link', icon: Link2, title: l.title || l.slug, subtitle: `/s/${l.slug} → ${l.target_url}`, to: `/links?focus=${l.id}` }))
+  const qrs = store.qrCodes
+    .filter((c) => match(c.title, c.payload, c.type))
+    .map((c) => ({ key: `q-${c.id}`, kind: 'QR', icon: QrCode, title: c.title, subtitle: c.type, to: `/qr-studio/${c.id}` }))
+  const docs = store.documents
+    .filter((d) => match(d.filename))
+    .map((d) => ({ key: `d-${d.id}`, kind: 'Doc', icon: FileText, title: d.filename, subtitle: `Version ${d.version}`, to: '/documents' }))
+  return [...links, ...qrs, ...docs].slice(0, 8)
+})
+
+function move(delta) {
+  if (!results.value.length) return
+  activeIndex.value = (activeIndex.value + delta + results.value.length) % results.value.length
+}
+function go(r) {
+  if (!r) return
+  router.push(r.to)
+  blurSearch()
+}
+function blurSearch() {
+  query.value = ''
+  searchOpen.value = false
+  activeIndex.value = 0
+  searchInput.value?.blur()
+}
+
+function onKey(e) {
+  const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || document.activeElement?.isContentEditable
+  if (e.key === '/' && !typing) {
+    e.preventDefault()
+    searchInput.value?.focus()
   }
-  return `Theme: ${themeStore.preference}`
+}
+function onDocClick(e) {
+  if (searchInput.value && !e.composedPath().includes(searchInput.value.parentElement)) searchOpen.value = false
+}
+onMounted(() => {
+  document.addEventListener('keydown', onKey)
+  document.addEventListener('click', onDocClick)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKey)
+  document.removeEventListener('click', onDocClick)
 })
 </script>

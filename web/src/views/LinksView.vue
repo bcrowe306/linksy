@@ -1,171 +1,306 @@
 <template>
-  <div class="space-y-6">
-    <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-xl font-bold text-white">Short Links</h1>
-        <p class="text-xs text-gray-400 mt-0.5">Manage shortened links and change dynamic destinations anytime.</p>
+  <div>
+    <PageHeader title="Short Links" subtitle="Branded, trackable links you can re-point at any time.">
+      <template #actions>
+        <button v-if="canEdit" class="btn-primary" data-testid="new-link" @click="$emit('open-create', 'link')">
+          <Plus class="w-4 h-4" /> New link
+        </button>
+      </template>
+    </PageHeader>
+
+    <!-- Toolbar -->
+    <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div class="relative flex-1 sm:max-w-xs">
+        <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
+        <input v-model="search" type="search" placeholder="Filter links…" class="input pl-9" aria-label="Filter links" />
       </div>
-      <button
-        @click="$emit('open-create')"
-        class="bg-lynqr-600 hover:bg-lynqr-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
-      >
-        <Plus class="w-4 h-4" />
-        <span>New Link</span>
-      </button>
+      <div class="flex gap-1 rounded-xl bg-subtle p-1">
+        <button
+          v-for="f in filters"
+          :key="f.id"
+          class="rounded-lg px-3 py-1.5 text-xs font-medium transition"
+          :class="status === f.id ? 'bg-surface text-fg shadow-card' : 'text-fg-muted hover:text-fg'"
+          @click="status = f.id"
+        >
+          {{ f.label }} <span class="ml-1 text-fg-subtle">{{ counts[f.id] }}</span>
+        </button>
+      </div>
+      <select v-model="sort" class="input sm:ml-auto sm:w-44" aria-label="Sort links">
+        <option value="newest">Newest first</option>
+        <option value="oldest">Oldest first</option>
+        <option value="clicks">Most clicks</option>
+        <option value="title">Title A–Z</option>
+      </select>
     </div>
 
-    <!-- Table -->
-    <div class="bg-gray-800/60 border border-gray-700/80 rounded-2xl overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs text-gray-300">
-          <thead class="bg-gray-800/80 text-[11px] uppercase tracking-wider text-gray-400 border-b border-gray-700">
+    <div class="card overflow-hidden">
+      <div v-if="store.loading && !store.links.length" class="space-y-3 p-5">
+        <div v-for="i in 4" :key="i" class="skeleton h-12" />
+      </div>
+
+      <EmptyState
+        v-else-if="!store.links.length"
+        :icon="Link2"
+        title="No short links yet"
+        description="Create a short link to start tracking clicks, devices and locations."
+      >
+        <button v-if="canEdit" class="btn-primary" @click="$emit('open-create', 'link')"><Plus class="w-4 h-4" /> Create your first link</button>
+      </EmptyState>
+
+      <EmptyState v-else-if="!visible.length" :icon="SearchX" title="No links match your filters" description="Try a different search or status filter." />
+
+      <template v-else>
+        <!-- Desktop table -->
+        <table class="table-base hidden md:table" data-testid="links-table">
+          <thead>
             <tr>
-              <th class="px-5 py-3">Link Title & Target</th>
-              <th class="px-5 py-3">Short URL</th>
-              <th class="px-5 py-3">Clicks</th>
-              <th class="px-5 py-3">Created</th>
-              <th class="px-5 py-3 text-right">Actions</th>
+              <th>Link</th>
+              <th>Destination</th>
+              <th class="text-right">Clicks</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th class="w-px"><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-750">
-            <tr v-for="link in store.links" :key="link.id" class="hover:bg-gray-800/40 transition-colors">
-              <td class="px-5 py-3.5">
-                <div class="font-semibold text-gray-200">{{ link.title }}</div>
-                <a
-                  :href="link.target_url"
-                  target="_blank"
-                  class="text-gray-400 hover:text-lynqr-400 truncate max-w-sm block text-[11px] mt-0.5"
-                >
-                  {{ link.target_url }}
-                </a>
-              </td>
-              <td class="px-5 py-3.5 font-mono text-lynqr-400">
-                <div class="flex items-center gap-1.5">
-                  <span>/s/{{ link.slug }}</span>
-                  <button @click="copyShort(link.slug)" class="p-1 text-gray-400 hover:text-white" title="Copy">
-                    <Copy class="w-3.5 h-3.5" />
-                  </button>
+          <tbody>
+            <tr v-for="link in visible" :key="link.id" :class="{ 'bg-brand-500/5': link.id === route.query.focus }">
+              <td class="max-w-[260px]">
+                <p class="truncate font-medium text-fg">{{ link.title || link.slug }}</p>
+                <div class="mt-0.5 flex items-center gap-1">
+                  <a :href="shortUrl(link)" target="_blank" rel="noopener" class="truncate font-mono text-xs text-brand-500 hover:underline">{{ shortHost }}/s/{{ link.slug }}</a>
+                  <CopyButton :value="shortUrl(link)" label="Copy short link" />
                 </div>
               </td>
-              <td class="px-5 py-3.5 font-mono font-semibold text-gray-200">
-                {{ link.click_count }}
+              <td class="max-w-[280px]">
+                <a :href="link.target_url" target="_blank" rel="noopener noreferrer" class="block truncate text-fg-muted hover:text-fg" :title="link.target_url">{{ link.target_url }}</a>
               </td>
-              <td class="px-5 py-3.5 text-gray-400 text-[11px]">
-                {{ new Date(link.created_at).toLocaleDateString() }}
-              </td>
-              <td class="px-5 py-3.5 text-right space-x-2">
-                <!-- Edit Destination Dynamically (Requirement 6) -->
-                <button
-                  @click="openEditModal(link)"
-                  class="p-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300"
-                  title="Change destination"
-                >
-                  <Edit3 class="w-3.5 h-3.5" />
-                </button>
-                <button
-                  @click="deleteLink(link.id)"
-                  class="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400"
-                  title="Delete link"
-                >
-                  <Trash2 class="w-3.5 h-3.5" />
-                </button>
-              </td>
-            </tr>
-            <tr v-if="!store.links.length">
-              <td colspan="5" class="px-5 py-10 text-center text-gray-500">
-                No short links created yet. Click "New Link" above to get started.
+              <td class="text-right font-semibold tabular-nums text-fg">{{ link.click_count.toLocaleString() }}</td>
+              <td><StatusBadge :link="link" /></td>
+              <td class="whitespace-nowrap text-fg-muted">{{ formatDate(link.created_at) }}</td>
+              <td>
+                <div class="flex items-center justify-end gap-0.5">
+                  <Tip text="View analytics"><router-link :to="`/analytics?link=${link.id}`" class="btn-ghost btn-icon" aria-label="View analytics"><BarChart3 class="w-4 h-4" /></router-link></Tip>
+                  <template v-if="canEdit">
+                    <Tip :text="link.is_active ? 'Pause link' : 'Resume link'">
+                      <button class="btn-ghost btn-icon" :aria-label="link.is_active ? 'Pause link' : 'Resume link'" @click="toggleActive(link)">
+                        <Pause v-if="link.is_active" class="w-4 h-4" /><Play v-else class="w-4 h-4" />
+                      </button>
+                    </Tip>
+                    <Tip text="Edit"><button class="btn-ghost btn-icon" aria-label="Edit link" data-testid="edit-link" @click="openEdit(link)"><Pencil class="w-4 h-4" /></button></Tip>
+                    <Tip text="Delete"><button class="btn-ghost btn-icon hover:!text-rose-500" aria-label="Delete link" @click="remove(link)"><Trash2 class="w-4 h-4" /></button></Tip>
+                  </template>
+                </div>
               </td>
             </tr>
           </tbody>
         </table>
-      </div>
+
+        <!-- Mobile cards -->
+        <ul class="divide-y divide-line md:hidden">
+          <li v-for="link in visible" :key="link.id" class="p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="truncate font-medium text-fg">{{ link.title || link.slug }}</p>
+                <p class="truncate font-mono text-xs text-brand-500">{{ shortHost }}/s/{{ link.slug }}</p>
+                <p class="mt-1 truncate text-xs text-fg-muted">{{ link.target_url }}</p>
+              </div>
+              <StatusBadge :link="link" />
+            </div>
+            <div class="mt-3 flex items-center justify-between">
+              <span class="text-xs text-fg-muted"><span class="font-semibold text-fg">{{ link.click_count }}</span> clicks</span>
+              <div class="flex gap-1">
+                <CopyButton :value="shortUrl(link)" />
+                <button v-if="canEdit" class="btn-ghost btn-icon" aria-label="Edit link" @click="openEdit(link)"><Pencil class="w-4 h-4" /></button>
+                <button v-if="canEdit" class="btn-ghost btn-icon" aria-label="Delete link" @click="remove(link)"><Trash2 class="w-4 h-4" /></button>
+              </div>
+            </div>
+          </li>
+        </ul>
+      </template>
     </div>
 
-    <!-- Edit Destination Modal (Requirement 6) -->
-    <div v-if="editingLink" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div @click="editingLink = null" class="absolute inset-0 bg-black/75 backdrop-blur-sm"></div>
-      <div class="relative bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl z-10 space-y-4">
-        <h3 class="text-base font-bold text-white flex items-center gap-2">
-          <Edit3 class="w-4 h-4 text-lynqr-400" />
-          <span>Edit Link Destination (Dynamic Routing)</span>
-        </h3>
-        <p class="text-xs text-gray-400">
-          Updating the target URL will immediately redirect future clicks without altering the short slug or any printed QR codes.
-        </p>
-
+    <!-- Edit modal -->
+    <AppModal :open="!!editing" title="Edit short link" :description="editing ? `${shortHost}/s/${editing.slug}` : ''" @close="editing = null">
+      <form v-if="editing" id="edit-link-form" class="space-y-4" @submit.prevent="saveEdit">
         <div>
-          <label class="block text-xs font-semibold text-gray-300 mb-1">Link Title</label>
-          <input
-            v-model="editForm.title"
-            type="text"
-            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100"
-          />
+          <label class="label" for="edit-target">
+            Destination URL
+            <Tip text="Changing this re-points the link (and any QR codes using it) instantly. Nothing needs to be reprinted." />
+          </label>
+          <input id="edit-target" v-model="form.target_url" type="url" required class="input" data-testid="edit-target" />
         </div>
-
         <div>
-          <label class="block text-xs font-semibold text-gray-300 mb-1">New Destination Target URL</label>
-          <input
-            v-model="editForm.target_url"
-            type="url"
-            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100"
-          />
+          <label class="label" for="edit-title">Title</label>
+          <input id="edit-title" v-model="form.title" class="input" />
         </div>
-
-        <div class="flex justify-end gap-2 pt-2">
-          <button @click="editingLink = null" class="px-3.5 py-1.5 text-xs text-gray-400 hover:text-white">Cancel</button>
-          <button @click="saveEdit" class="px-4 py-1.5 text-xs font-semibold bg-lynqr-600 hover:bg-lynqr-500 text-white rounded-lg">
-            Save Changes
-          </button>
+        <div>
+          <label class="label" for="edit-desc">Notes</label>
+          <textarea id="edit-desc" v-model="form.description" rows="2" class="input" />
         </div>
-      </div>
-    </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label class="label" for="edit-expiry">Expires</label>
+            <input id="edit-expiry" v-model="form.expires_local" type="datetime-local" class="input" />
+          </div>
+          <label class="flex items-center justify-between gap-3 self-end rounded-xl border border-line px-3.5 py-2">
+            <span class="text-sm font-medium text-fg">Active</span>
+            <Toggle v-model="form.is_active" />
+          </label>
+        </div>
+      </form>
+      <template #footer>
+        <button class="btn-secondary" @click="editing = null">Cancel</button>
+        <button class="btn-primary" type="submit" form="edit-link-form" :disabled="saving" data-testid="save-link">
+          <Loader2 v-if="saving" class="w-4 h-4 animate-spin" /> Save changes
+        </button>
+      </template>
+    </AppModal>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { Plus, Copy, Edit3, Trash2 } from 'lucide-vue-next'
+import { ref, computed, h } from 'vue'
+import { useRoute } from 'vue-router'
+import { Plus, Link2, Search, SearchX, Pencil, Trash2, Pause, Play, BarChart3, Loader2 } from 'lucide-vue-next'
 import { useLynqrStore } from '../stores/lynqr'
+import { useAuthStore } from '../stores/auth'
 import { api } from '../api/client'
+import { useToast } from '../composables/useToast'
+import { useConfirm } from '../composables/useConfirm'
+import PageHeader from '../components/ui/PageHeader.vue'
+import EmptyState from '../components/ui/EmptyState.vue'
+import AppModal from '../components/ui/AppModal.vue'
+import CopyButton from '../components/ui/CopyButton.vue'
+import Tip from '../components/ui/Tip.vue'
+import Toggle from '../components/ui/Toggle.vue'
 
 defineEmits(['open-create'])
 const store = useLynqrStore()
+const auth = useAuthStore()
+const route = useRoute()
+const toast = useToast()
+const confirm = useConfirm()
 
-const editingLink = ref(null)
-const editForm = ref({ title: '', target_url: '', is_active: true })
+const canEdit = computed(() => auth.can('assets:edit'))
+const shortHost = window.location.host
+const shortUrl = (l) => `${window.location.origin}/s/${l.slug}`
 
-function copyShort(slug) {
-  const url = `${window.location.origin}/s/${slug}`
-  navigator.clipboard.writeText(url)
+const search = ref('')
+const status = ref('all')
+const sort = ref('newest')
+const filters = [
+  { id: 'all', label: 'All' },
+  { id: 'active', label: 'Active' },
+  { id: 'paused', label: 'Paused' },
+  { id: 'expired', label: 'Expired' }
+]
+
+const isExpired = (l) => l.expires_at && new Date(l.expires_at) < new Date()
+const stateOf = (l) => (isExpired(l) ? 'expired' : l.is_active ? 'active' : 'paused')
+
+const counts = computed(() => {
+  const c = { all: store.links.length, active: 0, paused: 0, expired: 0 }
+  store.links.forEach((l) => c[stateOf(l)]++)
+  return c
+})
+
+const visible = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  let list = store.links.filter((l) => status.value === 'all' || stateOf(l) === status.value)
+  if (q) list = list.filter((l) => [l.title, l.slug, l.target_url].some((f) => (f || '').toLowerCase().includes(q)))
+  const sorters = {
+    newest: (a, b) => new Date(b.created_at) - new Date(a.created_at),
+    oldest: (a, b) => new Date(a.created_at) - new Date(b.created_at),
+    clicks: (a, b) => b.click_count - a.click_count,
+    title: (a, b) => (a.title || a.slug).localeCompare(b.title || b.slug)
+  }
+  return [...list].sort(sorters[sort.value])
+})
+
+const StatusBadge = (props) => {
+  const s = stateOf(props.link)
+  const cls = { active: 'badge-success', paused: 'badge-warning', expired: 'badge-danger' }[s]
+  return h('span', { class: cls }, [h('span', { class: 'h-1.5 w-1.5 rounded-full bg-current' }), s[0].toUpperCase() + s.slice(1)])
+}
+StatusBadge.props = ['link']
+
+function formatDate(d) {
+  return new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function openEditModal(link) {
-  editingLink.value = link
-  editForm.value = {
+// datetime-local wants local "YYYY-MM-DDTHH:mm"
+function toLocalInput(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+const editing = ref(null)
+const saving = ref(false)
+const form = ref({})
+
+function openEdit(link) {
+  editing.value = link
+  form.value = {
     title: link.title,
     target_url: link.target_url,
-    is_active: link.is_active
+    description: link.description,
+    is_active: link.is_active,
+    expires_local: toLocalInput(link.expires_at)
+  }
+}
+
+function payloadFor(link, overrides = {}) {
+  return {
+    title: link.title,
+    target_url: link.target_url,
+    description: link.description,
+    is_active: link.is_active,
+    expires_at: link.expires_at || null,
+    ...overrides
   }
 }
 
 async function saveEdit() {
-  if (!editingLink.value) return
+  saving.value = true
   try {
-    await api.updateLink(editingLink.value.id, editForm.value)
-    editingLink.value = null
+    const { expires_local, ...rest } = form.value
+    await api.updateLink(editing.value.id, { ...rest, expires_at: expires_local ? new Date(expires_local).toISOString() : null })
+    toast.success('Link updated')
+    editing.value = null
     await store.fetchLinks()
   } catch (err) {
-    alert(err.message)
+    toast.error(err.message)
+  } finally {
+    saving.value = false
   }
 }
 
-async function deleteLink(id) {
-  if (!confirm('Are you sure you want to delete this short link?')) return
+async function toggleActive(link) {
   try {
-    await api.deleteLink(id)
+    await api.updateLink(link.id, payloadFor(link, { is_active: !link.is_active }))
+    toast.success(link.is_active ? 'Link paused: visitors see a branded notice' : 'Link resumed')
     await store.fetchLinks()
   } catch (err) {
-    alert(err.message)
+    toast.error(err.message)
+  }
+}
+
+async function remove(link) {
+  const ok = await confirm({
+    title: 'Delete short link?',
+    message: `${shortHost}/s/${link.slug} will stop working immediately. Printed materials using it will show a "not found" page.`,
+    confirmText: 'Delete link',
+    danger: true
+  })
+  if (!ok) return
+  try {
+    await api.deleteLink(link.id)
+    toast.success('Link deleted')
+    await store.fetchLinks()
+  } catch (err) {
+    toast.error(err.message)
   }
 }
 </script>

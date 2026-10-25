@@ -545,17 +545,26 @@ class LinksyTestHarness:
                 self.failed += 1
                 self.log("QR Scan Redirection (/qr/r/:id)", f"Failed ({status})", "FAIL")
 
-            # Public Export Formats (Unauthenticated for <img> and direct downloads)
+            # Export formats (authenticated, team-scoped)
             formats = [("png", "image/png"), ("jpeg", "image/jpeg"), ("svg", "image/svg+xml"), ("pdf", "application/pdf")]
             for fmt, expected_mime in formats:
-                status, body = self.request("GET", f"/api/v1/qr/{qr_id}/export?format={fmt}&size=240", auth=False)
+                status, body = self.request("GET", f"/api/v1/qr/{qr_id}/export?format={fmt}&size=240")
                 mime = self.last_headers.get("Content-Type", "")
                 if status == 200 and expected_mime in mime and len(body) > 0:
                     self.passed += 1
-                    self.log(f"Public QR Export ({fmt.upper()})", f"Exported {fmt.upper()} preview without auth ({len(body)} bytes, {mime})", "PASS")
+                    self.log(f"QR Export ({fmt.upper()})", f"Exported {fmt.upper()} ({len(body)} bytes, {mime})", "PASS")
                 else:
                     self.failed += 1
-                    self.log(f"Public QR Export ({fmt.upper()})", f"Failed ({status}): {mime}", "FAIL")
+                    self.log(f"QR Export ({fmt.upper()})", f"Failed ({status}): {mime}", "FAIL")
+
+            # Anonymous export must be rejected (fresh session without cookies)
+            anon = requests.get(f"{self.base_url}/api/v1/qr/{qr_id}/export?format=png", timeout=15)
+            if anon.status_code == 401:
+                self.passed += 1
+                self.log("Anonymous QR Export Blocked", "Export without credentials returns 401", "PASS")
+            else:
+                self.failed += 1
+                self.log("Anonymous QR Export Blocked", f"Expected 401, got {anon.status_code}", "FAIL")
 
             # Delete QR Code
             status, _ = self.request("DELETE", f"/api/v1/qr/{qr_id}")

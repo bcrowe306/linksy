@@ -1,216 +1,156 @@
 <template>
-  <div class="space-y-6">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-xl font-bold text-white">Dynamic QR Codes</h1>
-        <p class="text-xs text-gray-400 mt-0.5">Customize, export in high-res (PNG, JPEG, PDF, SVG), and update destinations.</p>
+  <div>
+    <PageHeader title="QR Codes" subtitle="Every QR code in this workspace. Dynamic codes can be re-pointed without reprinting.">
+      <template #actions>
+        <router-link v-if="canEdit" to="/qr-studio" class="btn-secondary"><Wand2 class="w-4 h-4" /> Open Studio</router-link>
+        <button v-if="canEdit" class="btn-primary" @click="$emit('open-create', 'qr')"><Plus class="w-4 h-4" /> New QR code</button>
+      </template>
+    </PageHeader>
+
+    <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div class="relative flex-1 sm:max-w-xs">
+        <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
+        <input v-model="search" type="search" placeholder="Filter QR codes…" class="input pl-9" aria-label="Filter QR codes" />
       </div>
-      <div class="flex items-center gap-2.5">
-        <router-link
-          to="/qr-studio"
-          class="bg-gray-800 hover:bg-gray-750 border border-gray-700 text-lynqr-400 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
-        >
-          <Sparkles class="w-4 h-4 text-amber-400" />
-          <span>Open Design Studio</span>
+      <select v-model="type" class="input sm:w-48" aria-label="Filter by type">
+        <option value="">All types</option>
+        <option v-for="(meta, key) in typeMeta" :key="key" :value="key">{{ meta.label }}</option>
+      </select>
+    </div>
+
+    <div v-if="store.loading && !store.qrCodes.length" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div v-for="i in 4" :key="i" class="skeleton h-72 rounded-2xl" />
+    </div>
+
+    <div v-else-if="!store.qrCodes.length" class="card">
+      <EmptyState :icon="QrCode" title="No QR codes yet" description="Design a branded QR code with colors, logo and frame, then track every scan.">
+        <router-link v-if="canEdit" to="/qr-studio" class="btn-primary"><Wand2 class="w-4 h-4" /> Design a QR code</router-link>
+      </EmptyState>
+    </div>
+
+    <div v-else-if="!visible.length" class="card">
+      <EmptyState :icon="SearchX" title="No QR codes match your filters" />
+    </div>
+
+    <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" data-testid="qr-grid">
+      <article v-for="qr in visible" :key="qr.id" class="card card-hover group flex flex-col overflow-hidden">
+        <router-link :to="`/qr-studio/${qr.id}`" class="relative flex aspect-square items-center justify-center bg-[repeating-conic-gradient(rgb(var(--subtle))_0%_25%,transparent_0%_50%)] bg-[length:16px_16px] p-6">
+          <img :src="previewUrl(qr)" :alt="`QR code for ${qr.title}`" loading="lazy" class="max-h-full max-w-full rounded-lg shadow-card transition-transform group-hover:scale-[1.02]" />
+          <span class="absolute left-3 top-3 badge-neutral bg-surface/90 backdrop-blur">
+            <component :is="typeMeta[qr.type]?.icon || QrCode" class="w-3 h-3" /> {{ typeMeta[qr.type]?.label || qr.type }}
+          </span>
+          <span v-if="qr.link_id" class="absolute right-3 top-3 badge-brand bg-surface/90 backdrop-blur">Dynamic</span>
         </router-link>
-        <button
-          @click="$emit('open-create')"
-          class="bg-lynqr-600 hover:bg-lynqr-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-lynqr-600/20"
-        >
-          <Plus class="w-4 h-4" />
-          <span>Quick QR</span>
-        </button>
-      </div>
-    </div>
 
-    <!-- QR Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <div
-        v-for="qr in store.qrCodes"
-        :key="qr.id"
-        class="bg-gray-800/60 border border-gray-700/80 rounded-2xl p-5 flex flex-col justify-between hover:border-gray-600 transition-all group"
-      >
-        <div>
-          <!-- QR Card Header -->
-          <div class="flex items-start justify-between gap-3 mb-4">
-            <div>
-              <h3 class="text-sm font-bold text-white truncate max-w-[200px]">{{ qr.title }}</h3>
-              <div class="flex items-center gap-1.5 mt-0.5">
-                <span class="text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider"
-                  :class="qr.link_id ? 'bg-lynqr-500/20 text-lynqr-400' : 'bg-gray-700 text-gray-300'">
-                  {{ qr.link_id ? 'Dynamic' : 'Static' }} • {{ qr.type }}
-                </span>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-1">
-              <router-link
-                :to="'/qr-studio/' + qr.id"
-                class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800"
-                title="Edit Style in Studio"
-              >
-                <Palette class="w-3.5 h-3.5" />
-              </router-link>
-              <button
-                @click="deleteQR(qr.id)"
-                class="text-gray-500 hover:text-rose-400 p-1 rounded-lg hover:bg-gray-800"
-                title="Delete QR"
-              >
-                <Trash2 class="w-3.5 h-3.5" />
-              </button>
+        <div class="flex flex-1 flex-col gap-3 p-4">
+          <div class="min-w-0">
+            <h3 class="truncate font-semibold text-fg" :title="qr.title">{{ qr.title || 'Untitled QR' }}</h3>
+            <p class="truncate text-xs text-fg-muted" :title="qr.payload">{{ describe(qr) }}</p>
+          </div>
+          <div class="mt-auto flex items-center justify-between">
+            <span class="inline-flex items-center gap-1.5 text-xs text-fg-muted">
+              <ScanLine class="w-3.5 h-3.5" /><span class="font-semibold tabular-nums text-fg">{{ qr.scan_count.toLocaleString() }}</span> scans
+            </span>
+            <div class="flex items-center gap-0.5">
+              <DropdownMenu>
+                <template #trigger>
+                  <Tip text="Download"><button class="btn-ghost btn-icon" aria-label="Download QR code"><Download class="w-4 h-4" /></button></Tip>
+                </template>
+                <MenuItem v-for="f in formats" :key="f.id" :icon="f.icon" @click="download(qr, f.id)">{{ f.label }}</MenuItem>
+              </DropdownMenu>
+              <Tip text="Analytics"><router-link :to="`/analytics?qr=${qr.id}`" class="btn-ghost btn-icon" aria-label="View analytics"><BarChart3 class="w-4 h-4" /></router-link></Tip>
+              <Tip v-if="canEdit" text="Edit in Studio"><router-link :to="`/qr-studio/${qr.id}`" class="btn-ghost btn-icon" aria-label="Edit QR code"><Pencil class="w-4 h-4" /></router-link></Tip>
+              <Tip v-if="canEdit" text="Delete"><button class="btn-ghost btn-icon hover:!text-rose-500" aria-label="Delete QR code" @click="remove(qr)"><Trash2 class="w-4 h-4" /></button></Tip>
             </div>
           </div>
-
-          <!-- QR Preview Image -->
-          <div class="bg-white rounded-xl p-4 flex flex-col items-center justify-center mb-4 shadow-inner relative">
-            <img
-              :src="`/api/v1/qr/${qr.id}/export?format=png&size=240`"
-              class="w-36 h-36 object-contain"
-            />
-            <div v-if="qr.style?.label_text" class="mt-1 text-[10px] font-bold text-black uppercase tracking-wider">
-              {{ qr.style.label_text }}
-            </div>
-          </div>
-
-          <!-- Payload / Destination preview -->
-          <div class="text-[11px] text-gray-400 font-mono truncate mb-4 bg-gray-900/60 p-2 rounded-lg border border-gray-800">
-            {{ qr.payload }}
-          </div>
         </div>
-
-        <!-- Export & Action Bar -->
-        <div class="space-y-2 pt-3 border-t border-gray-700/60">
-          <div class="flex items-center justify-between text-xs text-gray-400 mb-1">
-            <span class="font-mono">{{ qr.scan_count }} scans</span>
-            <div class="flex items-center gap-3">
-              <router-link
-                :to="'/qr-studio/' + qr.id"
-                class="text-amber-400 hover:underline flex items-center gap-1 text-[11px]"
-              >
-                <Palette class="w-3 h-3" />
-                <span>Customize</span>
-              </router-link>
-              <!-- Edit Destination Modal trigger -->
-              <button
-                v-if="qr.link_id"
-                @click="openEditQR(qr)"
-                class="text-lynqr-400 hover:underline flex items-center gap-1 text-[11px]"
-              >
-                <Edit3 class="w-3 h-3" />
-                <span>Destination</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- 4 Format Export Row (Requirement 5) -->
-          <div class="grid grid-cols-4 gap-1.5">
-            <a
-              :href="`/api/v1/qr/${qr.id}/export?format=png&download=true`"
-              class="py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-white text-[10px] font-semibold text-center"
-            >
-              PNG
-            </a>
-            <a
-              :href="`/api/v1/qr/${qr.id}/export?format=jpeg&download=true`"
-              class="py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-white text-[10px] font-semibold text-center"
-            >
-              JPEG
-            </a>
-            <a
-              :href="`/api/v1/qr/${qr.id}/export?format=pdf&download=true`"
-              class="py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-white text-[10px] font-semibold text-center"
-            >
-              PDF
-            </a>
-            <a
-              :href="`/api/v1/qr/${qr.id}/export?format=svg&download=true`"
-              class="py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-white text-[10px] font-semibold text-center"
-            >
-              SVG
-            </a>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="!store.qrCodes.length" class="col-span-full py-16 text-center text-xs text-gray-500 bg-gray-800/40 rounded-2xl border border-dashed border-gray-700">
-        No QR codes created yet. Click "Open Design Studio" to craft a custom styled code with borders, logos, and gradients.
-      </div>
-    </div>
-
-    <!-- Edit Dynamic Destination Modal (Requirement 6) -->
-    <div v-if="editingQR" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div @click="editingQR = null" class="absolute inset-0 bg-black/75 backdrop-blur-sm"></div>
-      <div class="relative bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl z-10 space-y-4">
-        <h3 class="text-base font-bold text-white flex items-center gap-2">
-          <Edit3 class="w-4 h-4 text-lynqr-400" />
-          <span>Change QR Code Destination</span>
-        </h3>
-        <p class="text-xs text-gray-400">
-          This is a dynamic QR code. Updating its destination website will immediately redirect future scans without changing the physical QR image.
-        </p>
-
-        <div>
-          <label class="block text-xs font-semibold text-gray-300 mb-1">QR Title</label>
-          <input v-model="editTitle" type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100" />
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-gray-300 mb-1">New Target Destination URL</label>
-          <input v-model="editTarget" type="url" placeholder="https://newdestination.com" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100" />
-        </div>
-
-        <div class="flex justify-end gap-2 pt-2">
-          <button @click="editingQR = null" class="px-3.5 py-1.5 text-xs text-gray-400 hover:text-white">Cancel</button>
-          <button @click="saveQREdit" class="px-4 py-1.5 text-xs font-semibold bg-lynqr-600 hover:bg-lynqr-500 text-white rounded-lg">
-            Save Changes
-          </button>
-        </div>
-      </div>
+      </article>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { Plus, Trash2, Edit3, Palette, Sparkles } from 'lucide-vue-next'
+import { ref, computed } from 'vue'
+import {
+  Plus, QrCode, Wand2, Search, SearchX, Download, BarChart3, Pencil, Trash2, ScanLine, Globe, FileText, Contact, Wifi,
+  Smartphone, Type, Mail, MessageSquare, Image, FileImage, FileType2
+} from 'lucide-vue-next'
 import { useLynqrStore } from '../stores/lynqr'
+import { useAuthStore } from '../stores/auth'
 import { api } from '../api/client'
+import { useToast } from '../composables/useToast'
+import { useConfirm } from '../composables/useConfirm'
+import PageHeader from '../components/ui/PageHeader.vue'
+import EmptyState from '../components/ui/EmptyState.vue'
+import DropdownMenu from '../components/ui/DropdownMenu.vue'
+import MenuItem from '../components/ui/MenuItem.vue'
+import Tip from '../components/ui/Tip.vue'
 
 defineEmits(['open-create'])
 const store = useLynqrStore()
+const auth = useAuthStore()
+const toast = useToast()
+const confirm = useConfirm()
+const canEdit = computed(() => auth.can('assets:edit'))
 
-const editingQR = ref(null)
-const editTitle = ref('')
-const editTarget = ref('')
+const typeMeta = {
+  website: { label: 'Website', icon: Globe },
+  document: { label: 'Document', icon: FileText },
+  vcard: { label: 'Contact', icon: Contact },
+  wifi: { label: 'Wi-Fi', icon: Wifi },
+  app: { label: 'App store', icon: Smartphone },
+  text: { label: 'Text', icon: Type },
+  email: { label: 'Email', icon: Mail },
+  sms: { label: 'SMS', icon: MessageSquare }
+}
+const formats = [
+  { id: 'png', label: 'PNG · 2048px', icon: Image },
+  { id: 'svg', label: 'SVG · vector', icon: FileType2 },
+  { id: 'pdf', label: 'PDF · print ready', icon: FileText },
+  { id: 'jpeg', label: 'JPEG · 2048px', icon: FileImage }
+]
 
-function openEditQR(qr) {
-  editingQR.value = qr
-  editTitle.value = qr.title
-  editTarget.value = ''
+const search = ref('')
+const type = ref('')
+const visible = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  return store.qrCodes.filter(
+    (c) => (!type.value || c.type === type.value) && (!q || [c.title, c.payload].some((f) => (f || '').toLowerCase().includes(q)))
+  )
+})
+
+// Cache-bust on update so edited styles show immediately.
+const previewUrl = (qr) => `${api.getExportUrl(qr.id, 'png', 360, false)}&v=${new Date(qr.updated_at).getTime()}`
+
+function describe(qr) {
+  if (qr.type === 'wifi') return 'Wi-Fi credentials'
+  if (qr.type === 'vcard') return 'Contact card'
+  return qr.payload
 }
 
-async function saveQREdit() {
-  if (!editingQR.value) return
-  try {
-    await api.updateQRCode(editingQR.value.id, {
-      title: editTitle.value,
-      target_url: editTarget.value,
-      style: editingQR.value.style
-    })
-    editingQR.value = null
-    await store.fetchQRCodes()
-  } catch (err) {
-    alert(err.message)
-  }
+function download(qr, fmt) {
+  const a = document.createElement('a')
+  a.href = api.getExportUrl(qr.id, fmt, 2048, true)
+  a.download = ''
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
 }
 
-async function deleteQR(id) {
-  if (!confirm('Are you sure you want to delete this QR code?')) return
+async function remove(qr) {
+  const ok = await confirm({
+    title: 'Delete QR code?',
+    message: `"${qr.title}" will stop resolving. Anyone scanning a printed copy will see a "not found" page.`,
+    confirmText: 'Delete QR code',
+    danger: true
+  })
+  if (!ok) return
   try {
-    await api.deleteQRCode(id)
+    await api.deleteQRCode(qr.id)
+    toast.success('QR code deleted')
     await store.fetchQRCodes()
   } catch (err) {
-    alert(err.message)
+    toast.error(err.message)
   }
 }
 </script>
