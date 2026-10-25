@@ -3,13 +3,13 @@
     <div>
       <!-- Brand Logo -->
       <div class="h-16 flex items-center px-6 gap-3 border-b border-gray-800">
-        <div class="w-8 h-8 rounded-lg bg-linksy-600 flex items-center justify-center text-white shadow-lg shadow-linksy-500/20">
+        <div class="w-8 h-8 rounded-lg bg-lynqr-600 flex items-center justify-center text-white shadow-lg shadow-lynqr-500/20">
           <QrCode class="w-5 h-5" />
         </div>
         <div class="flex flex-col">
           <span class="font-extrabold text-xl tracking-tight text-white flex items-center gap-1.5">
-            Linksy
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-linksy-500/20 text-linksy-400 font-mono">v1</span>
+            Lynqr
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-lynqr-500/20 text-lynqr-400 font-mono">v1</span>
           </span>
         </div>
       </div>
@@ -24,14 +24,14 @@
           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group"
           :class="[
             $route.path === item.path
-              ? 'bg-linksy-600/15 text-linksy-400 font-semibold'
+              ? 'bg-lynqr-600/15 text-lynqr-400 font-semibold'
               : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800/60'
           ]"
         >
           <component
             :is="item.icon"
             class="w-4 h-4 transition-transform group-hover:scale-110"
-            :class="$route.path === item.path ? 'text-linksy-400' : 'text-gray-400 group-hover:text-gray-200'"
+            :class="$route.path === item.path ? 'text-lynqr-400' : 'text-gray-400 group-hover:text-gray-200'"
           />
           <span>{{ item.label }}</span>
           <span v-if="item.badge" class="ml-auto text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-400">
@@ -44,7 +44,7 @@
     <!-- Quick Help & Documentation Card -->
     <div class="p-4 border-t border-gray-800">
       <div class="bg-gradient-to-br from-gray-800/80 to-gray-800/40 rounded-xl p-3.5 border border-gray-700/60">
-        <div class="flex items-center gap-2 text-xs font-semibold text-linksy-400 mb-1">
+        <div class="flex items-center gap-2 text-xs font-semibold text-lynqr-400 mb-1">
           <BookOpen class="w-3.5 h-3.5" />
           <span>Quick Guidance</span>
         </div>
@@ -78,10 +78,10 @@ import {
   BookOpen,
   HelpCircle
 } from 'lucide-vue-next'
-import { useLinksyStore } from '../stores/linksy'
+import { useLynqrStore } from '../stores/lynqr'
 
 defineEmits(['open-help'])
-const store = useLinksyStore()
+const store = useLynqrStore()
 
 const navItems = computed(() => [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },

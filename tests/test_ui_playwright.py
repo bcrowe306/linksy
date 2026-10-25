@@ -170,18 +170,18 @@ def test_theme_system_toggle_and_persistence(page: Page, base_url: str):
     expect(theme_btn).to_be_visible()
     
     # Check initial preference
-    initial_pref = page.evaluate("() => localStorage.getItem('linksy_theme_pref') || 'system'")
+    initial_pref = page.evaluate("() => localStorage.getItem('lynqr_theme_pref') || localStorage.getItem('linksy_theme_pref') || 'system'")
     assert initial_pref in ["system", "dark", "light"]
     
     # Click to toggle theme
     theme_btn.click()
-    new_pref = page.evaluate("() => localStorage.getItem('linksy_theme_pref')")
+    new_pref = page.evaluate("() => localStorage.getItem('lynqr_theme_pref') || localStorage.getItem('linksy_theme_pref')")
     assert new_pref != initial_pref, f"Theme preference did not change: {new_pref}"
     
     # Verify reload preserves theme preference
     page.reload()
     page.wait_for_load_state("networkidle")
-    preserved_pref = page.evaluate("() => localStorage.getItem('linksy_theme_pref')")
+    preserved_pref = page.evaluate("() => localStorage.getItem('lynqr_theme_pref') || localStorage.getItem('linksy_theme_pref')")
     assert preserved_pref == new_pref, f"Theme not preserved after reload: {preserved_pref}"
 
 # ==============================================================================

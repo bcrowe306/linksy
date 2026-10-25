@@ -8,7 +8,7 @@
       <!-- Modal Header -->
       <div class="px-6 py-4 border-b border-gray-800 flex items-center justify-between sticky top-0 bg-gray-900/95 backdrop-blur z-20">
         <div class="flex items-center gap-2">
-          <div class="w-7 h-7 rounded-lg bg-linksy-600/20 text-linksy-400 flex items-center justify-center">
+          <div class="w-7 h-7 rounded-lg bg-lynqr-600/20 text-lynqr-400 flex items-center justify-center">
             <Plus class="w-4 h-4" />
           </div>
           <h2 class="text-lg font-bold text-white">Create New Asset</h2>
@@ -24,7 +24,7 @@
           <button
             @click="activeTab = 'link'"
             class="flex-1 py-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-all"
-            :class="activeTab === 'link' ? 'bg-linksy-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'"
+            :class="activeTab === 'link' ? 'bg-lynqr-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'"
           >
             <Link2 class="w-4 h-4" />
             <span>Short Link</span>
@@ -32,7 +32,7 @@
           <button
             @click="activeTab = 'qr'"
             class="flex-1 py-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-all"
-            :class="activeTab === 'qr' ? 'bg-linksy-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'"
+            :class="activeTab === 'qr' ? 'bg-lynqr-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'"
           >
             <QrCode class="w-4 h-4" />
             <span>Custom QR Code</span>
@@ -40,7 +40,7 @@
           <button
             @click="activeTab = 'doc'"
             class="flex-1 py-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-all"
-            :class="activeTab === 'doc' ? 'bg-linksy-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'"
+            :class="activeTab === 'doc' ? 'bg-lynqr-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'"
           >
             <FileUp class="w-4 h-4" />
             <span>Document QR</span>
@@ -64,7 +64,7 @@
               v-model="linkForm.target_url"
               type="url"
               placeholder="https://example.com/very-long-url-to-shorten"
-              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
             />
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -74,7 +74,7 @@
                 v-model="linkForm.title"
                 type="text"
                 placeholder="Marketing Promo Link"
-                class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+                class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
               />
             </div>
             <div>
@@ -85,7 +85,7 @@
                   v-model="linkForm.custom_slug"
                   type="text"
                   placeholder="launch2026"
-                  class="w-full bg-gray-800 border border-gray-700 rounded-r-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-linksy-500 font-mono"
+                  class="w-full bg-gray-800 border border-gray-700 rounded-r-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500 font-mono"
                 />
               </div>
             </div>
@@ -100,7 +100,7 @@
             <select
               v-model="qrForm.type"
               @change="onQRTypeChange"
-              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
             >
               <option value="website">Website / URL (Dynamic)</option>
               <option value="document">Document (PDF / Menu / Report) (Dynamic)</option>
@@ -118,7 +118,7 @@
               v-model="qrForm.title"
               type="text"
               placeholder="e.g. Table 5 Menu or Guest Wi-Fi"
-              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
             />
           </div>
 
@@ -129,7 +129,7 @@
               v-model="qrForm.target_url"
               type="url"
               placeholder="https://mywebsite.com"
-              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
             />
           </div>
 
@@ -141,7 +141,7 @@
                 <button
                   type="button"
                   @click="docSource = 'existing'"
-                  :class="docSource === 'existing' ? 'bg-linksy-600 text-white font-semibold' : 'text-gray-400 hover:text-white'"
+                  :class="docSource === 'existing' ? 'bg-lynqr-600 text-white font-semibold' : 'text-gray-400 hover:text-white'"
                   class="px-2.5 py-1 rounded transition-colors"
                 >
                   Choose Existing ({{ store.documents.length }})
@@ -149,7 +149,7 @@
                 <button
                   type="button"
                   @click="docSource = 'new'"
-                  :class="docSource === 'new' ? 'bg-linksy-600 text-white font-semibold' : 'text-gray-400 hover:text-white'"
+                  :class="docSource === 'new' ? 'bg-lynqr-600 text-white font-semibold' : 'text-gray-400 hover:text-white'"
                   class="px-2.5 py-1 rounded transition-colors"
                 >
                   Upload New
@@ -168,7 +168,7 @@
                     @click="selectDocument(doc)"
                     class="p-2.5 rounded-lg border cursor-pointer transition-all flex items-center justify-between"
                     :class="selectedExistingDocId === doc.id
-                      ? 'bg-linksy-600/20 border-linksy-500 text-white'
+                      ? 'bg-lynqr-600/20 border-lynqr-500 text-white'
                       : 'bg-gray-800/70 border-gray-700 hover:border-gray-600 text-gray-300'"
                   >
                     <div class="flex items-center gap-2.5 truncate max-w-[340px]">
@@ -183,7 +183,7 @@
                     <div class="shrink-0 pl-2">
                       <span
                         v-if="selectedExistingDocId === doc.id"
-                        class="w-5 h-5 rounded-full bg-linksy-500 text-white flex items-center justify-center"
+                        class="w-5 h-5 rounded-full bg-lynqr-500 text-white flex items-center justify-center"
                       >
                         <Check class="w-3 h-3 stroke-[3]" />
                       </span>
@@ -191,8 +191,8 @@
                     </div>
                   </div>
                 </div>
-                <div v-if="selectedDocumentObj" class="p-2.5 rounded-lg bg-linksy-950/40 border border-linksy-500/30 text-xs text-linksy-300 flex items-center gap-2">
-                  <CheckCircle2 class="w-4 h-4 text-linksy-400 shrink-0" />
+                <div v-if="selectedDocumentObj" class="p-2.5 rounded-lg bg-lynqr-950/40 border border-lynqr-500/30 text-xs text-lynqr-300 flex items-center gap-2">
+                  <CheckCircle2 class="w-4 h-4 text-lynqr-400 shrink-0" />
                   <span class="truncate">Linked to <strong>{{ selectedDocumentObj.filename }}</strong> (v{{ selectedDocumentObj.version }})</span>
                 </div>
               </div>
@@ -203,7 +203,7 @@
                 <button
                   type="button"
                   @click="docSource = 'new'"
-                  class="px-3 py-1.5 rounded-lg bg-linksy-600 hover:bg-linksy-500 text-white text-xs font-semibold inline-flex items-center gap-1.5"
+                  class="px-3 py-1.5 rounded-lg bg-lynqr-600 hover:bg-lynqr-500 text-white text-xs font-semibold inline-flex items-center gap-1.5"
                 >
                   <FileUp class="w-3.5 h-3.5" />
                   <span>Upload Document Now</span>
@@ -216,11 +216,11 @@
               <div
                 @dragover.prevent
                 @drop.prevent="handleDocFileDrop"
-                class="border-2 border-dashed border-gray-700 hover:border-linksy-500 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-colors"
+                class="border-2 border-dashed border-gray-700 hover:border-lynqr-500 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-colors"
                 @click="$refs.qrDocFileInput.click()"
               >
                 <input ref="qrDocFileInput" type="file" @change="handleDocFileSelect" class="hidden" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" />
-                <FileUp class="w-8 h-8 text-linksy-400 mb-1.5" />
+                <FileUp class="w-8 h-8 text-lynqr-400 mb-1.5" />
                 <span class="text-xs font-semibold text-gray-200">
                   {{ qrDocFile ? qrDocFile.name : 'Choose document file to link' }}
                 </span>
@@ -298,11 +298,11 @@
           <div
             @dragover.prevent
             @drop.prevent="handleFileDrop"
-            class="border-2 border-dashed border-gray-700 hover:border-linksy-500 rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-colors"
+            class="border-2 border-dashed border-gray-700 hover:border-lynqr-500 rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-colors"
             @click="$refs.fileInput.click()"
           >
             <input ref="fileInput" type="file" @change="handleFileSelect" class="hidden" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" />
-            <FileUp class="w-10 h-10 text-linksy-400 mb-2" />
+            <FileUp class="w-10 h-10 text-lynqr-400 mb-2" />
             <span class="text-sm font-semibold text-gray-200">
               {{ selectedFile ? selectedFile.name : 'Choose a file or drag & drop here' }}
             </span>
@@ -326,7 +326,7 @@
         <button
           @click="submit"
           :disabled="isSubmitting"
-          class="px-5 py-2 rounded-lg text-sm font-semibold bg-linksy-600 hover:bg-linksy-500 text-white shadow-lg shadow-linksy-600/25 transition-all flex items-center gap-2"
+          class="px-5 py-2 rounded-lg text-sm font-semibold bg-lynqr-600 hover:bg-lynqr-500 text-white shadow-lg shadow-lynqr-600/25 transition-all flex items-center gap-2"
         >
           <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
           <span>{{ isSubmitting ? 'Creating...' : 'Create Asset' }}</span>
@@ -351,13 +351,13 @@ import {
   Loader2
 } from 'lucide-vue-next'
 import { api } from '../api/client'
-import { useLinksyStore } from '../stores/linksy'
+import { useLynqrStore } from '../stores/lynqr'
 
 const props = defineProps({
   isOpen: { type: Boolean, default: false }
 })
 const emit = defineEmits(['close', 'created'])
-const store = useLinksyStore()
+const store = useLynqrStore()
 
 const activeTab = ref('link')
 const isSubmitting = ref(false)

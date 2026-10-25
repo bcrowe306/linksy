@@ -1,7 +1,7 @@
 const BASE_URL = ''
 
 function getHeaders(custom = {}) {
-  const token = localStorage.getItem('linksy_token')
+  const token = localStorage.getItem('lynqr_token') || localStorage.getItem('linqr_token') || localStorage.getItem('linksy_token')
   const headers = { ...custom }
   if (token) {
     headers['Authorization'] = `Bearer ${token}`

@@ -9,7 +9,7 @@
     <div class="bg-gray-800/60 border border-gray-700/80 rounded-2xl p-6 space-y-4">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-linksy-600/20 text-linksy-400 flex items-center justify-center font-bold">
+          <div class="w-10 h-10 rounded-xl bg-lynqr-600/20 text-lynqr-400 flex items-center justify-center font-bold">
             <ShieldCheck class="w-5 h-5" />
           </div>
           <div>
@@ -24,7 +24,7 @@
       </div>
 
       <div class="p-3 bg-gray-900/60 rounded-xl border border-gray-800 text-xs text-gray-400 leading-relaxed">
-        WorkOS handles organization memberships, multi-factor authentication, and magic link logins securely across all Linksy team workspaces.
+        WorkOS handles organization memberships, multi-factor authentication, and magic link logins securely across all Lynqr team workspaces.
       </div>
     </div>
 
@@ -44,7 +44,7 @@
       <div class="divide-y divide-gray-750">
         <div v-for="m in teamMembers" :key="m.email" class="py-3 flex items-center justify-between text-xs">
           <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-full bg-linksy-600/30 text-linksy-400 flex items-center justify-center font-bold">
+            <div class="w-8 h-8 rounded-full bg-lynqr-600/30 text-lynqr-400 flex items-center justify-center font-bold">
               {{ m.name.charAt(0) }}
             </div>
             <div>
@@ -57,7 +57,7 @@
             <span class="px-2.5 py-0.5 rounded-full text-[11px] font-medium capitalize"
               :class="{
                 'bg-amber-500/20 text-amber-300': m.role === 'owner',
-                'bg-linksy-500/20 text-linksy-400': m.role === 'admin',
+                'bg-lynqr-500/20 text-lynqr-400': m.role === 'admin',
                 'bg-gray-700 text-gray-300': m.role === 'member'
               }"
             >
@@ -75,7 +75,7 @@
           <h3 class="text-sm font-bold text-white">Personal API Keys</h3>
           <span class="text-xs text-gray-400">Authenticate public API requests programmatically.</span>
         </div>
-        <button @click="generateKey" class="bg-linksy-600 hover:bg-linksy-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+        <button @click="generateKey" class="bg-lynqr-600 hover:bg-lynqr-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5">
           <Key class="w-3.5 h-3.5" />
           <span>Roll New Key</span>
         </button>
@@ -83,7 +83,7 @@
 
       <div class="p-3 bg-gray-900/60 rounded-xl border border-gray-800 flex items-center justify-between font-mono text-xs">
         <span class="text-gray-300">{{ activeApiKey }}</span>
-        <button @click="copyApiKey" class="text-linksy-400 hover:text-linksy-300 text-xs font-sans">
+        <button @click="copyApiKey" class="text-lynqr-400 hover:text-lynqr-300 text-xs font-sans">
           Copy Token
         </button>
       </div>
@@ -96,9 +96,9 @@ import { ref } from 'vue'
 import { ShieldCheck, CheckCircle2, UserPlus, Key } from 'lucide-vue-next'
 
 const teamMembers = ref([
-  { name: 'Brandon Crowe', email: 'brandon@linksy.dev', role: 'owner' },
-  { name: 'Marketing Lead', email: 'marketing@linksy.dev', role: 'admin' },
-  { name: 'Designer Team', email: 'design@linksy.dev', role: 'member' }
+  { name: 'Brandon Crowe', email: 'brandon@lynqr.app', role: 'owner' },
+  { name: 'Marketing Lead', email: 'marketing@lynqr.app', role: 'admin' },
+  { name: 'Designer Team', email: 'design@lynqr.app', role: 'member' }
 ])
 
 const activeApiKey = ref('lnksy_live_9f82d1c0a8e7456b3e210')

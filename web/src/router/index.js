@@ -37,9 +37,12 @@ router.beforeEach((to, from, next) => {
   const searchParams = new URLSearchParams(window.location.search)
   const isOAuthCallback = searchParams.get('auth_success') === 'true' || !!searchParams.get('token')
 
-  const token = localStorage.getItem('linksy_token')
-  const user = localStorage.getItem('linksy_user')
-  const hasAuthCookie = document.cookie.split(';').some(c => c.trim().startsWith('linksy_session='))
+  const token = localStorage.getItem('lynqr_token') || localStorage.getItem('linqr_token') || localStorage.getItem('linksy_token')
+  const user = localStorage.getItem('lynqr_user') || localStorage.getItem('linqr_user') || localStorage.getItem('linksy_user')
+  const hasAuthCookie = document.cookie.split(';').some(c => {
+    const trimmed = c.trim()
+    return trimmed.startsWith('lynqr_session=') || trimmed.startsWith('linqr_session=') || trimmed.startsWith('linksy_session=')
+  })
   const isAuthenticated = !!(token && user) || hasAuthCookie || isOAuthCallback
 
   if (to.meta.requiresAuth && !isAuthenticated) {

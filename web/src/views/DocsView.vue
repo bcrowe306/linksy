@@ -18,7 +18,7 @@
         <a
           href="/api/docs"
           target="_blank"
-          class="bg-linksy-600 hover:bg-linksy-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5"
+          class="bg-lynqr-600 hover:bg-lynqr-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5"
         >
           <ExternalLink class="w-3.5 h-3.5" />
           <span>Full Scalar Portal</span>
@@ -29,7 +29,7 @@
     <!-- Quick Code Snippet Examples -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div class="bg-gray-800/60 border border-gray-700/80 rounded-2xl p-5 space-y-2">
-        <span class="text-xs font-bold text-linksy-400 flex items-center gap-1.5">
+        <span class="text-xs font-bold text-lynqr-400 flex items-center gap-1.5">
           <Terminal class="w-3.5 h-3.5" />
           <span>Generate Dynamic QR Code (cURL)</span>
         </span>

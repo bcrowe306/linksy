@@ -11,7 +11,7 @@
 
       <button
         @click="$emit('open-create')"
-        class="bg-linksy-600 hover:bg-linksy-500 text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 self-start md:self-auto shadow-lg shadow-linksy-600/20"
+        class="bg-lynqr-600 hover:bg-lynqr-500 text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 self-start md:self-auto shadow-lg shadow-lynqr-600/20"
       >
         <Plus class="w-4 h-4" />
         <span>Create QR or Link</span>
@@ -27,10 +27,10 @@
       <div class="bg-gray-800/60 border border-gray-700/80 rounded-2xl p-6">
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-2">
-            <Link2 class="w-4 h-4 text-linksy-400" />
+            <Link2 class="w-4 h-4 text-lynqr-400" />
             <h2 class="text-sm font-bold text-white">Recent Short Links</h2>
           </div>
-          <router-link to="/links" class="text-xs text-linksy-400 hover:underline">View All</router-link>
+          <router-link to="/links" class="text-xs text-lynqr-400 hover:underline">View All</router-link>
         </div>
 
         <div v-if="store.links.length" class="divide-y divide-gray-750">
@@ -42,7 +42,7 @@
             <div class="truncate max-w-[280px]">
               <div class="font-semibold text-gray-200 truncate">{{ link.title }}</div>
               <div class="text-gray-400 font-mono text-[11px] truncate flex items-center gap-1.5 mt-0.5">
-                <span class="text-linksy-400">/s/{{ link.slug }}</span>
+                <span class="text-lynqr-400">/s/{{ link.slug }}</span>
                 <span class="text-gray-600">•</span>
                 <span class="text-gray-500 truncate">{{ link.target_url }}</span>
               </div>
@@ -72,7 +72,7 @@
             <QrCode class="w-4 h-4 text-emerald-400" />
             <h2 class="text-sm font-bold text-white">Recent QR Codes</h2>
           </div>
-          <router-link to="/qr-codes" class="text-xs text-linksy-400 hover:underline">View All</router-link>
+          <router-link to="/qr-codes" class="text-xs text-lynqr-400 hover:underline">View All</router-link>
         </div>
 
         <div v-if="store.qrCodes.length" class="divide-y divide-gray-750">
@@ -114,11 +114,11 @@
 
 <script setup>
 import { Plus, Link2, QrCode, Copy, Download } from 'lucide-vue-next'
-import { useLinksyStore } from '../stores/linksy'
+import { useLynqrStore } from '../stores/lynqr'
 import AnalyticsCharts from '../components/AnalyticsCharts.vue'
 
 defineEmits(['open-create'])
-const store = useLinksyStore()
+const store = useLynqrStore()
 
 function copyUrl(path) {
   const full = window.location.origin + path

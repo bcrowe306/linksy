@@ -2,8 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref(localStorage.getItem('linksy_token') || '')
-  const user = ref(JSON.parse(localStorage.getItem('linksy_user') || 'null'))
+  const token = ref(localStorage.getItem('lynqr_token') || localStorage.getItem('linqr_token') || localStorage.getItem('linksy_token') || '')
+  const user = ref(JSON.parse(localStorage.getItem('lynqr_user') || localStorage.getItem('linqr_user') || localStorage.getItem('linksy_user') || 'null'))
   const authConfig = ref({ enabled: false, login_url: '', providers: [] })
   const loading = ref(false)
   const error = ref('')
@@ -42,6 +42,9 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = tok
       user.value = u
 
+      localStorage.setItem('lynqr_token', tok)
+      localStorage.setItem('lynqr_user', JSON.stringify(u))
+      localStorage.setItem('linqr_token', tok)
       localStorage.setItem('linksy_token', tok)
       localStorage.setItem('linksy_user', JSON.stringify(u))
 
@@ -89,6 +92,9 @@ export const useAuthStore = defineStore('auth', () => {
 
       token.value = data.token
       user.value = data.user
+      localStorage.setItem('lynqr_token', data.token)
+      localStorage.setItem('lynqr_user', JSON.stringify(data.user))
+      localStorage.setItem('linqr_token', data.token)
       localStorage.setItem('linksy_token', data.token)
       localStorage.setItem('linksy_user', JSON.stringify(data.user))
       return data
@@ -117,6 +123,9 @@ export const useAuthStore = defineStore('auth', () => {
 
       token.value = data.token
       user.value = data.user
+      localStorage.setItem('lynqr_token', data.token)
+      localStorage.setItem('lynqr_user', JSON.stringify(data.user))
+      localStorage.setItem('linqr_token', data.token)
       localStorage.setItem('linksy_token', data.token)
       localStorage.setItem('linksy_user', JSON.stringify(data.user))
       return data
@@ -144,6 +153,9 @@ export const useAuthStore = defineStore('auth', () => {
     }
     token.value = ''
     user.value = null
+    localStorage.removeItem('lynqr_token')
+    localStorage.removeItem('lynqr_user')
+    localStorage.removeItem('linqr_token')
     localStorage.removeItem('linksy_token')
     localStorage.removeItem('linksy_user')
     window.location.href = '/login'

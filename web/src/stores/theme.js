@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 
 export const useThemeStore = defineStore('theme', () => {
   // 'system' | 'dark' | 'light'
-  const preference = ref(localStorage.getItem('linksy_theme_pref') || 'system')
+  const preference = ref(localStorage.getItem('lynqr_theme_pref') || localStorage.getItem('linqr_theme_pref') || localStorage.getItem('linksy_theme_pref') || 'system')
   const systemPrefersDark = ref(window.matchMedia('(prefers-color-scheme: dark)').matches)
 
   const effectiveTheme = computed(() => {
@@ -24,6 +24,7 @@ export const useThemeStore = defineStore('theme', () => {
 
   function setTheme(pref) {
     preference.value = pref
+    localStorage.setItem('lynqr_theme_pref', pref)
     localStorage.setItem('linksy_theme_pref', pref)
     applyTheme()
   }

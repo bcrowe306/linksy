@@ -5,10 +5,10 @@
       <div class="flex items-center gap-5 z-10">
         <!-- Large Avatar -->
         <div class="relative group">
-          <div v-if="profile.avatar_url" class="w-20 h-20 rounded-2xl overflow-hidden border-2 border-linksy-500/40 shadow-xl shadow-linksy-500/10">
+          <div v-if="profile.avatar_url" class="w-20 h-20 rounded-2xl overflow-hidden border-2 border-lynqr-500/40 shadow-xl shadow-lynqr-500/10">
             <img :src="profile.avatar_url" alt="Avatar" class="w-full h-full object-cover" />
           </div>
-          <div v-else class="w-20 h-20 rounded-2xl bg-gradient-to-tr from-linksy-600 to-indigo-500 flex items-center justify-center font-bold text-2xl text-white border-2 border-linksy-500/30 shadow-xl shadow-linksy-500/10">
+          <div v-else class="w-20 h-20 rounded-2xl bg-gradient-to-tr from-lynqr-600 to-indigo-500 flex items-center justify-center font-bold text-2xl text-white border-2 border-lynqr-500/30 shadow-xl shadow-lynqr-500/10">
             {{ userInitials }}
           </div>
           <div class="absolute -bottom-1 -right-1 w-6 h-6 rounded-lg bg-emerald-500 border-2 border-gray-900 flex items-center justify-center" title="Active Account">
@@ -19,7 +19,7 @@
         <div>
           <div class="flex items-center gap-3 mb-1">
             <h1 class="text-2xl font-extrabold text-white tracking-tight">{{ profile.name || 'Account User' }}</h1>
-            <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-linksy-500/15 text-linksy-400 border border-linksy-500/20 capitalize font-mono">
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-lynqr-500/15 text-lynqr-400 border border-lynqr-500/20 capitalize font-mono">
               {{ profile.role || 'Owner' }}
             </span>
           </div>
@@ -43,7 +43,7 @@
       </div>
 
       <!-- Background Glow Effect -->
-      <div class="absolute -right-16 -top-16 w-64 h-64 bg-linksy-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -right-16 -top-16 w-64 h-64 bg-lynqr-500/10 rounded-full blur-3xl pointer-events-none"></div>
     </div>
 
     <!-- Navigation Tabs -->
@@ -55,7 +55,7 @@
         class="px-4 py-3 text-sm font-semibold border-b-2 flex items-center gap-2 transition-all whitespace-nowrap"
         :class="[
           activeTab === tab.id
-            ? 'border-linksy-500 text-linksy-400 font-bold'
+            ? 'border-lynqr-500 text-lynqr-400 font-bold'
             : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-700'
         ]"
       >
@@ -80,7 +80,7 @@
       <div class="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-2xl p-6 sm:p-8 space-y-6">
         <div>
           <h2 class="text-lg font-bold text-white mb-1">Personal Details</h2>
-          <p class="text-xs text-gray-400">Update your public name and display avatar across Linksy reports.</p>
+          <p class="text-xs text-gray-400">Update your public name and display avatar across Lynqr reports.</p>
         </div>
 
         <form @submit.prevent="saveProfile" class="space-y-4">
@@ -91,7 +91,7 @@
                 v-model="editForm.first_name"
                 type="text"
                 placeholder="Jane"
-                class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+                class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
               />
             </div>
             <div>
@@ -100,7 +100,7 @@
                 v-model="editForm.last_name"
                 type="text"
                 placeholder="Doe"
-                class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+                class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
               />
             </div>
           </div>
@@ -126,7 +126,7 @@
               v-model="editForm.avatar_url"
               type="url"
               placeholder="https://example.com/photo.jpg"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
             />
           </div>
 
@@ -134,7 +134,7 @@
             <button
               type="submit"
               :disabled="isSavingProfile"
-              class="px-5 py-2.5 bg-linksy-600 hover:bg-linksy-500 text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-lg shadow-linksy-600/20 transition-all disabled:opacity-50"
+              class="px-5 py-2.5 bg-lynqr-600 hover:bg-lynqr-500 text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-lg shadow-lynqr-600/20 transition-all disabled:opacity-50"
             >
               <Loader2 v-if="isSavingProfile" class="w-4 h-4 animate-spin" />
               <span>Save Changes</span>
@@ -147,7 +147,7 @@
       <div class="space-y-6">
         <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-4">
           <h3 class="text-sm font-bold text-white flex items-center gap-2">
-            <ShieldCheck class="w-4 h-4 text-linksy-400" />
+            <ShieldCheck class="w-4 h-4 text-lynqr-400" />
             <span>Workspace & Role</span>
           </h3>
           <div class="p-3.5 rounded-xl bg-gray-800/60 border border-gray-700/50 space-y-2">
@@ -157,7 +157,7 @@
             </div>
             <div class="flex items-center justify-between text-xs">
               <span class="text-gray-400">Role</span>
-              <span class="font-mono text-linksy-400 uppercase text-[11px] font-bold">{{ profile.role || 'owner' }}</span>
+              <span class="font-mono text-lynqr-400 uppercase text-[11px] font-bold">{{ profile.role || 'owner' }}</span>
             </div>
             <div class="flex items-center justify-between text-xs">
               <span class="text-gray-400">Environment</span>
@@ -174,7 +174,7 @@
       <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 sm:p-8 space-y-5">
         <div>
           <h2 class="text-lg font-bold text-white mb-1 flex items-center gap-2">
-            <Mail class="w-5 h-5 text-linksy-400" />
+            <Mail class="w-5 h-5 text-lynqr-400" />
             <span>Password Reset (Email)</span>
           </h2>
           <p class="text-xs text-gray-400 leading-relaxed">
@@ -192,14 +192,14 @@
             class="w-full py-2.5 px-4 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50"
           >
             <Loader2 v-if="isSendingReset" class="w-4 h-4 animate-spin" />
-            <Send v-else class="w-4 h-4 text-linksy-400" />
+            <Send v-else class="w-4 h-4 text-lynqr-400" />
             <span>Send Reset Instructions Email</span>
           </button>
         </div>
 
         <!-- Generated Reset URL Display if returned -->
-        <div v-if="passwordResetUrl" class="p-4 rounded-xl bg-linksy-950/60 border border-linksy-500/30 space-y-2">
-          <div class="text-xs font-semibold text-linksy-400 flex items-center gap-1.5">
+        <div v-if="passwordResetUrl" class="p-4 rounded-xl bg-lynqr-950/60 border border-lynqr-500/30 space-y-2">
+          <div class="text-xs font-semibold text-lynqr-400 flex items-center gap-1.5">
             <ExternalLink class="w-3.5 h-3.5" />
             <span>Direct One-Time Reset Link</span>
           </div>
@@ -214,7 +214,7 @@
             <a
               :href="passwordResetUrl"
               target="_blank"
-              class="px-3 py-1.5 bg-linksy-600 hover:bg-linksy-500 text-white rounded-lg text-xs font-semibold whitespace-nowrap"
+              class="px-3 py-1.5 bg-lynqr-600 hover:bg-lynqr-500 text-white rounded-lg text-xs font-semibold whitespace-nowrap"
             >
               Open Link
             </a>
@@ -230,7 +230,7 @@
             <span>Set New Password</span>
           </h2>
           <p class="text-xs text-gray-400 leading-relaxed">
-            Directly update your account password across all Linksy client sessions.
+            Directly update your account password across all Lynqr client sessions.
           </p>
         </div>
 
@@ -242,7 +242,7 @@
               type="password"
               required
               placeholder="At least 8 characters (Letters, numbers, symbols)"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
             />
           </div>
 
@@ -253,7 +253,7 @@
               type="password"
               required
               placeholder="Re-enter new password"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
             />
           </div>
 
@@ -261,7 +261,7 @@
             <button
               type="submit"
               :disabled="isUpdatingPassword"
-              class="w-full py-2.5 px-4 bg-gradient-to-r from-linksy-600 to-indigo-600 hover:from-linksy-500 hover:to-indigo-500 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-linksy-600/20 transition-all disabled:opacity-50"
+              class="w-full py-2.5 px-4 bg-gradient-to-r from-lynqr-600 to-indigo-600 hover:from-lynqr-500 hover:to-indigo-500 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-lynqr-600/20 transition-all disabled:opacity-50"
             >
               <Loader2 v-if="isUpdatingPassword" class="w-4 h-4 animate-spin" />
               <span>Update Password</span>
@@ -277,17 +277,17 @@
       <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 class="text-lg font-bold text-white mb-1 flex items-center gap-2">
-            <Terminal class="w-5 h-5 text-linksy-400" />
+            <Terminal class="w-5 h-5 text-lynqr-400" />
             <span>Developer API Keys</span>
           </h2>
           <p class="text-xs text-gray-400">
-            Authenticate programmatic requests to Linksy REST APIs via <code class="text-linksy-400 bg-gray-800 px-1.5 py-0.5 rounded font-mono">Authorization: Bearer lk_live_...</code>
+            Authenticate programmatic requests to Lynqr REST APIs via <code class="text-lynqr-400 bg-gray-800 px-1.5 py-0.5 rounded font-mono">Authorization: Bearer lk_live_...</code>
           </p>
         </div>
 
         <button
           @click="showCreateKeyModal = true"
-          class="px-4 py-2.5 bg-linksy-600 hover:bg-linksy-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-linksy-600/20 transition-all active:scale-95"
+          class="px-4 py-2.5 bg-lynqr-600 hover:bg-lynqr-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-lynqr-600/20 transition-all active:scale-95"
         >
           <Plus class="w-4 h-4 stroke-[2.5]" />
           <span>Generate New API Key</span>
@@ -297,7 +297,7 @@
       <!-- API Keys Table / List -->
       <div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
         <div v-if="isLoadingKeys" class="p-12 text-center text-gray-500 flex flex-col items-center justify-center gap-3">
-          <Loader2 class="w-6 h-6 animate-spin text-linksy-400" />
+          <Loader2 class="w-6 h-6 animate-spin text-lynqr-400" />
           <span class="text-xs">Loading API keys...</span>
         </div>
 
@@ -306,7 +306,7 @@
             <KeyRound class="w-6 h-6" />
           </div>
           <p class="text-sm font-semibold text-gray-300">No active API keys yet</p>
-          <p class="text-xs text-gray-500 max-w-sm mx-auto">Generate an API key to integrate Linksy QR code generation, short links, and analytics into your external systems.</p>
+          <p class="text-xs text-gray-500 max-w-sm mx-auto">Generate an API key to integrate Lynqr QR code generation, short links, and analytics into your external systems.</p>
         </div>
 
         <div v-else class="divide-y divide-gray-800">
@@ -346,7 +346,7 @@
       <div class="bg-gray-900 border border-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
         <div class="flex items-center justify-between">
           <h3 class="text-base font-bold text-white flex items-center gap-2">
-            <KeyRound class="w-4 h-4 text-linksy-400" />
+            <KeyRound class="w-4 h-4 text-lynqr-400" />
             <span>Generate New API Key</span>
           </h3>
           <button @click="showCreateKeyModal = false" class="text-gray-400 hover:text-white">
@@ -361,7 +361,7 @@
               v-model="newKeyName"
               type="text"
               placeholder="e.g. Production Backend Bot"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
             />
           </div>
 
@@ -369,7 +369,7 @@
             <label class="block text-xs font-medium text-gray-300 mb-1">Expiration</label>
             <select
               v-model="newKeyExpires"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
             >
               <option :value="0">Never expires (Default)</option>
               <option :value="30">30 Days</option>
@@ -389,7 +389,7 @@
           <button
             @click="createApiKey"
             :disabled="isCreatingKey"
-            class="px-4 py-2 bg-linksy-600 hover:bg-linksy-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-linksy-600/20 transition-all disabled:opacity-50"
+            class="px-4 py-2 bg-lynqr-600 hover:bg-lynqr-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-lynqr-600/20 transition-all disabled:opacity-50"
           >
             <Loader2 v-if="isCreatingKey" class="w-3.5 h-3.5 animate-spin" />
             <span>Generate Key</span>
@@ -416,7 +416,7 @@
             <span class="text-[11px] font-mono text-gray-500 uppercase tracking-wider">Bearer Token</span>
             <button
               @click="copyKeySecret"
-              class="text-xs font-semibold text-linksy-400 hover:text-linksy-300 flex items-center gap-1.5 transition-colors"
+              class="text-xs font-semibold text-lynqr-400 hover:text-lynqr-300 flex items-center gap-1.5 transition-colors"
             >
               <Copy class="w-3.5 h-3.5" />
               <span>{{ hasCopied ? 'Copied!' : 'Copy Key' }}</span>
@@ -430,7 +430,7 @@
         <div class="flex items-center justify-end">
           <button
             @click="newlyCreatedKeySecret = ''"
-            class="px-5 py-2 bg-linksy-600 hover:bg-linksy-500 text-white rounded-xl text-xs font-semibold transition-all shadow-md"
+            class="px-5 py-2 bg-lynqr-600 hover:bg-lynqr-500 text-white rounded-xl text-xs font-semibold transition-all shadow-md"
           >
             I Have Saved This Key
           </button>

@@ -1,7 +1,7 @@
 <template>
   <div class="bg-gray-800/60 border border-gray-700/80 rounded-2xl p-6 flex flex-col items-center">
     <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-      <Eye class="w-4 h-4 text-linksy-400" />
+      <Eye class="w-4 h-4 text-lynqr-400" />
       <span>Live Preview & Export</span>
     </div>
 
@@ -54,7 +54,7 @@
           :href="`/api/v1/qr/${qrId}/export?format=png&download=true`"
           class="py-2 px-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-xs font-medium text-center transition-colors flex items-center justify-center gap-1.5"
         >
-          <Download class="w-3.5 h-3.5 text-linksy-400" />
+          <Download class="w-3.5 h-3.5 text-lynqr-400" />
           <span>PNG (HD)</span>
         </a>
         <a

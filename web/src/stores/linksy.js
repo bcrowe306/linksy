@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { api } from '../api/client'
 
-export const useLinksyStore = defineStore('linksy', () => {
+export const useLynqrStore = defineStore('lynqr', () => {
   const links = ref([])
   const qrCodes = ref([])
   const documents = ref([])
@@ -77,3 +77,6 @@ export const useLinksyStore = defineStore('linksy', () => {
     refreshAll
   }
 })
+
+export const useLinqrStore = useLynqrStore
+export const useLinksyStore = useLynqrStore

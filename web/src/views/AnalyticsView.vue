@@ -11,7 +11,7 @@
         <select
           v-model="selectedFilter"
           @change="onFilterChange"
-          class="bg-gray-800 border border-gray-700 rounded-xl px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+          class="bg-gray-800 border border-gray-700 rounded-xl px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
         >
           <option value="">All Assets (Global)</option>
           <optgroup label="Short Links">
@@ -38,7 +38,7 @@
     <!-- Country & City Breakdown Table -->
     <div class="bg-gray-800/60 border border-gray-700/80 rounded-2xl p-6">
       <h3 class="text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2">
-        <Globe2 class="w-4 h-4 text-linksy-400" />
+        <Globe2 class="w-4 h-4 text-lynqr-400" />
         <span>Geographic Distribution (Top Countries)</span>
       </h3>
 
@@ -59,7 +59,7 @@
                 <div class="flex items-center gap-3 max-w-xs">
                   <div class="h-2 w-32 bg-gray-700 rounded-full overflow-hidden">
                     <div
-                      class="h-full bg-linksy-500 rounded-full"
+                      class="h-full bg-lynqr-500 rounded-full"
                       :style="{ width: `${Math.round((c.count / (store.analyticsSummary?.total_clicks + store.analyticsSummary?.total_scans || 1)) * 100)}%` }"
                     ></div>
                   </div>
@@ -84,10 +84,10 @@
 <script setup>
 import { ref } from 'vue'
 import { Download, Globe2 } from 'lucide-vue-next'
-import { useLinksyStore } from '../stores/linksy'
+import { useLynqrStore } from '../stores/lynqr'
 import AnalyticsCharts from '../components/AnalyticsCharts.vue'
 
-const store = useLinksyStore()
+const store = useLynqrStore()
 const selectedFilter = ref('')
 
 async function onFilterChange() {
@@ -122,7 +122,7 @@ function exportCSV() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `linksy-analytics-report-${new Date().toISOString().slice(0, 10)}.csv`
+  a.download = `lynqr-analytics-report-${new Date().toISOString().slice(0, 10)}.csv`
   a.click()
 }
 </script>

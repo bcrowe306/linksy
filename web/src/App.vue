@@ -44,10 +44,10 @@ import Sidebar from './components/Sidebar.vue'
 import Header from './components/Header.vue'
 import CreateModal from './components/CreateModal.vue'
 import HelpDrawer from './components/HelpDrawer.vue'
-import { useLinksyStore } from './stores/linksy'
+import { useLynqrStore } from './stores/lynqr'
 
 const route = useRoute()
-const store = useLinksyStore()
+const store = useLynqrStore()
 const isCreateOpen = ref(false)
 const isHelpOpen = ref(false)
 

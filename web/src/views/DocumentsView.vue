@@ -10,7 +10,7 @@
 
       <button
         @click="$refs.fileUploadInput.click()"
-        class="bg-linksy-600 hover:bg-linksy-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
+        class="bg-lynqr-600 hover:bg-lynqr-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
       >
         <FileUp class="w-4 h-4" />
         <span>Upload Document</span>
@@ -43,7 +43,7 @@
                 </div>
               </td>
               <td class="px-5 py-3.5">
-                <span class="px-2 py-0.5 rounded-full bg-linksy-500/20 text-linksy-400 font-mono text-[11px]">
+                <span class="px-2 py-0.5 rounded-full bg-lynqr-500/20 text-lynqr-400 font-mono text-[11px]">
                   v{{ doc.version }}
                 </span>
               </td>
@@ -57,10 +57,10 @@
                 <!-- Create QR Code for Document -->
                 <button
                   @click="generateQRForDoc(doc)"
-                  class="px-2.5 py-1.5 rounded-lg bg-linksy-600/20 hover:bg-linksy-600/30 text-linksy-300 text-xs font-medium inline-flex items-center gap-1.5"
+                  class="px-2.5 py-1.5 rounded-lg bg-lynqr-600/20 hover:bg-lynqr-600/30 text-lynqr-300 text-xs font-medium inline-flex items-center gap-1.5"
                   title="Generate dynamic QR code for this document"
                 >
-                  <QrCode class="w-3.5 h-3.5 text-linksy-400" />
+                  <QrCode class="w-3.5 h-3.5 text-lynqr-400" />
                   <span>Generate QR</span>
                 </button>
 
@@ -70,7 +70,7 @@
                   class="px-2.5 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs font-medium inline-flex items-center gap-1.5"
                   title="Upload newer version of file while preserving QR code"
                 >
-                  <RefreshCw class="w-3.5 h-3.5 text-linksy-400" />
+                  <RefreshCw class="w-3.5 h-3.5 text-lynqr-400" />
                   <span>Replace File</span>
                 </button>
 
@@ -103,10 +103,10 @@
 <script setup>
 import { ref } from 'vue'
 import { FileUp, FileText, QrCode, RefreshCw, Download } from 'lucide-vue-next'
-import { useLinksyStore } from '../stores/linksy'
+import { useLynqrStore } from '../stores/lynqr'
 import { api } from '../api/client'
 
-const store = useLinksyStore()
+const store = useLynqrStore()
 const fileUploadInput = ref(null)
 const replaceFileInput = ref(null)
 const activeReplacingDoc = ref(null)

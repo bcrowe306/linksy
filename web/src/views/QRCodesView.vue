@@ -8,14 +8,14 @@
       <div class="flex items-center gap-2.5">
         <router-link
           to="/qr-studio"
-          class="bg-gray-800 hover:bg-gray-750 border border-gray-700 text-linksy-400 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+          class="bg-gray-800 hover:bg-gray-750 border border-gray-700 text-lynqr-400 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
         >
           <Sparkles class="w-4 h-4 text-amber-400" />
           <span>Open Design Studio</span>
         </router-link>
         <button
           @click="$emit('open-create')"
-          class="bg-linksy-600 hover:bg-linksy-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-linksy-600/20"
+          class="bg-lynqr-600 hover:bg-lynqr-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-lynqr-600/20"
         >
           <Plus class="w-4 h-4" />
           <span>Quick QR</span>
@@ -37,7 +37,7 @@
               <h3 class="text-sm font-bold text-white truncate max-w-[200px]">{{ qr.title }}</h3>
               <div class="flex items-center gap-1.5 mt-0.5">
                 <span class="text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider"
-                  :class="qr.link_id ? 'bg-linksy-500/20 text-linksy-400' : 'bg-gray-700 text-gray-300'">
+                  :class="qr.link_id ? 'bg-lynqr-500/20 text-lynqr-400' : 'bg-gray-700 text-gray-300'">
                   {{ qr.link_id ? 'Dynamic' : 'Static' }} • {{ qr.type }}
                 </span>
               </div>
@@ -94,7 +94,7 @@
               <button
                 v-if="qr.link_id"
                 @click="openEditQR(qr)"
-                class="text-linksy-400 hover:underline flex items-center gap-1 text-[11px]"
+                class="text-lynqr-400 hover:underline flex items-center gap-1 text-[11px]"
               >
                 <Edit3 class="w-3 h-3" />
                 <span>Destination</span>
@@ -142,7 +142,7 @@
       <div @click="editingQR = null" class="absolute inset-0 bg-black/75 backdrop-blur-sm"></div>
       <div class="relative bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl z-10 space-y-4">
         <h3 class="text-base font-bold text-white flex items-center gap-2">
-          <Edit3 class="w-4 h-4 text-linksy-400" />
+          <Edit3 class="w-4 h-4 text-lynqr-400" />
           <span>Change QR Code Destination</span>
         </h3>
         <p class="text-xs text-gray-400">
@@ -161,7 +161,7 @@
 
         <div class="flex justify-end gap-2 pt-2">
           <button @click="editingQR = null" class="px-3.5 py-1.5 text-xs text-gray-400 hover:text-white">Cancel</button>
-          <button @click="saveQREdit" class="px-4 py-1.5 text-xs font-semibold bg-linksy-600 hover:bg-linksy-500 text-white rounded-lg">
+          <button @click="saveQREdit" class="px-4 py-1.5 text-xs font-semibold bg-lynqr-600 hover:bg-lynqr-500 text-white rounded-lg">
             Save Changes
           </button>
         </div>
@@ -173,11 +173,11 @@
 <script setup>
 import { ref } from 'vue'
 import { Plus, Trash2, Edit3, Palette, Sparkles } from 'lucide-vue-next'
-import { useLinksyStore } from '../stores/linksy'
+import { useLynqrStore } from '../stores/lynqr'
 import { api } from '../api/client'
 
 defineEmits(['open-create'])
-const store = useLinksyStore()
+const store = useLynqrStore()
 
 const editingQR = ref(null)
 const editTitle = ref('')

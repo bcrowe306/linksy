@@ -9,7 +9,7 @@
           @input="$emit('search', searchQuery)"
           type="text"
           placeholder="Search links, QR codes, tags... (Press '/' to focus)"
-          class="w-full bg-gray-800/80 border border-gray-700/80 rounded-lg pl-9 pr-4 py-1.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-linksy-500 focus:border-transparent transition-all"
+          class="w-full bg-gray-800/80 border border-gray-700/80 rounded-lg pl-9 pr-4 py-1.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500 focus:border-transparent transition-all"
         />
       </div>
     </div>
@@ -22,7 +22,7 @@
         class="px-2.5 py-1.5 text-xs text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-1.5"
         :title="themeTitle"
       >
-        <Monitor v-if="themeStore.preference === 'system'" class="w-4 h-4 text-linksy-400" />
+        <Monitor v-if="themeStore.preference === 'system'" class="w-4 h-4 text-lynqr-400" />
         <Moon v-else-if="themeStore.preference === 'dark'" class="w-4 h-4 text-indigo-400" />
         <Sun v-else class="w-4 h-4 text-amber-400" />
         <span class="text-[11px] font-medium capitalize hidden sm:inline">
@@ -33,7 +33,7 @@
       <!-- Create New Dropdown / Button -->
       <button
         @click="$emit('open-create')"
-        class="bg-linksy-600 hover:bg-linksy-500 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-lg shadow-linksy-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+        class="bg-lynqr-600 hover:bg-lynqr-500 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-lg shadow-lynqr-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
       >
         <Plus class="w-4 h-4 stroke-[2.5]" />
         <span>Create New</span>
@@ -49,7 +49,7 @@
         </router-link>
         <router-link
           to="/signup"
-          class="px-3 py-1.5 rounded-lg bg-linksy-600 hover:bg-linksy-500 text-white text-xs font-semibold shadow-md shadow-linksy-600/20 transition-all"
+          class="px-3 py-1.5 rounded-lg bg-lynqr-600 hover:bg-lynqr-500 text-white text-xs font-semibold shadow-md shadow-lynqr-600/20 transition-all"
         >
           Sign Up
         </router-link>
@@ -62,11 +62,11 @@
           class="flex items-center gap-2.5 p-1 -m-1 rounded-xl hover:bg-gray-800/80 transition-colors group cursor-pointer"
           title="Account Profile & Settings"
         >
-          <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-linksy-600 to-indigo-400 flex items-center justify-center font-bold text-xs text-white shadow-sm group-hover:scale-105 transition-transform">
+          <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-lynqr-600 to-indigo-400 flex items-center justify-center font-bold text-xs text-white shadow-sm group-hover:scale-105 transition-transform">
             {{ authStore.initials }}
           </div>
           <div class="hidden md:flex flex-col text-left">
-            <span class="text-xs font-semibold text-gray-200 group-hover:text-linksy-400 transition-colors">{{ authStore.user.name }}</span>
+            <span class="text-xs font-semibold text-gray-200 group-hover:text-lynqr-400 transition-colors">{{ authStore.user.name }}</span>
             <span class="text-[10px] text-gray-400 font-mono">{{ authStore.user.email }}</span>
           </div>
         </router-link>

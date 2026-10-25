@@ -3,16 +3,16 @@
     <div class="sm:mx-auto sm:w-full sm:max-w-md text-center">
       <!-- Logo -->
       <router-link to="/" class="inline-flex items-center gap-2.5 mb-6 group">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-linksy-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-linksy-500/25 group-hover:scale-105 transition-transform">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-lynqr-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-lynqr-500/25 group-hover:scale-105 transition-transform">
           <QrCode class="w-6 h-6 stroke-[2.5]"/>
         </div>
         <span class="text-2xl font-black tracking-tight text-white font-mono">
-          LINKSY<span class="text-linksy-400">.</span>
+          LYNQR<span class="text-lynqr-400">.</span>
         </span>
       </router-link>
 
       <h2 class="text-2xl font-extrabold text-white tracking-tight">
-        Create your Linksy account
+        Create your Lynqr account
       </h2>
       <p class="mt-2 text-xs text-gray-400">
         Start generating custom QR codes, shortened links, and live tracking reports.
@@ -92,7 +92,7 @@
                 type="text"
                 required
                 placeholder="Jane"
-                class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+                class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
               />
             </div>
             <div>
@@ -102,7 +102,7 @@
                 type="text"
                 required
                 placeholder="Doe"
-                class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+                class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
               />
             </div>
           </div>
@@ -114,7 +114,7 @@
               type="email"
               required
               placeholder="jane@company.com"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
             />
           </div>
 
@@ -126,7 +126,7 @@
                 :type="showPassword ? 'text' : 'password'"
                 required
                 placeholder="At least 8 characters"
-                class="w-full bg-gray-800 border border-gray-700 rounded-xl pl-3.5 pr-10 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+                class="w-full bg-gray-800 border border-gray-700 rounded-xl pl-3.5 pr-10 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
               />
               <button
                 type="button"
@@ -146,14 +146,14 @@
               type="password"
               required
               placeholder="Re-enter password"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
             />
           </div>
 
           <button
             type="submit"
             :disabled="isSubmitting"
-            class="w-full py-2.5 px-4 bg-gradient-to-r from-linksy-600 to-indigo-600 hover:from-linksy-500 hover:to-indigo-500 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-linksy-600/25 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
+            class="w-full py-2.5 px-4 bg-gradient-to-r from-lynqr-600 to-indigo-600 hover:from-lynqr-500 hover:to-indigo-500 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-lynqr-600/25 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
           >
             <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
             <span v-else>Create Free Account</span>
@@ -163,7 +163,7 @@
         <div class="mt-6 text-center">
           <p class="text-xs text-gray-400">
             Already have an account?
-            <router-link to="/login" class="text-linksy-400 hover:text-linksy-300 font-semibold underline underline-offset-2 ml-1">
+            <router-link to="/login" class="text-lynqr-400 hover:text-lynqr-300 font-semibold underline underline-offset-2 ml-1">
               Sign In
             </router-link>
           </p>

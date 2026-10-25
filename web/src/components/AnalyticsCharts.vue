@@ -5,7 +5,7 @@
       <div class="bg-gray-800/80 border border-gray-700/80 rounded-2xl p-5">
         <div class="flex items-center justify-between text-gray-400 text-xs font-semibold mb-2">
           <span>Total Link Clicks</span>
-          <MousePointerClick class="w-4 h-4 text-linksy-400" />
+          <MousePointerClick class="w-4 h-4 text-lynqr-400" />
         </div>
         <div class="text-3xl font-extrabold text-white tracking-tight">
           {{ formatNumber(summary?.total_clicks || 0) }}
@@ -62,7 +62,7 @@
       <!-- Device Distribution -->
       <div class="bg-gray-800/60 border border-gray-700/80 rounded-2xl p-5">
         <h3 class="text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2">
-          <Smartphone class="w-4 h-4 text-linksy-400" />
+          <Smartphone class="w-4 h-4 text-lynqr-400" />
           <span>Device Distribution</span>
         </h3>
         <div v-if="summary?.by_device?.length" class="space-y-3">
@@ -73,7 +73,7 @@
             </div>
             <div class="h-2 w-full bg-gray-700/50 rounded-full overflow-hidden">
               <div
-                class="h-full bg-linksy-500 rounded-full transition-all duration-500"
+                class="h-full bg-lynqr-500 rounded-full transition-all duration-500"
                 :style="{ width: `${calcPercent(d.count, totalEngagements)}%` }"
               ></div>
             </div>

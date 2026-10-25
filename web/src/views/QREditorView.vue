@@ -14,7 +14,7 @@
           <div class="flex items-center gap-2.5">
             <h1 class="text-xl font-bold text-white flex items-center gap-2">
               <span>{{ isEditing ? 'Edit QR Code' : 'QR Code Design Studio' }}</span>
-              <span class="text-[10px] px-2 py-0.5 rounded-full bg-linksy-500/20 text-linksy-400 font-mono">PRO</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-lynqr-500/20 text-lynqr-400 font-mono">PRO</span>
             </h1>
             <!-- Unsaved changes warning badge -->
             <span
@@ -35,7 +35,7 @@
         <button
           @click="saveQRCode"
           :disabled="isSaving"
-          class="bg-linksy-600 hover:bg-linksy-500 text-white px-5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-linksy-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+          class="bg-lynqr-600 hover:bg-lynqr-500 text-white px-5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-lynqr-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
         >
           <Loader2 v-if="isSaving" class="w-4 h-4 animate-spin" />
           <Save v-else class="w-4 h-4" />
@@ -55,8 +55,8 @@
           v-for="preset in presets"
           :key="preset.name"
           @click="applyPreset(preset)"
-          class="px-3 py-1.5 rounded-xl border text-xs font-medium whitespace-nowrap flex items-center gap-2 transition-all hover:border-linksy-500"
-          :class="activePresetName === preset.name ? 'bg-linksy-600/20 border-linksy-500 text-white' : 'bg-gray-800/80 border-gray-700 text-gray-300'"
+          class="px-3 py-1.5 rounded-xl border text-xs font-medium whitespace-nowrap flex items-center gap-2 transition-all hover:border-lynqr-500"
+          :class="activePresetName === preset.name ? 'bg-lynqr-600/20 border-lynqr-500 text-white' : 'bg-gray-800/80 border-gray-700 text-gray-300'"
         >
           <span class="w-3.5 h-3.5 rounded-full border border-white/20 shrink-0" :style="{ background: preset.previewBg }"></span>
           <span>{{ preset.name }}</span>
@@ -76,7 +76,7 @@
             @click="activeStudioTab = tab.id"
             class="px-4 py-3 text-xs font-semibold flex items-center gap-2 border-b-2 whitespace-nowrap transition-all"
             :class="activeStudioTab === tab.id
-              ? 'border-linksy-500 text-linksy-400 bg-gray-800/40'
+              ? 'border-lynqr-500 text-lynqr-400 bg-gray-800/40'
               : 'border-transparent text-gray-400 hover:text-gray-200'"
           >
             <component :is="tab.icon" class="w-3.5 h-3.5" />
@@ -93,7 +93,7 @@
                 v-model="qrData.title"
                 type="text"
                 placeholder="e.g. Summer Campaign or VIP Lounge Wi-Fi"
-                class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3.5 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+                class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3.5 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
               />
             </div>
 
@@ -101,7 +101,7 @@
               <label class="block text-xs font-semibold text-gray-300 mb-1">QR Code Type</label>
               <select
                 v-model="qrData.type"
-                class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3.5 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+                class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3.5 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
               >
                 <option value="website">Website / URL</option>
                 <option value="document">Document (PDF / File)</option>
@@ -120,10 +120,10 @@
                 v-model="qrData.target_url"
                 type="url"
                 placeholder="https://example.com/promo"
-                class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3.5 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-linksy-500"
+                class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3.5 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
               />
               <div class="mt-2 flex items-center gap-2">
-                <input v-model="qrData.is_dynamic" type="checkbox" id="dynCheck" class="rounded bg-gray-800 border-gray-700 text-linksy-600 focus:ring-linksy-500" />
+                <input v-model="qrData.is_dynamic" type="checkbox" id="dynCheck" class="rounded bg-gray-800 border-gray-700 text-lynqr-600 focus:ring-lynqr-500" />
                 <label for="dynCheck" class="text-xs text-gray-300 cursor-pointer">
                   Dynamic link routing (Edit destination URL anytime without reprinting)
                 </label>
@@ -139,13 +139,13 @@
                   :key="doc.id"
                   @click="selectDocument(doc)"
                   class="p-2 rounded-lg border cursor-pointer transition-all flex items-center justify-between text-xs"
-                  :class="selectedDocId === doc.id ? 'bg-linksy-600/20 border-linksy-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'"
+                  :class="selectedDocId === doc.id ? 'bg-lynqr-600/20 border-lynqr-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'"
                 >
                   <div class="truncate max-w-[280px]">
                     <div class="font-medium truncate">{{ doc.filename }}</div>
                     <div class="text-[10px] text-gray-500">v{{ doc.version }} • {{ (doc.file_size / 1024 / 1024).toFixed(2) }} MB</div>
                   </div>
-                  <Check v-if="selectedDocId === doc.id" class="w-4 h-4 text-linksy-400" />
+                  <Check v-if="selectedDocId === doc.id" class="w-4 h-4 text-lynqr-400" />
                 </div>
               </div>
               <div v-else class="text-xs text-gray-400">
@@ -202,7 +202,7 @@
                   type="button"
                   @click="style.gradient_type = 'none'"
                   class="py-2.5 px-4 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all"
-                  :class="style.gradient_type === 'none' ? 'bg-linksy-600/20 border-linksy-500 text-white' : 'bg-gray-800/80 border-gray-700 text-gray-400'"
+                  :class="style.gradient_type === 'none' ? 'bg-lynqr-600/20 border-lynqr-500 text-white' : 'bg-gray-800/80 border-gray-700 text-gray-400'"
                 >
                   <Palette class="w-4 h-4" />
                   <span>Solid Color</span>
@@ -211,7 +211,7 @@
                   type="button"
                   @click="style.gradient_type = 'linear'"
                   class="py-2.5 px-4 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all"
-                  :class="style.gradient_type === 'linear' ? 'bg-linksy-600/20 border-linksy-500 text-white' : 'bg-gray-800/80 border-gray-700 text-gray-400'"
+                  :class="style.gradient_type === 'linear' ? 'bg-lynqr-600/20 border-lynqr-500 text-white' : 'bg-gray-800/80 border-gray-700 text-gray-400'"
                 >
                   <SunMedium class="w-4 h-4" />
                   <span>Linear Gradient</span>
@@ -265,7 +265,7 @@
                 <span class="text-xs font-semibold text-gray-200 block">Transparent Background</span>
                 <span class="text-[11px] text-gray-400">Export clean transparent PNG or SVG for dark mode or graphic design</span>
               </div>
-              <input v-model="style.is_transparent" type="checkbox" class="w-4 h-4 rounded text-linksy-600 bg-gray-800 border-gray-700 focus:ring-linksy-500" />
+              <input v-model="style.is_transparent" type="checkbox" class="w-4 h-4 rounded text-lynqr-600 bg-gray-800 border-gray-700 focus:ring-lynqr-500" />
             </div>
 
             <!-- Finder Eye Color Overrides -->
@@ -301,9 +301,9 @@
                   :key="shape.id"
                   @click="style.dot_style = shape.id"
                   class="p-3 rounded-xl border text-xs font-medium flex flex-col items-center gap-2 transition-all"
-                  :class="style.dot_style === shape.id ? 'bg-linksy-600/20 border-linksy-500 text-white' : 'bg-gray-800/80 border-gray-700 text-gray-400 hover:text-white'"
+                  :class="style.dot_style === shape.id ? 'bg-lynqr-600/20 border-lynqr-500 text-white' : 'bg-gray-800/80 border-gray-700 text-gray-400 hover:text-white'"
                 >
-                  <component :is="shape.icon" class="w-5 h-5 text-linksy-400" />
+                  <component :is="shape.icon" class="w-5 h-5 text-lynqr-400" />
                   <span>{{ shape.name }}</span>
                 </button>
               </div>
@@ -318,7 +318,7 @@
                   :key="eye.id"
                   @click="style.eye_shape = eye.id"
                   class="py-2.5 px-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-2 transition-all"
-                  :class="style.eye_shape === eye.id ? 'bg-linksy-600/20 border-linksy-500 text-white' : 'bg-gray-800/80 border-gray-700 text-gray-400 hover:text-white'"
+                  :class="style.eye_shape === eye.id ? 'bg-lynqr-600/20 border-lynqr-500 text-white' : 'bg-gray-800/80 border-gray-700 text-gray-400 hover:text-white'"
                 >
                   <span>{{ eye.name }}</span>
                 </button>
@@ -329,7 +329,7 @@
             <div class="border-t border-gray-750 pt-4 space-y-2">
               <div class="flex items-center justify-between">
                 <label class="text-xs font-semibold text-gray-300">Error Correction Level (QR Spec)</label>
-                <span class="text-[11px] text-linksy-400 font-mono">{{ style.error_correction }} ({{ getRecoveryPercent(style.error_correction) }})</span>
+                <span class="text-[11px] text-lynqr-400 font-mono">{{ style.error_correction }} ({{ getRecoveryPercent(style.error_correction) }})</span>
               </div>
               <div class="grid grid-cols-4 gap-2">
                 <button
@@ -337,7 +337,7 @@
                   :key="ec"
                   @click="style.error_correction = ec"
                   class="py-2 rounded-lg border text-xs font-bold transition-all"
-                  :class="style.error_correction === ec ? 'bg-linksy-600 text-white border-linksy-500' : 'bg-gray-800 border-gray-700 text-gray-400'"
+                  :class="style.error_correction === ec ? 'bg-lynqr-600 text-white border-lynqr-500' : 'bg-gray-800 border-gray-700 text-gray-400'"
                 >
                   Level {{ ec }}
                 </button>
@@ -353,7 +353,7 @@
                 <span class="font-semibold text-gray-300">Quiet Zone (Margin)</span>
                 <span class="font-mono text-gray-400">{{ style.margin }} modules</span>
               </div>
-              <input v-model.number="style.margin" type="range" min="0" max="6" class="w-full accent-linksy-600" />
+              <input v-model.number="style.margin" type="range" min="0" max="6" class="w-full accent-lynqr-600" />
             </div>
           </div>
 
@@ -365,16 +365,16 @@
               <div
                 @dragover.prevent
                 @drop.prevent="handleLogoDrop"
-                class="border-2 border-dashed border-gray-700 hover:border-linksy-500 rounded-xl p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-colors"
+                class="border-2 border-dashed border-gray-700 hover:border-lynqr-500 rounded-xl p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-colors"
                 @click="$refs.logoInput.click()"
               >
                 <input ref="logoInput" type="file" @change="handleLogoSelect" class="hidden" accept="image/*" />
                 <div v-if="style.logo_base64" class="flex flex-col items-center gap-2">
                   <img :src="style.logo_base64" class="w-16 h-16 object-contain rounded-xl p-1 bg-white border border-gray-700" />
-                  <span class="text-xs text-linksy-400 font-semibold">Click to replace logo</span>
+                  <span class="text-xs text-lynqr-400 font-semibold">Click to replace logo</span>
                 </div>
                 <div v-else class="flex flex-col items-center">
-                  <UploadCloud class="w-8 h-8 text-linksy-400 mb-1" />
+                  <UploadCloud class="w-8 h-8 text-lynqr-400 mb-1" />
                   <span class="text-xs font-semibold text-gray-200">Select or drop logo here</span>
                   <span class="text-[10px] text-gray-500 mt-0.5">PNG, SVG, or JPEG (transparent PNG recommended)</span>
                 </div>
@@ -397,7 +397,7 @@
                   <span class="font-semibold text-gray-300">Logo Size Proportion</span>
                   <span class="font-mono text-gray-400">{{ Math.round((style.logo_size || 0.22) * 100) }}%</span>
                 </div>
-                <input v-model.number="style.logo_size" type="range" min="0.16" max="0.28" step="0.02" class="w-full accent-linksy-600" />
+                <input v-model.number="style.logo_size" type="range" min="0.16" max="0.28" step="0.02" class="w-full accent-lynqr-600" />
               </div>
 
               <div>
@@ -408,7 +408,7 @@
                     :key="shape"
                     @click="style.logo_bg_shape = shape"
                     class="py-2 rounded-lg border text-xs font-medium capitalize transition-all"
-                    :class="style.logo_bg_shape === shape ? 'bg-linksy-600 text-white border-linksy-500' : 'bg-gray-800 border-gray-700 text-gray-400'"
+                    :class="style.logo_bg_shape === shape ? 'bg-lynqr-600 text-white border-lynqr-500' : 'bg-gray-800 border-gray-700 text-gray-400'"
                   >
                     {{ shape }}
                   </button>
@@ -428,7 +428,7 @@
                   :key="frame.id"
                   @click="style.frame_style = frame.id"
                   class="py-2.5 px-3 rounded-xl border text-xs font-medium text-center transition-all"
-                  :class="style.frame_style === frame.id ? 'bg-linksy-600/20 border-linksy-500 text-white' : 'bg-gray-800/80 border-gray-700 text-gray-400 hover:text-white'"
+                  :class="style.frame_style === frame.id ? 'bg-lynqr-600/20 border-lynqr-500 text-white' : 'bg-gray-800/80 border-gray-700 text-gray-400 hover:text-white'"
                 >
                   {{ frame.name }}
                 </button>
@@ -442,7 +442,7 @@
                 v-model="style.label_text"
                 type="text"
                 placeholder="SCAN ME"
-                class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-linksy-500"
+                class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-lynqr-500"
               />
             </div>
 
@@ -453,7 +453,7 @@
                   <span class="font-semibold text-gray-300">Border Thickness</span>
                   <span class="font-mono text-gray-400">{{ style.border_width }}px</span>
                 </div>
-                <input v-model.number="style.border_width" type="range" min="0" max="16" class="w-full accent-linksy-600" />
+                <input v-model.number="style.border_width" type="range" min="0" max="16" class="w-full accent-lynqr-600" />
               </div>
 
               <div class="bg-gray-800/80 p-3 rounded-xl border border-gray-700">
@@ -473,7 +473,7 @@
         <div class="bg-gray-800/80 border border-gray-700/80 rounded-2xl p-6 flex flex-col items-center shadow-2xl">
           <div class="w-full flex items-center justify-between text-xs font-semibold text-gray-400 uppercase tracking-wider mb-5">
             <span class="flex items-center gap-1.5">
-              <Eye class="w-4 h-4 text-linksy-400" />
+              <Eye class="w-4 h-4 text-lynqr-400" />
               <span>Real-Time Canvas Preview</span>
             </span>
             <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-mono">Live</span>
@@ -519,7 +519,7 @@
                 @click="downloadFormat('png')"
                 class="py-2 px-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
               >
-                <Download class="w-3.5 h-3.5 text-linksy-400" />
+                <Download class="w-3.5 h-3.5 text-lynqr-400" />
                 <span>PNG (3000px)</span>
               </button>
               <button
@@ -576,11 +576,11 @@ import {
   AlertTriangle
 } from 'lucide-vue-next'
 import { api } from '../api/client'
-import { useLinksyStore } from '../stores/linksy'
+import { useLynqrStore } from '../stores/lynqr'
 
 const route = useRoute()
 const router = useRouter()
-const store = useLinksyStore()
+const store = useLynqrStore()
 
 const isEditing = computed(() => !!route.params.id)
 const isSaving = ref(false)
@@ -699,7 +699,7 @@ const presets = [
 const qrData = ref({
   title: 'My Custom QR Code',
   type: 'website',
-  target_url: 'https://linksy.dev',
+  target_url: 'https://lynqr.app',
   is_dynamic: true,
   raw_data: ''
 })
@@ -798,7 +798,7 @@ function getRecoveryPercent(level) {
 
 // Live client-side SVG renderer for immediate zero-lag canvas feedback
 const renderedSvg = computed(() => {
-  const target = qrData.value.target_url || 'https://linksy.dev'
+  const target = qrData.value.target_url || 'https://lynqr.app'
   const fg = style.value.gradient_type === 'linear' ? 'url(#liveGrad)' : (style.value.fg_color || '#000000')
   const bg = style.value.is_transparent ? 'transparent' : (style.value.bg_color || '#ffffff')
 
@@ -931,7 +931,7 @@ function downloadFormat(fmt) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `linksy-qr-${Date.now()}.svg`
+    a.download = `lynqr-qr-${Date.now()}.svg`
     a.click()
   } else {
     if (confirm('Save this QR code to download high-resolution PNG, JPEG, or PDF?')) {

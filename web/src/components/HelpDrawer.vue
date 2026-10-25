@@ -8,8 +8,8 @@
       <div>
         <div class="flex items-center justify-between pb-4 border-b border-gray-800 mb-6">
           <div class="flex items-center gap-2">
-            <BookOpen class="w-5 h-5 text-linksy-400" />
-            <h2 class="text-base font-bold text-white">Linksy Quick Help & Docs</h2>
+            <BookOpen class="w-5 h-5 text-lynqr-400" />
+            <h2 class="text-base font-bold text-white">Lynqr Quick Help & Docs</h2>
           </div>
           <button @click="$emit('close')" class="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800">
             <X class="w-4 h-4" />
@@ -19,12 +19,12 @@
         <div class="space-y-6 text-xs text-gray-300">
           <!-- Guide 1: Dynamic QR Codes -->
           <div class="bg-gray-800/60 p-4 rounded-xl border border-gray-750 space-y-2">
-            <div class="flex items-center gap-2 text-sm font-semibold text-linksy-400">
+            <div class="flex items-center gap-2 text-sm font-semibold text-lynqr-400">
               <RefreshCw class="w-4 h-4" />
               <span>Dynamic QR Codes (Never Reprint)</span>
             </div>
             <p class="leading-relaxed text-gray-400">
-              Dynamic QR codes route through a shortened redirect link (e.g. <code class="text-linksy-300">/s/slug</code>). This allows you to change the destination website, menu, or file at any time without needing to reprint stickers, flyers, or merchandise.
+              Dynamic QR codes route through a shortened redirect link (e.g. <code class="text-lynqr-300">/s/slug</code>). This allows you to change the destination website, menu, or file at any time without needing to reprint stickers, flyers, or merchandise.
             </p>
           </div>
 
@@ -73,7 +73,7 @@
         <router-link
           to="/api-docs"
           @click="$emit('close')"
-          class="w-full py-2.5 px-4 bg-linksy-600 hover:bg-linksy-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+          class="w-full py-2.5 px-4 bg-lynqr-600 hover:bg-lynqr-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
         >
           <ExternalLink class="w-4 h-4" />
           <span>Open Full Interactive API Reference</span>

@@ -7,7 +7,7 @@
       </div>
       <button
         @click="$emit('open-create')"
-        class="bg-linksy-600 hover:bg-linksy-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
+        class="bg-lynqr-600 hover:bg-lynqr-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
       >
         <Plus class="w-4 h-4" />
         <span>New Link</span>
@@ -34,12 +34,12 @@
                 <a
                   :href="link.target_url"
                   target="_blank"
-                  class="text-gray-400 hover:text-linksy-400 truncate max-w-sm block text-[11px] mt-0.5"
+                  class="text-gray-400 hover:text-lynqr-400 truncate max-w-sm block text-[11px] mt-0.5"
                 >
                   {{ link.target_url }}
                 </a>
               </td>
-              <td class="px-5 py-3.5 font-mono text-linksy-400">
+              <td class="px-5 py-3.5 font-mono text-lynqr-400">
                 <div class="flex items-center gap-1.5">
                   <span>/s/{{ link.slug }}</span>
                   <button @click="copyShort(link.slug)" class="p-1 text-gray-400 hover:text-white" title="Copy">
@@ -86,7 +86,7 @@
       <div @click="editingLink = null" class="absolute inset-0 bg-black/75 backdrop-blur-sm"></div>
       <div class="relative bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl z-10 space-y-4">
         <h3 class="text-base font-bold text-white flex items-center gap-2">
-          <Edit3 class="w-4 h-4 text-linksy-400" />
+          <Edit3 class="w-4 h-4 text-lynqr-400" />
           <span>Edit Link Destination (Dynamic Routing)</span>
         </h3>
         <p class="text-xs text-gray-400">
@@ -113,7 +113,7 @@
 
         <div class="flex justify-end gap-2 pt-2">
           <button @click="editingLink = null" class="px-3.5 py-1.5 text-xs text-gray-400 hover:text-white">Cancel</button>
-          <button @click="saveEdit" class="px-4 py-1.5 text-xs font-semibold bg-linksy-600 hover:bg-linksy-500 text-white rounded-lg">
+          <button @click="saveEdit" class="px-4 py-1.5 text-xs font-semibold bg-lynqr-600 hover:bg-lynqr-500 text-white rounded-lg">
             Save Changes
           </button>
         </div>
@@ -125,11 +125,11 @@
 <script setup>
 import { ref } from 'vue'
 import { Plus, Copy, Edit3, Trash2 } from 'lucide-vue-next'
-import { useLinksyStore } from '../stores/linksy'
+import { useLynqrStore } from '../stores/lynqr'
 import { api } from '../api/client'
 
 defineEmits(['open-create'])
-const store = useLinksyStore()
+const store = useLynqrStore()
 
 const editingLink = ref(null)
 const editForm = ref({ title: '', target_url: '', is_active: true })
