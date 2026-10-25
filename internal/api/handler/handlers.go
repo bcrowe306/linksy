@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -56,7 +57,7 @@ func (h *Handler) HandleShortLinkRedirect(c fiber.Ctx) error {
 
 	link, err := h.svc.ResolveShortLink(slug)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).SendString("Link not found or expired")
+		return h.renderBrandedError(c, "Link Not Found or Inactive", fmt.Sprintf("The short link \"/s/%s\" does not exist, has expired, or has been removed.", slug), fiber.StatusNotFound)
 	}
 
 	// Capture analytics context safely before returning
@@ -85,7 +86,7 @@ func (h *Handler) HandleQRScanRedirect(c fiber.Ctx) error {
 	id := c.Params("id")
 	qrCode, err := h.svc.GetQRCode(id)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).SendString("QR Code not found")
+		return h.renderBrandedError(c, "QR Code Not Found", "The QR code you scanned does not exist, is inactive, or has been removed.", fiber.StatusNotFound)
 	}
 
 	// Track QR scan
@@ -202,8 +203,9 @@ func (h *Handler) UpdateLink(c fiber.Ctx) error {
 
 func (h *Handler) DeleteLink(c fiber.Ctx) error {
 	id := c.Params("id")
-	if err := h.svc.DeleteLink(id); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	auth := middleware.GetAuth(c)
+	if err := h.svc.DeleteLink(id, auth.TeamID); err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Link not found"})
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -273,8 +275,9 @@ func (h *Handler) ListQR(c fiber.Ctx) error {
 
 func (h *Handler) GetQR(c fiber.Ctx) error {
 	id := c.Params("id")
+	auth := middleware.GetAuth(c)
 	qrCode, err := h.svc.GetQRCode(id)
-	if err != nil {
+	if err != nil || (auth != nil && auth.TeamID != "" && qrCode.TeamID != auth.TeamID) {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "QR code not found"})
 	}
 	return c.JSON(qrCode)
@@ -329,8 +332,9 @@ func (h *Handler) ExportQR(c fiber.Ctx) error {
 
 func (h *Handler) DeleteQR(c fiber.Ctx) error {
 	id := c.Params("id")
-	if err := h.svc.DeleteQRCode(id); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	auth := middleware.GetAuth(c)
+	if err := h.svc.DeleteQRCode(id, auth.TeamID); err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "QR code not found"})
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -448,4 +452,200 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+
+func (h *Handler) DeleteDocument(c fiber.Ctx) error {
+	id := c.Params("id")
+	auth := middleware.GetAuth(c)
+	deleteQR := c.Query("delete_qr", "false") == "true"
+
+	deletedQRs, err := h.svc.DeleteDocument(id, auth.TeamID, deleteQR)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Document not found or delete failed"})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":          "Document deleted successfully",
+		"deleted_qr_count": deletedQRs,
+	})
+}
+
+func (h *Handler) BulkDeleteDocuments(c fiber.Ctx) error {
+	auth := middleware.GetAuth(c)
+	var req models.BulkDeleteDocumentsRequest
+	if err := c.Bind().Body(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if len(req.DocumentIDs) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No documents specified for deletion"})
+	}
+
+	deletedDocs, deletedQRs, err := h.svc.BulkDeleteDocuments(req.DocumentIDs, auth.TeamID, req.DeleteQR)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":            "Documents deleted successfully",
+		"deleted_docs_count": deletedDocs,
+		"deleted_qr_count":   deletedQRs,
+	})
+}
+
+func (h *Handler) renderBrandedError(c fiber.Ctx, title, message string, statusCode int) error {
+	accept := c.Get("Accept")
+	if strings.Contains(accept, "application/json") && !strings.Contains(accept, "text/html") {
+		return c.Status(statusCode).JSON(fiber.Map{
+			"error": message,
+			"code":  statusCode,
+		})
+	}
+
+	html := fmt.Sprintf(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>%s | Lynqr</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #030712;
+      color: #f3f4f6;
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      position: relative;
+      overflow-x: hidden;
+    }
+    .glow {
+      position: absolute;
+      width: 450px;
+      height: 450px;
+      border-radius: 50%%;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%%, rgba(14, 165, 233, 0.08) 50%%, transparent 70%%);
+      filter: blur(50px);
+      z-index: 0;
+      pointer-events: none;
+    }
+    .card {
+      position: relative;
+      z-index: 1;
+      background: rgba(17, 24, 39, 0.75);
+      border: 1px solid rgba(55, 65, 81, 0.7);
+      backdrop-filter: blur(20px);
+      border-radius: 1.5rem;
+      padding: 2.5rem;
+      max-width: 480px;
+      width: 100%%;
+      text-align: center;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+    }
+    .icon-wrapper {
+      width: 4.5rem;
+      height: 4.5rem;
+      border-radius: 1.25rem;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      color: #f87171;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 0 24px rgba(239, 68, 68, 0.15);
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #10b981;
+      margin-bottom: 0.75rem;
+    }
+    .brand-dot {
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 50%%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.3;
+      margin-bottom: 0.75rem;
+    }
+    p {
+      color: #9ca3af;
+      font-size: 0.875rem;
+      line-height: 1.6;
+      margin-bottom: 2rem;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      width: 100%%;
+      padding: 0.875rem 1.5rem;
+      background: #10b981;
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 0.875rem;
+      border-radius: 0.75rem;
+      text-decoration: none;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+    }
+    .btn:hover {
+      background: #059669;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(16, 185, 129, 0.35);
+    }
+    .footer {
+      margin-top: 1.5rem;
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="card">
+    <div class="brand">
+      <div class="brand-dot"></div>
+      <span>Lynqr Smart Routing</span>
+    </div>
+    <div class="icon-wrapper">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+        <line x1="2" y1="2" x2="22" y2="22"></line>
+      </svg>
+    </div>
+    <h1>%s</h1>
+    <p>%s</p>
+    <a href="/" class="btn">
+      <span>Return to Lynqr Home</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+    </a>
+    <div class="footer">Protected by Lynqr Link Management & Dynamic QR Platform</div>
+  </div>
+</body>
+</html>`, title, title, message)
+
+	return c.Status(statusCode).Type("html").SendString(html)
 }

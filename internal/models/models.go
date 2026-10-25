@@ -203,3 +203,43 @@ type CreateAPIKeyRequest struct {
 	Name          string `json:"name"`
 	ExpiresInDays int    `json:"expires_in_days,omitempty"`
 }
+
+type Invitation struct {
+	ID                 string     `json:"id"`
+	TeamID             string     `json:"team_id"`
+	Email              string     `json:"email"`
+	Role               UserRole   `json:"role"`
+	WorkOSInvitationID string     `json:"workos_invitation_id,omitempty"`
+	Token              string     `json:"token,omitempty"`
+	State              string     `json:"state"`
+	CreatedAt          time.Time  `json:"created_at"`
+	ExpiresAt          *time.Time `json:"expires_at,omitempty"`
+	AcceptURL          string     `json:"accept_url,omitempty"`
+}
+
+type TeamMemberDetail struct {
+	ID        string    `json:"id"`
+	TeamID    string    `json:"team_id"`
+	UserID    string    `json:"user_id"`
+	Role      UserRole  `json:"role"`
+	Email     string    `json:"email"`
+	FirstName string    `json:"first_name"`
+	LastName  string    `json:"last_name"`
+	Name      string    `json:"name"`
+	AvatarURL string    `json:"avatar_url"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type BulkDeleteDocumentsRequest struct {
+	DocumentIDs []string `json:"document_ids"`
+	DeleteQR    bool     `json:"delete_qr"`
+}
+
+type InviteMemberRequest struct {
+	Email string   `json:"email"`
+	Role  UserRole `json:"role"`
+}
+
+type UpdateRoleRequest struct {
+	Role UserRole `json:"role"`
+}

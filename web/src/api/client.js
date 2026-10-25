@@ -128,6 +128,107 @@ export const api = {
     })
     return res.json()
   },
+  async deleteDocument(id, deleteQR = false) {
+    const res = await fetch(`${BASE_URL}/api/v1/documents/${id}?delete_qr=${deleteQR}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      throw new Error(err.error || 'Failed to delete document')
+    }
+    return res.json()
+  },
+  async bulkDeleteDocuments(documentIds, deleteQR = false) {
+    const res = await fetch(`${BASE_URL}/api/v1/documents/bulk-delete`, {
+      method: 'POST',
+      headers: {
+        ...getHeaders(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ document_ids: documentIds, delete_qr: deleteQR })
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      throw new Error(err.error || 'Failed to delete documents')
+    }
+    return res.json()
+  },
+
+  // Team & User Management
+  async getTeamMembers() {
+    const res = await fetch(`${BASE_URL}/api/v1/team/members`, {
+      headers: getHeaders()
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      throw new Error(err.error || 'Failed to fetch team members')
+    }
+    return res.json()
+  },
+  async inviteTeamMember(email, role = 'member') {
+    const res = await fetch(`${BASE_URL}/api/v1/team/members/invite`, {
+      method: 'POST',
+      headers: {
+        ...getHeaders(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ email, role })
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      throw new Error(err.error || 'Failed to invite team member')
+    }
+    return res.json()
+  },
+  async updateMemberRole(userId, role) {
+    const res = await fetch(`${BASE_URL}/api/v1/team/members/${userId}/role`, {
+      method: 'PUT',
+      headers: {
+        ...getHeaders(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ role })
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      throw new Error(err.error || 'Failed to update member role')
+    }
+    return res.json()
+  },
+  async removeTeamMember(userId) {
+    const res = await fetch(`${BASE_URL}/api/v1/team/members/${userId}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      throw new Error(err.error || 'Failed to remove member')
+    }
+    return res.json()
+  },
+  async resetMemberCredentials(userId) {
+    const res = await fetch(`${BASE_URL}/api/v1/team/members/${userId}/reset-credentials`, {
+      method: 'POST',
+      headers: getHeaders()
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      throw new Error(err.error || 'Failed to reset credentials')
+    }
+    return res.json()
+  },
+  async revokeInvitation(invitationId) {
+    const res = await fetch(`${BASE_URL}/api/v1/team/invitations/${invitationId}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      throw new Error(err.error || 'Failed to revoke invitation')
+    }
+    return res.json()
+  },
 
   // Analytics
   async getAnalyticsSummary(linkId = null, qrId = null) {

@@ -24,6 +24,8 @@ const routes = [
   { path: '/analytics', name: 'analytics', component: AnalyticsView, meta: { requiresAuth: true } },
   { path: '/api-docs', name: 'docs', component: DocsView }, // Public interactive documentation
   { path: '/settings', name: 'settings', component: SettingsView, meta: { requiresAuth: true } },
+  { path: '/team', redirect: '/settings' },
+  { path: '/users', redirect: '/settings' },
 ]
 
 export const router = createRouter({

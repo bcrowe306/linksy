@@ -17,6 +17,7 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 
 	h := handler.New(svc, cfg.AppURL)
 	authH := handler.NewAuthHandler(cfg, svc)
+	teamH := handler.NewTeamHandler(cfg, svc)
 
 	// Public health check
 	app.Get("/health", h.Health)
@@ -80,6 +81,19 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	api.Post("/documents/upload", h.UploadDocument)
 	api.Put("/documents/:id", h.UpdateDocumentFile)
 	api.Get("/documents", h.ListDocuments)
+	api.Delete("/documents/:id", h.DeleteDocument)
+	api.Post("/documents/bulk-delete", h.BulkDeleteDocuments)
+
+	// Team & User Management (WorkOS Invitations, Roles, & Credential Reset)
+	api.Get("/team/members", teamH.ListMembers)
+
+	// Admin-only Team Operations
+	admin := api.Group("", middleware.RequireAdmin())
+	admin.Post("/team/members/invite", teamH.InviteMember)
+	admin.Put("/team/members/:userId/role", teamH.UpdateMemberRole)
+	admin.Delete("/team/members/:userId", teamH.RemoveMember)
+	admin.Post("/team/members/:userId/reset-credentials", teamH.ResetMemberCredentials)
+	admin.Delete("/team/invitations/:id", teamH.RevokeInvitation)
 
 	// Analytics
 	api.Get("/analytics/summary", h.GetAnalyticsSummary)

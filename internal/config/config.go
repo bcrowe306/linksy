@@ -23,6 +23,7 @@ type Config struct {
 	WorkOSAPIKeyProd      string
 	WorkOSClientIDProd    string
 	WorkOSRedirectURI     string
+	WorkOSOrgID           string
 	LogLevel              string
 }
 
@@ -92,6 +93,7 @@ func LoadConfig() *Config {
 		WorkOSAPIKeyProd:      workosAPIKeyProd,
 		WorkOSClientIDProd:    workosClientIDProd,
 		WorkOSRedirectURI:     workosRedirectURI,
+		WorkOSOrgID:           getEnv("WORKOS_ORG_ID", "org_01M5R8PX1FRH54EN4ZW56E8HRE"),
 		LogLevel:              logLevel,
 	}
 }

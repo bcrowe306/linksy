@@ -591,6 +591,94 @@ class LinksyTestHarness:
                 self.failed += 1
                 self.log("Update Document File (/api/v1/documents/:id)", f"Failed ({status}): {data}", "FAIL")
 
+            # Delete Document & Confirm Removal from DB & Storage
+            status, del_res = self.request("DELETE", f"/api/v1/documents/{doc_id}?delete_qr=true")
+            if status == 200:
+                self.passed += 1
+                self.log("Delete Document (/api/v1/documents/:id)", f"Deleted document {doc_id} and associated QR codes", "PASS")
+            else:
+                self.failed += 1
+                self.log("Delete Document (/api/v1/documents/:id)", f"Failed ({status}): {del_res}", "FAIL")
+
+            # Confirm file download is gone
+            status_gone, _ = self.request("GET", doc_url, auth=False)
+            if status_gone == 404:
+                self.passed += 1
+                self.log("Confirm Document Storage Deleted", "Verified file endpoint returns 404 after deletion", "PASS")
+            else:
+                self.failed += 1
+                self.log("Confirm Document Storage Deleted", f"Expected 404, got {status_gone}", "FAIL")
+
+            # Bulk Delete Documents
+            b_files1 = {"file": ("bulk_test1.pdf", b"%PDF-1.4 Bulk 1", "application/pdf")}
+            b_files2 = {"file": ("bulk_test2.pdf", b"%PDF-1.4 Bulk 2", "application/pdf")}
+            st1, d1 = self.request("POST", "/api/v1/documents/upload", files=b_files1)
+            st2, d2 = self.request("POST", "/api/v1/documents/upload", files=b_files2)
+            if st1 in (200, 201) and st2 in (200, 201):
+                id1 = d1.get("document", {}).get("id")
+                id2 = d2.get("document", {}).get("id")
+                status_bulk, res_bulk = self.request("POST", "/api/v1/documents/bulk-delete", data={"document_ids": [id1, id2], "delete_qr": True})
+                if status_bulk == 200 and isinstance(res_bulk, dict) and res_bulk.get("deleted_docs_count") == 2:
+                    self.passed += 1
+                    self.log("Bulk Delete Documents (/api/v1/documents/bulk-delete)", "Successfully bulk deleted multiple documents", "PASS")
+                else:
+                    self.failed += 1
+                    self.log("Bulk Delete Documents (/api/v1/documents/bulk-delete)", f"Failed ({status_bulk}): {res_bulk}", "FAIL")
+
+        # 14. Branded Error Page for Invalid Links & QR Scans
+        status_bogus, body_bogus = self.request("GET", "/s/invalid-nonexistent-slug-test", auth=False, headers={"Accept": "text/html"})
+        if status_bogus == 404 and "Lynqr" in str(body_bogus) and "Return to Lynqr Home" in str(body_bogus):
+            self.passed += 1
+            self.log("Branded 404 Error Page (/s/:slug)", "Verified Lynqr branded responsive error page for invalid links", "PASS")
+        else:
+            self.failed += 1
+            self.log("Branded 404 Error Page (/s/:slug)", f"Failed ({status_bogus}): {body_bogus[:100]}", "FAIL")
+
+        # 15. Team & User Management with WorkOS API
+        status, m_res = self.request("GET", "/api/v1/team/members")
+        if status == 200 and isinstance(m_res, dict) and "members" in m_res:
+            self.passed += 1
+            self.log("List Team Members (/api/v1/team/members)", f"Retrieved team members ({len(m_res['members'])} members, role: {m_res.get('current_user_role')})", "PASS")
+        else:
+            self.failed += 1
+            self.log("List Team Members (/api/v1/team/members)", f"Failed ({status}): {m_res}", "FAIL")
+
+        invite_email = f"qa_invite_{int(time.time())}_{''.join(random.choices(string.ascii_lowercase, k=4))}@lynqr.app"
+        status, inv_res = self.request("POST", "/api/v1/team/members/invite", data={"email": invite_email, "role": "member"})
+        inv_id = None
+        if status in (200, 201) and isinstance(inv_res, dict):
+            inv = inv_res.get("invitation", {})
+            inv_id = inv.get("id") or inv.get("workos_invitation_id")
+            self.passed += 1
+            self.log("Invite Member via WorkOS (/api/v1/team/members/invite)", f"Dispatched WorkOS invitation to {invite_email}", "PASS")
+        else:
+            self.failed += 1
+            self.log("Invite Member via WorkOS (/api/v1/team/members/invite)", f"Failed ({status}): {inv_res}", "FAIL")
+
+        if inv_id:
+            status, rev_res = self.request("DELETE", f"/api/v1/team/invitations/{inv_id}")
+            if status == 200:
+                self.passed += 1
+                self.log("Revoke WorkOS Invitation (/api/v1/team/invitations/:id)", "Revoked invitation successfully", "PASS")
+            else:
+                self.failed += 1
+                self.log("Revoke WorkOS Invitation (/api/v1/team/invitations/:id)", f"Failed ({status}): {rev_res}", "FAIL")
+
+        # 16. Data Isolation Verification (Cross-Team Tenant Barrier)
+        test_iso_slug = f"qa-iso-{int(time.time())}"
+        st_iso, d_iso = self.request("POST", "/api/v1/links", data={"slug": test_iso_slug, "target_url": "https://lynqr.app", "title": "Iso Link"})
+        if st_iso in (200, 201) and isinstance(d_iso, dict):
+            iso_link_id = d_iso.get("id")
+            # Attempt access with rogue team header
+            st_rogue, _ = self.request("GET", f"/api/v1/links/{iso_link_id}", headers={"X-Team-ID": "foreign_rogue_org_999"})
+            if st_rogue in (401, 403, 404):
+                self.passed += 1
+                self.log("Tenant Data Isolation Enforcement", f"Foreign organization request correctly blocked with status {st_rogue}", "PASS")
+            else:
+                self.failed += 1
+                self.log("Tenant Data Isolation Enforcement", f"Expected 401/403/404 for foreign team, got {st_rogue}", "FAIL")
+            self.request("DELETE", f"/api/v1/links/{iso_link_id}")
+
         # 14. Analytics Summary
         status, data = self.request("GET", "/api/v1/analytics/summary")
         if status == 200 and isinstance(data, dict) and "total_clicks" in data and "total_scans" in data:

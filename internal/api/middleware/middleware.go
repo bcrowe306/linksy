@@ -24,6 +24,10 @@ type KeyValidator interface {
 	ValidateAPIKey(rawKey string) (*models.APIKey, error)
 }
 
+type TeamRoleLookup interface {
+	GetUserTeamAndRole(userID string) (string, models.UserRole, error)
+}
+
 func SetupCommon(app *fiber.App) {
 	app.Use(recover.New())
 	app.Use(logger.New(logger.Config{
@@ -116,6 +120,19 @@ func AuthMiddleware(validators ...KeyValidator) fiber.Handler {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid session or authentication token"})
 		}
 
+		if validator != nil {
+			if lookup, ok := validator.(TeamRoleLookup); ok {
+				if tID, r, err := lookup.GetUserTeamAndRole(userID); err == nil && tID != "" {
+					teamID = tID
+					role = r
+				}
+			}
+		}
+
+		if teamHeader != "" {
+			teamID = teamHeader
+		}
+
 		c.Locals("auth", &AuthContext{
 			UserID: userID,
 			TeamID: teamID,
@@ -143,4 +160,17 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// RequireAdmin ensures only users with admin or owner roles can proceed
+func RequireAdmin() fiber.Handler {
+	return func(c fiber.Ctx) error {
+		auth := GetAuth(c)
+		if auth == nil || (auth.Role != models.RoleAdmin && auth.Role != models.RoleOwner) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Forbidden: Admin privileges required to perform this action",
+			})
+		}
+		return c.Next()
+	}
 }

@@ -1,116 +1,612 @@
 <template>
   <div class="space-y-6 max-w-4xl">
-    <div>
-      <h1 class="text-xl font-bold text-white">Team & Account Settings</h1>
-      <p class="text-xs text-gray-400 mt-0.5">Manage team members, WorkOS enterprise authentication, and developer API keys.</p>
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-bold text-white">Team & User Management</h1>
+        <p class="text-xs text-gray-400 mt-0.5">
+          Manage workspace team members, WorkOS enterprise authentication, invitations, and developer API keys.
+        </p>
+      </div>
+
+      <!-- Current User Role Badge -->
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-gray-400">Your Role:</span>
+        <span
+          class="px-2.5 py-1 rounded-full text-xs font-semibold capitalize flex items-center gap-1.5"
+          :class="[
+            currentUserRole === 'owner' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : '',
+            currentUserRole === 'admin' ? 'bg-lynqr-500/20 text-lynqr-300 border border-lynqr-500/30' : '',
+            currentUserRole === 'member' ? 'bg-gray-700/60 text-gray-300 border border-gray-600/50' : ''
+          ]"
+        >
+          <Shield class="w-3.5 h-3.5" />
+          <span>{{ currentUserRole }}</span>
+        </span>
+      </div>
     </div>
 
-    <!-- WorkOS Auth Status Card (Requirement 9 & 11) -->
-    <div class="bg-gray-800/60 border border-gray-700/80 rounded-2xl p-6 space-y-4">
+    <!-- Alert / Toast Banner -->
+    <div
+      v-if="statusMessage"
+      class="p-3.5 rounded-xl border flex items-center justify-between text-xs transition-all"
+      :class="statusMessage.type === 'error' ? 'bg-rose-950/40 border-rose-800 text-rose-300' : 'bg-emerald-950/40 border-emerald-800 text-emerald-300'"
+    >
+      <div class="flex items-center gap-2">
+        <CheckCircle2 v-if="statusMessage.type !== 'error'" class="w-4 h-4 shrink-0" />
+        <AlertTriangle v-else class="w-4 h-4 shrink-0" />
+        <span>{{ statusMessage.text }}</span>
+      </div>
+      <button @click="statusMessage = null" class="text-gray-400 hover:text-white cursor-pointer ml-3">
+        <X class="w-3.5 h-3.5" />
+      </button>
+    </div>
+
+    <!-- WorkOS Auth Status Card -->
+    <div class="bg-gray-800/60 border border-gray-700/80 rounded-2xl p-6 space-y-4 shadow-xl">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-xl bg-lynqr-600/20 text-lynqr-400 flex items-center justify-center font-bold">
             <ShieldCheck class="w-5 h-5" />
           </div>
           <div>
-            <h3 class="text-sm font-bold text-white">WorkOS Authentication & SSO</h3>
-            <span class="text-xs text-gray-400">Enterprise Single Sign-On (SAML / OIDC) and Team Directory</span>
+            <h3 class="text-sm font-bold text-white">WorkOS Directory & SSO Authentication</h3>
+            <span class="text-xs text-gray-400">Enterprise Single Sign-On (SAML / OIDC), invitations, and credentials</span>
           </div>
         </div>
-        <span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-medium flex items-center gap-1.5">
+        <span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-medium flex items-center gap-1.5 border border-emerald-500/30">
           <CheckCircle2 class="w-3.5 h-3.5" />
-          <span>Active</span>
+          <span>Connected</span>
         </span>
       </div>
 
       <div class="p-3 bg-gray-900/60 rounded-xl border border-gray-800 text-xs text-gray-400 leading-relaxed">
-        WorkOS handles organization memberships, multi-factor authentication, and magic link logins securely across all Lynqr team workspaces.
+        WorkOS User Management secures your team directory, magic links, user invitations, and credential resets with data isolation across organizations.
       </div>
     </div>
 
-    <!-- Team Members & Permissions (Requirement 9 & 11) -->
-    <div class="bg-gray-800/60 border border-gray-700/80 rounded-2xl p-6 space-y-4">
+    <!-- Admin Permissions Banner (shown when user is a regular member) -->
+    <div
+      v-if="!isAdmin"
+      class="p-4 bg-amber-950/30 border border-amber-800/60 rounded-2xl flex items-start gap-3 text-xs text-amber-200"
+    >
+      <AlertCircle class="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+      <div>
+        <div class="font-semibold text-white">Member Access (Read Only for Team Administration)</div>
+        <div class="text-amber-300/80 mt-0.5">
+          You are currently signed in as a workspace member. Inviting users, adjusting member roles, credential resets, and user deletions require Admin or Owner privileges.
+        </div>
+      </div>
+    </div>
+
+    <!-- Team Members Section -->
+    <div class="bg-gray-800/60 border border-gray-700/80 rounded-2xl p-6 space-y-4 shadow-xl">
       <div class="flex items-center justify-between">
         <div>
-          <h3 class="text-sm font-bold text-white">Team Members</h3>
-          <span class="text-xs text-gray-400">Manage who has access to generate and modify QR codes.</span>
+          <h3 class="text-sm font-bold text-white">Workspace Members ({{ members.length }})</h3>
+          <span class="text-xs text-gray-400">Manage user roles, credentials, and access permissions.</span>
         </div>
-        <button class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5">
-          <UserPlus class="w-3.5 h-3.5" />
+        <button
+          v-if="isAdmin"
+          @click="showInviteModal = true"
+          class="bg-lynqr-600 hover:bg-lynqr-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors shadow-lg shadow-lynqr-900/30"
+        >
+          <UserPlus class="w-4 h-4" />
           <span>Invite Member</span>
         </button>
       </div>
 
+      <!-- Members Table -->
       <div class="divide-y divide-gray-750">
-        <div v-for="m in teamMembers" :key="m.email" class="py-3 flex items-center justify-between text-xs">
+        <div
+          v-for="m in members"
+          :key="m.user_id || m.id"
+          class="py-3.5 flex items-center justify-between gap-4 text-xs hover:bg-gray-800/40 px-2 rounded-xl transition-colors"
+        >
           <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-full bg-lynqr-600/30 text-lynqr-400 flex items-center justify-center font-bold">
-              {{ m.name.charAt(0) }}
+            <div class="w-9 h-9 rounded-full bg-lynqr-600/30 text-lynqr-300 border border-lynqr-500/20 flex items-center justify-center font-bold text-xs uppercase">
+              {{ (m.name || m.email || 'U').charAt(0) }}
             </div>
             <div>
-              <div class="font-semibold text-gray-200">{{ m.name }}</div>
-              <div class="text-[11px] text-gray-500 font-mono">{{ m.email }}</div>
+              <div class="font-semibold text-gray-200 flex items-center gap-2">
+                <span>{{ m.name }}</span>
+                <span v-if="m.user_id === currentUserId" class="px-1.5 py-0.2 rounded bg-gray-700 text-[10px] text-gray-300">You</span>
+              </div>
+              <div class="text-[11px] text-gray-400 font-mono">{{ m.email }}</div>
             </div>
           </div>
 
           <div class="flex items-center gap-3">
-            <span class="px-2.5 py-0.5 rounded-full text-[11px] font-medium capitalize"
-              :class="{
-                'bg-amber-500/20 text-amber-300': m.role === 'owner',
-                'bg-lynqr-500/20 text-lynqr-400': m.role === 'admin',
-                'bg-gray-700 text-gray-300': m.role === 'member'
-              }"
+            <!-- Role Selector / Badge -->
+            <div v-if="isAdmin && m.role !== 'owner' && m.user_id !== currentUserId">
+              <select
+                :value="m.role"
+                @change="onRoleChange(m, $event.target.value)"
+                class="bg-gray-900 border border-gray-700 text-gray-200 text-xs rounded-lg px-2.5 py-1 focus:ring-lynqr-500 focus:border-lynqr-500 cursor-pointer"
+              >
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <span
+              v-else
+              class="px-2.5 py-0.5 rounded-full text-[11px] font-medium capitalize"
+              :class="[
+                m.role === 'owner' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : '',
+                m.role === 'admin' ? 'bg-lynqr-500/20 text-lynqr-400 border border-lynqr-500/30' : '',
+                m.role === 'member' ? 'bg-gray-700 text-gray-300' : ''
+              ]"
             >
               {{ m.role }}
             </span>
+
+            <!-- Reset Credentials Button (WorkOS) -->
+            <button
+              v-if="isAdmin"
+              @click="triggerResetCredentials(m)"
+              class="px-2.5 py-1 rounded-lg bg-gray-700/80 hover:bg-gray-700 text-gray-200 text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-colors"
+              title="Dispatch password reset link via WorkOS"
+            >
+              <KeyRound class="w-3.5 h-3.5 text-lynqr-400" />
+              <span>Reset Pass</span>
+            </button>
+
+            <!-- Delete / Remove User Button (WorkOS) -->
+            <button
+              v-if="isAdmin && m.role !== 'owner' && m.user_id !== currentUserId"
+              @click="openRemoveUserModal(m)"
+              class="p-1.5 rounded-lg bg-gray-750 hover:bg-rose-600/20 text-gray-400 hover:text-rose-400 cursor-pointer transition-colors"
+              title="Remove user from team and delete from WorkOS"
+            >
+              <Trash2 class="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        <div v-if="!members.length" class="py-8 text-center text-gray-500 text-xs">
+          Loading team members...
+        </div>
+      </div>
+    </div>
+
+    <!-- Pending WorkOS Invitations Section -->
+    <div v-if="pendingInvitations.length > 0" class="bg-gray-800/60 border border-gray-700/80 rounded-2xl p-6 space-y-4 shadow-xl">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-bold text-white">Pending Invitations ({{ pendingInvitations.length }})</h3>
+          <span class="text-xs text-gray-400">Invited users who have not yet accepted their WorkOS AuthKit invite.</span>
+        </div>
+      </div>
+
+      <div class="divide-y divide-gray-750">
+        <div
+          v-for="inv in pendingInvitations"
+          :key="inv.id"
+          class="py-3 flex items-center justify-between text-xs"
+        >
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center font-bold text-xs">
+              <Mail class="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <div class="font-semibold text-gray-200 font-mono">{{ inv.email }}</div>
+              <div class="text-[11px] text-gray-400">Invited as <span class="capitalize text-lynqr-400 font-medium">{{ inv.role }}</span></div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button
+              v-if="inv.accept_url"
+              @click="copyText(inv.accept_url, 'Invitation URL copied to clipboard!')"
+              class="px-2.5 py-1 rounded-lg bg-gray-700 hover:bg-gray-600 text-lynqr-300 text-xs font-medium flex items-center gap-1 cursor-pointer"
+              title="Copy WorkOS AuthKit invite URL"
+            >
+              <Copy class="w-3 h-3" />
+              <span>Copy Link</span>
+            </button>
+
+            <button
+              v-if="isAdmin"
+              @click="triggerRevokeInvitation(inv)"
+              class="px-2.5 py-1 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 text-xs font-medium cursor-pointer"
+            >
+              Revoke
+            </button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- API Keys (Requirement 10 & 12) -->
-    <div class="bg-gray-800/60 border border-gray-700/80 rounded-2xl p-6 space-y-4">
+    <!-- Invite Member Modal -->
+    <div
+      v-if="showInviteModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+    >
+      <div class="bg-gray-800 border border-gray-700 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-lynqr-600/20 text-lynqr-400 flex items-center justify-center font-bold">
+              <UserPlus class="w-5 h-5" />
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-white">Invite Team Member</h3>
+              <p class="text-xs text-gray-400">Dispatch WorkOS AuthKit email invitation.</p>
+            </div>
+          </div>
+          <button @click="closeInviteModal" class="text-gray-400 hover:text-white cursor-pointer">
+            <X class="w-4 h-4" />
+          </button>
+        </div>
+
+        <form @submit.prevent="submitInvite" class="space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-gray-300 mb-1">Email Address</label>
+            <input
+              v-model="inviteForm.email"
+              type="email"
+              required
+              placeholder="teammate@company.com"
+              class="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-lynqr-500"
+            />
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-300 mb-1">Role & Permissions</label>
+            <select
+              v-model="inviteForm.role"
+              class="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-xs text-white focus:outline-none focus:border-lynqr-500"
+            >
+              <option value="member">Member - Can create, edit, and export links and QR codes</option>
+              <option value="admin">Admin - Full access to invite, manage roles, and delete members</option>
+            </select>
+          </div>
+
+          <!-- Generated Invite Link Display -->
+          <div v-if="generatedInviteUrl" class="p-3 bg-gray-900/80 rounded-xl border border-lynqr-500/30 space-y-1.5">
+            <div class="text-[11px] text-lynqr-400 font-semibold flex items-center gap-1">
+              <CheckCircle2 class="w-3.5 h-3.5" />
+              <span>WorkOS AuthKit Invite Link Generated:</span>
+            </div>
+            <div class="text-[11px] text-gray-300 font-mono break-all line-clamp-2 bg-black/40 p-2 rounded">
+              {{ generatedInviteUrl }}
+            </div>
+            <button
+              type="button"
+              @click="copyText(generatedInviteUrl, 'Invite link copied!')"
+              class="w-full py-1.5 bg-lynqr-600/30 hover:bg-lynqr-600/40 text-lynqr-300 text-xs rounded-lg font-medium cursor-pointer"
+            >
+              Copy Invitation URL
+            </button>
+          </div>
+
+          <div class="flex items-center justify-end gap-2.5 pt-2">
+            <button
+              type="button"
+              @click="closeInviteModal"
+              class="px-4 py-2 rounded-xl text-xs font-medium text-gray-300 hover:text-white bg-gray-700/60 hover:bg-gray-700 cursor-pointer"
+            >
+              {{ generatedInviteUrl ? 'Close' : 'Cancel' }}
+            </button>
+            <button
+              v-if="!generatedInviteUrl"
+              type="submit"
+              :disabled="isInviting"
+              class="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-lynqr-600 hover:bg-lynqr-500 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+            >
+              <span v-if="isInviting">Sending...</span>
+              <span v-else>Send Invitation</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Delete / Remove User Modal -->
+    <div
+      v-if="showRemoveModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+    >
+      <div class="bg-gray-800 border border-gray-700 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center font-bold">
+            <Trash2 class="w-5 h-5" />
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Remove User</h3>
+            <p class="text-xs text-gray-400">Remove user from workspace and revoke access.</p>
+          </div>
+        </div>
+
+        <div class="p-3 bg-gray-900/60 rounded-xl border border-gray-750 text-xs text-gray-300">
+          Are you sure you want to remove <strong class="text-white">{{ targetMemberToRemove?.name || targetMemberToRemove?.email }}</strong> from the workspace?
+          Their WorkOS directory account will be permanently deactivated.
+        </div>
+
+        <div class="flex items-center justify-end gap-2.5 pt-2">
+          <button
+            @click="showRemoveModal = false"
+            class="px-4 py-2 rounded-xl text-xs font-medium text-gray-300 hover:text-white bg-gray-700/60 hover:bg-gray-700 cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            @click="executeRemoveMember"
+            :disabled="isRemoving"
+            class="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+          >
+            <span v-if="isRemoving">Removing...</span>
+            <span v-else>Confirm Removal</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- API Keys Management -->
+    <div class="bg-gray-800/60 border border-gray-700/80 rounded-2xl p-6 space-y-4 shadow-xl">
       <div class="flex items-center justify-between">
         <div>
-          <h3 class="text-sm font-bold text-white">Personal API Keys</h3>
-          <span class="text-xs text-gray-400">Authenticate public API requests programmatically.</span>
+          <h3 class="text-sm font-bold text-white">Developer API Keys</h3>
+          <span class="text-xs text-gray-400">Authenticate public REST API requests programmatically via Bearer token.</span>
         </div>
-        <button @click="generateKey" class="bg-lynqr-600 hover:bg-lynqr-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+        <button
+          @click="showCreateKeyModal = true"
+          class="bg-lynqr-600 hover:bg-lynqr-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-lg shadow-lynqr-900/30"
+        >
           <Key class="w-3.5 h-3.5" />
-          <span>Roll New Key</span>
+          <span>New API Key</span>
         </button>
       </div>
 
-      <div class="p-3 bg-gray-900/60 rounded-xl border border-gray-800 flex items-center justify-between font-mono text-xs">
-        <span class="text-gray-300">{{ activeApiKey }}</span>
-        <button @click="copyApiKey" class="text-lynqr-400 hover:text-lynqr-300 text-xs font-sans">
-          Copy Token
-        </button>
+      <!-- Generated Key Alert -->
+      <div v-if="newlyGeneratedKey" class="p-3.5 bg-emerald-950/40 border border-emerald-500/40 rounded-xl space-y-2">
+        <div class="text-xs text-emerald-300 font-semibold flex items-center gap-1.5">
+          <CheckCircle2 class="w-4 h-4" />
+          <span>New API Key Generated. Store this key safely; it will not be shown again:</span>
+        </div>
+        <div class="p-2.5 bg-black/50 rounded-lg flex items-center justify-between font-mono text-xs text-white border border-gray-700">
+          <span>{{ newlyGeneratedKey }}</span>
+          <button @click="copyText(newlyGeneratedKey, 'API Key copied to clipboard!')" class="text-lynqr-400 hover:text-lynqr-300 text-xs font-sans cursor-pointer ml-3">
+            Copy
+          </button>
+        </div>
+      </div>
+
+      <!-- API Keys List -->
+      <div class="divide-y divide-gray-750">
+        <div
+          v-for="k in apiKeys"
+          :key="k.id"
+          class="py-3 flex items-center justify-between text-xs"
+        >
+          <div>
+            <div class="font-semibold text-gray-200">{{ k.name }}</div>
+            <div class="text-[11px] text-gray-400 font-mono mt-0.5">
+              Prefix: <span class="text-lynqr-400">{{ k.key_prefix }}...</span>
+              <span v-if="k.last_used_at" class="ml-2 text-gray-500">Last used: {{ new Date(k.last_used_at).toLocaleDateString() }}</span>
+            </div>
+          </div>
+          <button
+            @click="revokeApiKey(k.id)"
+            class="text-rose-400 hover:text-rose-300 text-xs font-medium cursor-pointer"
+          >
+            Revoke
+          </button>
+        </div>
+        <div v-if="!apiKeys.length && !newlyGeneratedKey" class="py-4 text-center text-gray-500 text-xs">
+          No active API keys found. Click "New API Key" to generate a live programmatic token.
+        </div>
+      </div>
+    </div>
+
+    <!-- Create API Key Modal -->
+    <div
+      v-if="showCreateKeyModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+    >
+      <div class="bg-gray-800 border border-gray-700 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+        <h3 class="text-base font-bold text-white">Create Developer API Key</h3>
+        <div>
+          <label class="block text-xs font-medium text-gray-300 mb-1">Key Name / Description</label>
+          <input
+            v-model="newKeyName"
+            type="text"
+            placeholder="Production Integration Key"
+            class="w-full px-3.5 py-2 bg-gray-900 border border-gray-700 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-lynqr-500"
+          />
+        </div>
+        <div class="flex items-center justify-end gap-2.5 pt-2">
+          <button @click="showCreateKeyModal = false" class="px-4 py-2 rounded-xl text-xs font-medium text-gray-300 bg-gray-700/60 hover:bg-gray-700">Cancel</button>
+          <button @click="executeCreateKey" class="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-lynqr-600 hover:bg-lynqr-500">Create Key</button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { ShieldCheck, CheckCircle2, UserPlus, Key } from 'lucide-vue-next'
+import { ref, computed, onMounted } from 'vue'
+import {
+  ShieldCheck,
+  CheckCircle2,
+  UserPlus,
+  Key,
+  KeyRound,
+  Trash2,
+  AlertTriangle,
+  AlertCircle,
+  Shield,
+  Copy,
+  Mail,
+  X
+} from 'lucide-vue-next'
+import { api } from '../api/client'
 
-const teamMembers = ref([
-  { name: 'Brandon Crowe', email: 'brandon@lynqr.app', role: 'owner' },
-  { name: 'Marketing Lead', email: 'marketing@lynqr.app', role: 'admin' },
-  { name: 'Designer Team', email: 'design@lynqr.app', role: 'member' }
-])
+const members = ref([])
+const pendingInvitations = ref([])
+const currentUserRole = ref('owner')
+const currentUserId = ref('')
+const statusMessage = ref(null)
 
-const activeApiKey = ref('lnksy_live_9f82d1c0a8e7456b3e210')
+const showInviteModal = ref(false)
+const inviteForm = ref({ email: '', role: 'member' })
+const isInviting = ref(false)
+const generatedInviteUrl = ref('')
 
-function generateKey() {
-  const rand = Math.random().toString(36).substring(2, 15)
-  activeApiKey.value = `lnksy_live_${rand}`
-  alert('New API token generated successfully!')
+const showRemoveModal = ref(false)
+const targetMemberToRemove = ref(null)
+const isRemoving = ref(false)
+
+const apiKeys = ref([])
+const showCreateKeyModal = ref(false)
+const newKeyName = ref('')
+const newlyGeneratedKey = ref('')
+
+const isAdmin = computed(() => {
+  return currentUserRole.value === 'owner' || currentUserRole.value === 'admin'
+})
+
+onMounted(async () => {
+  await loadTeam()
+  await loadApiKeys()
+})
+
+async function loadTeam() {
+  try {
+    const res = await api.getTeamMembers()
+    members.value = res.members || []
+    pendingInvitations.value = res.pending_invitations || []
+    currentUserRole.value = res.current_user_role || 'member'
+
+    const localUser = JSON.parse(localStorage.getItem('lynqr_user') || localStorage.getItem('linksy_user') || '{}')
+    currentUserId.value = localUser.id || ''
+  } catch (err) {
+    statusMessage.value = { type: 'error', text: err.message || 'Failed to load team members' }
+  }
 }
 
-function copyApiKey() {
-  navigator.clipboard.writeText(activeApiKey.value)
-  alert('API Key copied to clipboard!')
+async function loadApiKeys() {
+  try {
+    const res = await api.listAPIKeys()
+    apiKeys.value = res.api_keys || []
+  } catch (err) {
+    // ignore
+  }
+}
+
+async function submitInvite() {
+  isInviting.value = true
+  try {
+    const res = await api.inviteTeamMember(inviteForm.value.email, inviteForm.value.role)
+    const inv = res.invitation || {}
+    if (inv.accept_url) {
+      generatedInviteUrl.value = inv.accept_url
+    }
+    statusMessage.value = {
+      type: 'success',
+      text: `WorkOS invitation dispatched to ${inviteForm.value.email}.`
+    }
+    await loadTeam()
+  } catch (err) {
+    statusMessage.value = { type: 'error', text: err.message || 'Failed to invite user' }
+  } finally {
+    isInviting.value = false
+  }
+}
+
+function closeInviteModal() {
+  showInviteModal.value = false
+  inviteForm.value = { email: '', role: 'member' }
+  generatedInviteUrl.value = ''
+}
+
+async function onRoleChange(member, newRole) {
+  try {
+    await api.updateMemberRole(member.user_id, newRole)
+    member.role = newRole
+    statusMessage.value = {
+      type: 'success',
+      text: `Updated role for ${member.name || member.email} to ${newRole}.`
+    }
+  } catch (err) {
+    statusMessage.value = { type: 'error', text: err.message || 'Failed to update user role' }
+    await loadTeam()
+  }
+}
+
+async function triggerResetCredentials(member) {
+  try {
+    const res = await api.resetMemberCredentials(member.user_id)
+    statusMessage.value = {
+      type: 'success',
+      text: `Password reset instructions dispatched to ${res.email || member.email} via WorkOS.`
+    }
+  } catch (err) {
+    statusMessage.value = { type: 'error', text: err.message || 'Failed to dispatch credential reset' }
+  }
+}
+
+function openRemoveUserModal(member) {
+  targetMemberToRemove.value = member
+  showRemoveModal.value = true
+}
+
+async function executeRemoveMember() {
+  if (!targetMemberToRemove.value) return
+  isRemoving.value = true
+  try {
+    await api.removeTeamMember(targetMemberToRemove.value.user_id)
+    showRemoveModal.value = false
+    statusMessage.value = {
+      type: 'success',
+      text: `Removed ${targetMemberToRemove.value.name || targetMemberToRemove.value.email} from workspace.`
+    }
+    targetMemberToRemove.value = null
+    await loadTeam()
+  } catch (err) {
+    statusMessage.value = { type: 'error', text: err.message || 'Failed to remove user' }
+  } finally {
+    isRemoving.value = false
+  }
+}
+
+async function triggerRevokeInvitation(inv) {
+  try {
+    await api.revokeInvitation(inv.id)
+    statusMessage.value = {
+      type: 'success',
+      text: `Invitation for ${inv.email} revoked.`
+    }
+    await loadTeam()
+  } catch (err) {
+    statusMessage.value = { type: 'error', text: err.message || 'Failed to revoke invitation' }
+  }
+}
+
+async function executeCreateKey() {
+  try {
+    const name = newKeyName.value.trim() || 'API Key'
+    const res = await api.createAPIKey(name, 365)
+    newlyGeneratedKey.value = res.api_key?.key || ''
+    showCreateKeyModal.value = false
+    newKeyName.value = ''
+    await loadApiKeys()
+  } catch (err) {
+    statusMessage.value = { type: 'error', text: err.message }
+  }
+}
+
+async function revokeApiKey(id) {
+  if (!confirm('Are you sure you want to revoke this API key?')) return
+  try {
+    await api.revokeAPIKey(id)
+    await loadApiKeys()
+    statusMessage.value = { type: 'success', text: 'API key revoked successfully.' }
+  } catch (err) {
+    statusMessage.value = { type: 'error', text: err.message }
+  }
+}
+
+function copyText(text, successMsg) {
+  navigator.clipboard.writeText(text)
+  statusMessage.value = { type: 'success', text: successMsg }
 }
 </script>

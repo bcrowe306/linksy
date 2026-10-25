@@ -151,6 +151,19 @@ func (db *DB) Migrate() error {
 			);`,
 			`CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id);`,
 			`CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);`,
+			`CREATE TABLE IF NOT EXISTS invitations (
+				id VARCHAR(64) PRIMARY KEY,
+				team_id VARCHAR(64) NOT NULL,
+				email VARCHAR(255) NOT NULL,
+				role VARCHAR(32) NOT NULL,
+				workos_invitation_id VARCHAR(64),
+				token TEXT,
+				state VARCHAR(32) DEFAULT 'pending',
+				created_at TIMESTAMPTZ NOT NULL,
+				expires_at TIMESTAMPTZ
+			);`,
+			`CREATE INDEX IF NOT EXISTS idx_invitations_team ON invitations(team_id);`,
+			`CREATE INDEX IF NOT EXISTS idx_invitations_email ON invitations(email);`,
 		}
 	} else {
 		// SQLite compatible schema
@@ -251,6 +264,19 @@ func (db *DB) Migrate() error {
 			);`,
 			`CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id);`,
 			`CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);`,
+			`CREATE TABLE IF NOT EXISTS invitations (
+				id TEXT PRIMARY KEY,
+				team_id TEXT NOT NULL,
+				email TEXT NOT NULL,
+				role TEXT NOT NULL,
+				workos_invitation_id TEXT,
+				token TEXT,
+				state TEXT DEFAULT 'pending',
+				created_at DATETIME NOT NULL,
+				expires_at DATETIME
+			);`,
+			`CREATE INDEX IF NOT EXISTS idx_invitations_team ON invitations(team_id);`,
+			`CREATE INDEX IF NOT EXISTS idx_invitations_email ON invitations(email);`,
 		}
 	}
 

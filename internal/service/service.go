@@ -192,7 +192,10 @@ func (s *Service) ListLinks(teamID string, limit, offset int) ([]models.Link, er
 	return s.repo.ListLinks(teamID, limit, offset)
 }
 
-func (s *Service) DeleteLink(id string) error {
+func (s *Service) DeleteLink(id string, teamID ...string) error {
+	if len(teamID) > 0 && teamID[0] != "" {
+		return s.repo.DeleteLinkWithTeam(id, teamID[0])
+	}
 	return s.repo.DeleteLink(id)
 }
 
@@ -348,7 +351,10 @@ func (s *Service) GetQRCode(id string) (*models.QRCode, error) {
 	return s.repo.GetQRCodeByID(id)
 }
 
-func (s *Service) DeleteQRCode(id string) error {
+func (s *Service) DeleteQRCode(id string, teamID ...string) error {
+	if len(teamID) > 0 && teamID[0] != "" {
+		return s.repo.DeleteQRCodeWithTeam(id, teamID[0])
+	}
 	return s.repo.DeleteQRCode(id)
 }
 
@@ -554,4 +560,90 @@ func (s *Service) GetUserProfile(userID string) (*models.User, error) {
 
 func (s *Service) UpdateUserProfile(user *models.User) error {
 	return s.repo.CreateOrUpdateUser(user)
+}
+
+
+func (s *Service) DeleteDocument(docID, teamID string, deleteAssociatedQR bool) (int, error) {
+	doc, err := s.repo.GetDocumentByIDAndTeam(docID, teamID)
+	if err != nil {
+		return 0, ErrDocNotFound
+	}
+
+	// 1. Delete physical file from storage
+	_ = s.storage.Delete(doc.StoredPath)
+
+	deletedQRCount := 0
+	if deleteAssociatedQR {
+		// Find associated QR codes by stored_path
+		qrs, err := s.repo.FindQRCodesByTargetURLSubstring(doc.StoredPath, teamID)
+		if err == nil {
+			for _, qr := range qrs {
+				_ = s.repo.DeleteQRCodeWithTeam(qr.ID, teamID)
+				deletedQRCount++
+			}
+		}
+	}
+
+	// 2. Delete document from database
+	if err := s.repo.DeleteDocument(docID, teamID); err != nil {
+		return deletedQRCount, err
+	}
+
+	// 3. Confirm database entry is gone
+	if check, _ := s.repo.GetDocumentByIDAndTeam(docID, teamID); check != nil {
+		return deletedQRCount, fmt.Errorf("failed to remove document from database")
+	}
+
+	return deletedQRCount, nil
+}
+
+func (s *Service) BulkDeleteDocuments(docIDs []string, teamID string, deleteAssociatedQR bool) (int, int, error) {
+	deletedDocs := 0
+	totalQRsDeleted := 0
+	for _, id := range docIDs {
+		qrsDeleted, err := s.DeleteDocument(id, teamID, deleteAssociatedQR)
+		if err == nil {
+			deletedDocs++
+		totalQRsDeleted += qrsDeleted
+		}
+	}
+	return deletedDocs, totalQRsDeleted, nil
+}
+
+// ----------------- Team & User Management -----------------
+
+func (s *Service) GetUserTeamAndRole(userID string) (string, models.UserRole, error) {
+	tm, err := s.repo.GetUserTeam(userID)
+	if err == nil && tm != nil && tm.TeamID != "" {
+		return tm.TeamID, tm.Role, nil
+	}
+	// Default team association
+	defaultTeamID := "team_default"
+	_ = s.repo.EnsureDefaultTeam(defaultTeamID, "Lynqr Workspace", userID)
+	_ = s.repo.AddTeamMember(defaultTeamID, userID, models.RoleOwner)
+	return defaultTeamID, models.RoleOwner, nil
+}
+
+func (s *Service) ListTeamMembers(teamID string) ([]models.TeamMemberDetail, error) {
+	return s.repo.ListTeamMembers(teamID)
+}
+
+func (s *Service) UpdateTeamMemberRole(teamID, userID string, role models.UserRole) error {
+	return s.repo.UpdateTeamMemberRole(teamID, userID, role)
+}
+
+func (s *Service) RemoveTeamMember(teamID, userID string) error {
+	return s.repo.RemoveTeamMember(teamID, userID)
+}
+
+func (s *Service) CreateInvitation(inv *models.Invitation) error {
+	return s.repo.CreateInvitation(inv)
+}
+
+func (s *Service) ListInvitations(teamID string) ([]models.Invitation, error) {
+	return s.repo.ListInvitations(teamID)
+}
+
+func (s *Service) RevokeInvitation(id, teamID string) error {
+	return s.repo.RevokeInvitation(id, teamID)
 }

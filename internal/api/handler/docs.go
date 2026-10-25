@@ -245,6 +245,50 @@ func (h *Handler) HandleOpenAPISpec(c fiber.Ctx) error {
 					},
 				},
 			},
+			"/api/v1/documents/{id}": fiber.Map{
+				"delete": fiber.Map{
+					"summary":     "Delete Document",
+					"security":    []fiber.Map{{"BearerAuth": []string{}}},
+					"description": "Permanently delete a document from storage and database, with optional deletion of associated QR codes",
+					"parameters": []fiber.Map{
+						{"name": "id", "in": "path", "required": true, "schema": fiber.Map{"type": "string"}},
+						{"name": "delete_qr", "in": "query", "schema": fiber.Map{"type": "boolean", "default": false}},
+					},
+					"responses": fiber.Map{
+						"200": fiber.Map{"description": "Document deleted successfully"},
+					},
+				},
+			},
+			"/api/v1/documents/bulk-delete": fiber.Map{
+				"post": fiber.Map{
+					"summary":     "Bulk Delete Documents",
+					"security":    []fiber.Map{{"BearerAuth": []string{}}},
+					"description": "Delete multiple selected documents in a single atomic batch",
+					"responses": fiber.Map{
+						"200": fiber.Map{"description": "Batch deletion results"},
+					},
+				},
+			},
+			"/api/v1/team/members": fiber.Map{
+				"get": fiber.Map{
+					"summary":     "List Team Members & WorkOS Invitations",
+					"security":    []fiber.Map{{"BearerAuth": []string{}}},
+					"description": "Get active workspace team members, roles, and pending WorkOS invitations",
+					"responses": fiber.Map{
+						"200": fiber.Map{"description": "Team members list"},
+					},
+				},
+			},
+			"/api/v1/team/members/invite": fiber.Map{
+				"post": fiber.Map{
+					"summary":     "Invite User via WorkOS",
+					"security":    []fiber.Map{{"BearerAuth": []string{}}},
+					"description": "Send WorkOS AuthKit email invitation for team workspace with role (Admin only)",
+					"responses": fiber.Map{
+						"201": fiber.Map{"description": "Invitation dispatched"},
+					},
+				},
+			},
 			"/api/v1/analytics/summary": fiber.Map{
 				"get": fiber.Map{
 					"summary":     "Get Analytics Summary & Metrics",

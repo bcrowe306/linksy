@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -635,4 +636,342 @@ func (r *Repository) UpdateAPIKeyLastUsed(id string) error {
 	}
 	_, err := r.db.Exec(query, now, id)
 	return err
+}
+
+// ----------------- Data Isolation & Document Extensions -----------------
+
+func (r *Repository) GetDocumentByIDAndTeam(id, teamID string) (*models.Document, error) {
+	query := `SELECT id, team_id, user_id, filename, stored_path, mime_type, file_size, version, created_at, updated_at
+		FROM documents WHERE id = $1 AND team_id = $2`
+	if r.db.DriverName == "sqlite" {
+		query = `SELECT id, team_id, user_id, filename, stored_path, mime_type, file_size, version, created_at, updated_at
+			FROM documents WHERE id = ? AND team_id = ?`
+	}
+
+	var d models.Document
+	err := r.db.QueryRow(query, id, teamID).Scan(
+		&d.ID, &d.TeamID, &d.UserID, &d.Filename, &d.StoredPath, &d.MimeType, &d.FileSize, &d.Version, &d.CreatedAt, &d.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
+func (r *Repository) DeleteDocument(id, teamID string) error {
+	query := `DELETE FROM documents WHERE id = $1 AND team_id = $2`
+	if r.db.DriverName == "sqlite" {
+		query = `DELETE FROM documents WHERE id = ? AND team_id = ?`
+	}
+	_, err := r.db.Exec(query, id, teamID)
+	return err
+}
+
+func (r *Repository) FindQRCodesByTargetURLSubstring(substr, teamID string) ([]models.QRCode, error) {
+	query := `SELECT id, team_id, user_id, link_id, type, title, payload, raw_data, style, scan_count, created_at, updated_at
+		FROM qr_codes WHERE team_id = $1 AND (payload LIKE $2 OR raw_data LIKE $2)`
+	pattern := "%" + substr + "%"
+	if r.db.DriverName == "sqlite" {
+		query = `SELECT id, team_id, user_id, link_id, type, title, payload, raw_data, style, scan_count, created_at, updated_at
+			FROM qr_codes WHERE team_id = ? AND (payload LIKE ? OR raw_data LIKE ?)`
+	}
+
+	var rows *sql.Rows
+	var err error
+	if r.db.DriverName == "sqlite" {
+		rows, err = r.db.Query(query, teamID, pattern, pattern)
+	} else {
+		rows, err = r.db.Query(query, teamID, pattern)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var qrs []models.QRCode
+	for rows.Next() {
+		var q models.QRCode
+		var styleJSON string
+		if err := rows.Scan(
+			&q.ID, &q.TeamID, &q.UserID, &q.LinkID, &q.Type, &q.Title, &q.Payload, &q.RawData, &styleJSON, &q.ScanCount, &q.CreatedAt, &q.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		_ = json.Unmarshal([]byte(styleJSON), &q.Style)
+		qrs = append(qrs, q)
+	}
+	return qrs, nil
+}
+
+func (r *Repository) GetLinkByIDAndTeam(id, teamID string) (*models.Link, error) {
+	query := `SELECT id, team_id, user_id, slug, target_url, title, description, is_active, expires_at, click_count, created_at, updated_at
+		FROM links WHERE id = $1 AND team_id = $2`
+	if r.db.DriverName == "sqlite" {
+		query = `SELECT id, team_id, user_id, slug, target_url, title, description, is_active, expires_at, click_count, created_at, updated_at
+			FROM links WHERE id = ? AND team_id = ?`
+	}
+	var l models.Link
+	var title, desc sql.NullString
+	err := r.db.QueryRow(query, id, teamID).Scan(
+		&l.ID, &l.TeamID, &l.UserID, &l.Slug, &l.TargetURL, &title, &desc, &l.IsActive, &l.ExpiresAt, &l.ClickCount, &l.CreatedAt, &l.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if title.Valid {
+		l.Title = title.String
+	}
+	if desc.Valid {
+		l.Description = desc.String
+	}
+	return &l, nil
+}
+
+func (r *Repository) DeleteLinkWithTeam(id, teamID string) error {
+	query := `DELETE FROM links WHERE id = $1 AND team_id = $2`
+	if r.db.DriverName == "sqlite" {
+		query = `DELETE FROM links WHERE id = ? AND team_id = ?`
+	}
+	res, err := r.db.Exec(query, id, teamID)
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func (r *Repository) GetQRCodeByIDAndTeam(id, teamID string) (*models.QRCode, error) {
+	query := `SELECT id, team_id, user_id, link_id, type, title, payload, raw_data, style, scan_count, created_at, updated_at
+		FROM qr_codes WHERE id = $1 AND team_id = $2`
+	if r.db.DriverName == "sqlite" {
+		query = `SELECT id, team_id, user_id, link_id, type, title, payload, raw_data, style, scan_count, created_at, updated_at
+			FROM qr_codes WHERE id = ? AND team_id = ?`
+	}
+	var q models.QRCode
+	var styleJSON string
+	err := r.db.QueryRow(query, id, teamID).Scan(
+		&q.ID, &q.TeamID, &q.UserID, &q.LinkID, &q.Type, &q.Title, &q.Payload, &q.RawData, &styleJSON, &q.ScanCount, &q.CreatedAt, &q.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	_ = json.Unmarshal([]byte(styleJSON), &q.Style)
+	return &q, nil
+}
+
+func (r *Repository) DeleteQRCodeWithTeam(id, teamID string) error {
+	query := `DELETE FROM qr_codes WHERE id = $1 AND team_id = $2`
+	if r.db.DriverName == "sqlite" {
+		query = `DELETE FROM qr_codes WHERE id = ? AND team_id = ?`
+	}
+	res, err := r.db.Exec(query, id, teamID)
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// ----------------- Team & Organization Management -----------------
+
+func (r *Repository) GetTeam(id string) (*models.Team, error) {
+	query := `SELECT id, name, slug, created_at, updated_at FROM teams WHERE id = $1`
+	if r.db.DriverName == "sqlite" {
+		query = `SELECT id, name, slug, created_at, updated_at FROM teams WHERE id = ?`
+	}
+	var t models.Team
+	err := r.db.QueryRow(query, id).Scan(&t.ID, &t.Name, &t.Slug, &t.CreatedAt, &t.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (r *Repository) GetUserTeam(userID string) (*models.TeamMember, error) {
+	query := `SELECT id, team_id, user_id, role, created_at FROM team_members WHERE user_id = $1 LIMIT 1`
+	if r.db.DriverName == "sqlite" {
+		query = `SELECT id, team_id, user_id, role, created_at FROM team_members WHERE user_id = ? LIMIT 1`
+	}
+	var tm models.TeamMember
+	err := r.db.QueryRow(query, userID).Scan(&tm.ID, &tm.TeamID, &tm.UserID, &tm.Role, &tm.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &tm, nil
+}
+
+func (r *Repository) GetTeamMember(teamID, userID string) (*models.TeamMember, error) {
+	query := `SELECT id, team_id, user_id, role, created_at FROM team_members WHERE team_id = $1 AND user_id = $2`
+	if r.db.DriverName == "sqlite" {
+		query = `SELECT id, team_id, user_id, role, created_at FROM team_members WHERE team_id = ? AND user_id = ?`
+	}
+	var tm models.TeamMember
+	err := r.db.QueryRow(query, teamID, userID).Scan(&tm.ID, &tm.TeamID, &tm.UserID, &tm.Role, &tm.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &tm, nil
+}
+
+func (r *Repository) ListTeamMembers(teamID string) ([]models.TeamMemberDetail, error) {
+	query := `SELECT tm.id, tm.team_id, tm.user_id, tm.role, tm.created_at,
+		COALESCE(u.email, 'member@lynqr.app'), COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), COALESCE(u.avatar_url, '')
+		FROM team_members tm
+		LEFT JOIN users u ON tm.user_id = u.id
+		WHERE tm.team_id = $1 ORDER BY tm.created_at ASC`
+	if r.db.DriverName == "sqlite" {
+		query = `SELECT tm.id, tm.team_id, tm.user_id, tm.role, tm.created_at,
+			COALESCE(u.email, 'member@lynqr.app'), COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), COALESCE(u.avatar_url, '')
+			FROM team_members tm
+			LEFT JOIN users u ON tm.user_id = u.id
+			WHERE tm.team_id = ? ORDER BY tm.created_at ASC`
+	}
+	rows, err := r.db.Query(query, teamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var members []models.TeamMemberDetail
+	for rows.Next() {
+		var m models.TeamMemberDetail
+		var avatar string
+		if err := rows.Scan(
+			&m.ID, &m.TeamID, &m.UserID, &m.Role, &m.CreatedAt,
+			&m.Email, &m.FirstName, &m.LastName, &avatar,
+		); err != nil {
+			return nil, err
+		}
+		m.AvatarURL = avatar
+		name := strings.TrimSpace(m.FirstName + " " + m.LastName)
+		if name == "" {
+			name = strings.Split(m.Email, "@")[0]
+		}
+		m.Name = name
+		members = append(members, m)
+	}
+	return members, nil
+}
+
+func (r *Repository) AddTeamMember(teamID, userID string, role models.UserRole) error {
+	now := time.Now().UTC()
+	query := `INSERT INTO team_members (id, team_id, user_id, role, created_at) VALUES ($1, $2, $3, $4, $5)`
+	if r.db.DriverName == "sqlite" {
+		query = `INSERT INTO team_members (id, team_id, user_id, role, created_at) VALUES (?, ?, ?, ?, ?)`
+	}
+	_, err := r.db.Exec(query, uuid.New().String(), teamID, userID, string(role), now)
+	return err
+}
+
+func (r *Repository) UpdateTeamMemberRole(teamID, userID string, role models.UserRole) error {
+	query := `UPDATE team_members SET role = $1 WHERE team_id = $2 AND user_id = $3`
+	if r.db.DriverName == "sqlite" {
+		query = `UPDATE team_members SET role = ? WHERE team_id = ? AND user_id = ?`
+	}
+	_, err := r.db.Exec(query, string(role), teamID, userID)
+	return err
+}
+
+func (r *Repository) RemoveTeamMember(teamID, userID string) error {
+	query := `DELETE FROM team_members WHERE team_id = $1 AND user_id = $2`
+	if r.db.DriverName == "sqlite" {
+		query = `DELETE FROM team_members WHERE team_id = ? AND user_id = ?`
+	}
+	_, err := r.db.Exec(query, teamID, userID)
+	return err
+}
+
+func (r *Repository) CreateInvitation(inv *models.Invitation) error {
+	if inv.ID == "" {
+		inv.ID = uuid.New().String()
+	}
+	if inv.CreatedAt.IsZero() {
+		inv.CreatedAt = time.Now().UTC()
+	}
+	if inv.State == "" {
+		inv.State = "pending"
+	}
+	query := `INSERT INTO invitations (id, team_id, email, role, workos_invitation_id, token, state, created_at, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+	if r.db.DriverName == "sqlite" {
+		query = `INSERT INTO invitations (id, team_id, email, role, workos_invitation_id, token, state, created_at, expires_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	}
+	_, err := r.db.Exec(query, inv.ID, inv.TeamID, inv.Email, string(inv.Role), inv.WorkOSInvitationID, inv.Token, inv.State, inv.CreatedAt, inv.ExpiresAt)
+	return err
+}
+
+func (r *Repository) ListInvitations(teamID string) ([]models.Invitation, error) {
+	query := `SELECT id, team_id, email, role, workos_invitation_id, token, state, created_at, expires_at
+		FROM invitations WHERE team_id = $1 AND state = 'pending' ORDER BY created_at DESC`
+	if r.db.DriverName == "sqlite" {
+		query = `SELECT id, team_id, email, role, workos_invitation_id, token, state, created_at, expires_at
+			FROM invitations WHERE team_id = ? AND state = 'pending' ORDER BY created_at DESC`
+	}
+	rows, err := r.db.Query(query, teamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var invs []models.Invitation
+	for rows.Next() {
+		var inv models.Invitation
+		var wID, token sql.NullString
+		if err := rows.Scan(
+			&inv.ID, &inv.TeamID, &inv.Email, &inv.Role, &wID, &token, &inv.State, &inv.CreatedAt, &inv.ExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		if wID.Valid {
+			inv.WorkOSInvitationID = wID.String
+		}
+		if token.Valid {
+			inv.Token = token.String
+		}
+		invs = append(invs, inv)
+	}
+	return invs, nil
+}
+
+func (r *Repository) RevokeInvitation(id, teamID string) error {
+	query := `UPDATE invitations SET state = 'revoked' WHERE (id = $1 OR workos_invitation_id = $1) AND team_id = $2`
+	if r.db.DriverName == "sqlite" {
+		query = `UPDATE invitations SET state = 'revoked' WHERE (id = ? OR workos_invitation_id = ?) AND team_id = ?`
+	}
+	var err error
+	if r.db.DriverName == "sqlite" {
+		_, err = r.db.Exec(query, id, id, teamID)
+	} else {
+		_, err = r.db.Exec(query, id, teamID)
+	}
+	return err
+}
+
+func (r *Repository) AcceptInvitation(email, userID string) error {
+	query := `SELECT id, team_id, role FROM invitations WHERE email = $1 AND state = 'pending' ORDER BY created_at DESC LIMIT 1`
+	if r.db.DriverName == "sqlite" {
+		query = `SELECT id, team_id, role FROM invitations WHERE email = ? AND state = 'pending' ORDER BY created_at DESC LIMIT 1`
+	}
+	var invID, teamID string
+	var role models.UserRole
+	err := r.db.QueryRow(query, email).Scan(&invID, &teamID, &role)
+	if err != nil {
+		return err
+	}
+	// Add user to team
+	_ = r.AddTeamMember(teamID, userID, role)
+	// Mark invitation accepted
+	markQuery := `UPDATE invitations SET state = 'accepted' WHERE id = $1`
+	if r.db.DriverName == "sqlite" {
+		markQuery = `UPDATE invitations SET state = 'accepted' WHERE id = ?`
+	}
+	_, _ = r.db.Exec(markQuery, invID)
+	return nil
 }

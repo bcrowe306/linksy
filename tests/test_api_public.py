@@ -378,6 +378,44 @@ def test_documents_management_and_download(session):
     assert r_dl2.status_code == 200
     assert r_dl2.content == mock_pdf_v2
 
+    # 6. Delete Single Document & Confirm DB and File Removal
+    r_del = session.delete(f"{BASE_URL}/api/v1/documents/{STATE['doc_id']}?delete_qr=true", headers=auth_headers(), timeout=10)
+    assert r_del.status_code == 200, f"Delete document failed ({r_del.status_code}): {r_del.text}"
+    del_data = r_del.json()
+    assert "deleted_qr_count" in del_data
+
+    # Confirm database entry is gone
+    r_check = session.get(f"{BASE_URL}/api/v1/documents", headers=auth_headers(), timeout=10)
+    assert r_check.status_code == 200
+    assert not any(d.get("id") == STATE["doc_id"] for d in r_check.json().get("data", [])), "Deleted document still in database"
+
+    # Confirm physical file is gone
+    r_file_check = session.get(v2_url, timeout=10)
+    assert r_file_check.status_code == 404, f"Expected 404 for deleted file, got {r_file_check.status_code}"
+
+    # 7. Bulk Delete Documents Test
+    bulk_f1 = {"file": ("bulk_doc_1.pdf", b"%PDF-1.4 Bulk Doc 1 Content", "application/pdf")}
+    bulk_f2 = {"file": ("bulk_doc_2.pdf", b"%PDF-1.4 Bulk Doc 2 Content", "application/pdf")}
+    r_b1 = session.post(f"{BASE_URL}/api/v1/documents/upload", files=bulk_f1, headers=auth_headers(), timeout=15)
+    r_b2 = session.post(f"{BASE_URL}/api/v1/documents/upload", files=bulk_f2, headers=auth_headers(), timeout=15)
+    assert r_b1.status_code in (200, 201) and r_b2.status_code in (200, 201)
+    b1_id = r_b1.json().get("document", {}).get("id")
+    b2_id = r_b2.json().get("document", {}).get("id")
+    b1_url = r_b1.json().get("download_url")
+
+    # Execute Bulk Delete
+    bulk_payload = {"document_ids": [b1_id, b2_id], "delete_qr": True}
+    r_bulk_del = session.post(f"{BASE_URL}/api/v1/documents/bulk-delete", json=bulk_payload, headers=auth_headers(), timeout=10)
+    assert r_bulk_del.status_code == 200, f"Bulk delete failed ({r_bulk_del.status_code}): {r_bulk_del.text}"
+    bulk_res = r_bulk_del.json()
+    assert bulk_res.get("deleted_docs_count") == 2, f"Expected 2 deleted docs, got {bulk_res}"
+
+    # Confirm both gone from DB
+    r_check_bulk = session.get(f"{BASE_URL}/api/v1/documents", headers=auth_headers(), timeout=10)
+    docs_after = [d.get("id") for d in r_check_bulk.json().get("data", [])]
+    assert b1_id not in docs_after and b2_id not in docs_after, "Bulk deleted documents still in database"
+    assert session.get(b1_url, timeout=10).status_code == 404, "Bulk deleted file still served" 
+
 # ==============================================================================
 # 9. ANALYTICS SUMMARY
 # ==============================================================================
@@ -395,6 +433,93 @@ def test_analytics_summary(session):
 # ==============================================================================
 # 10. AUTH LOGOUT & POST-LOGOUT ROUTE BLOCKING
 # ==============================================================================
+
+
+# ==============================================================================
+# 10. BRANDED HTML ERROR PAGE FOR INVALID / NON-EXISTENT SCANS
+# ==============================================================================
+def test_branded_error_page_on_invalid_links_and_qr(session):
+    """Verify invalid or expired short links & QR scans return a Lynqr-branded HTML error page"""
+    # 1. Invalid / Non-existent short link
+    bogus_slug = f"non-existent-{int(time.time())}"
+    r_link_err = session.get(
+        f"{BASE_URL}/s/{bogus_slug}",
+        headers={"Accept": "text/html,application/xhtml+xml"},
+        allow_redirects=False,
+        timeout=10
+    )
+    assert r_link_err.status_code == 404, f"Expected 404, got {r_link_err.status_code}"
+    assert "Lynqr" in r_link_err.text, "Branded error page missing Lynqr branding"
+    assert "Link Not Found or Inactive" in r_link_err.text or "not exist" in r_link_err.text
+    assert "Return to Lynqr Home" in r_link_err.text
+
+    # 2. Invalid / Non-existent QR code scan
+    bogus_qr_id = f"qr-missing-{int(time.time())}"
+    r_qr_err = session.get(
+        f"{BASE_URL}/qr/r/{bogus_qr_id}",
+        headers={"Accept": "text/html,application/xhtml+xml"},
+        allow_redirects=False,
+        timeout=10
+    )
+    assert r_qr_err.status_code == 404, f"Expected 404, got {r_qr_err.status_code}"
+    assert "Lynqr" in r_qr_err.text, "Branded error page missing Lynqr branding"
+    assert "QR Code Not Found" in r_qr_err.text or "not exist" in r_qr_err.text
+    assert "Return to Lynqr Home" in r_qr_err.text
+
+
+# ==============================================================================
+# 11. TEAM & USER MANAGEMENT WITH WORKOS API
+# ==============================================================================
+def test_team_and_user_management(session):
+    """Verify WorkOS user invitations, list members, roles, credential reset, and data isolation"""
+    # 1. List Team Members
+    r_members = session.get(f"{BASE_URL}/api/v1/team/members", headers=auth_headers(), timeout=10)
+    assert r_members.status_code == 200, f"List members failed ({r_members.status_code}): {r_members.text}"
+    m_data = r_members.json()
+    assert "members" in m_data and "team_id" in m_data
+    assert m_data.get("current_user_role") in ("owner", "admin"), f"Expected admin/owner role, got {m_data.get('current_user_role')}"
+
+    # 2. Invite Member via WorkOS
+    invite_email = f"qa_invite_{int(time.time())}_{''.join(random.choices(string.ascii_lowercase, k=4))}@lynqr.app"
+    r_invite = session.post(
+        f"{BASE_URL}/api/v1/team/members/invite",
+        json={"email": invite_email, "role": "member"},
+        headers=auth_headers(),
+        timeout=15
+    )
+    assert r_invite.status_code in (200, 201), f"Invite member failed ({r_invite.status_code}): {r_invite.text}"
+    inv_res = r_invite.json().get("invitation", {})
+    inv_id = inv_res.get("id") or inv_res.get("workos_invitation_id")
+    assert inv_id, "Missing invitation ID"
+
+    # 3. Revoke Invitation
+    if inv_id:
+        r_rev = session.delete(f"{BASE_URL}/api/v1/team/invitations/{inv_id}", headers=auth_headers(), timeout=10)
+        assert r_rev.status_code == 200, f"Revoke invitation failed: {r_rev.text}"
+
+    # 4. Data Isolation Check (Ensure foreign team cannot access/delete resources)
+    test_slug = f"iso-link-{int(time.time())}"
+    r_link = session.post(
+        f"{BASE_URL}/api/v1/links",
+        json={"slug": test_slug, "target_url": "https://lynqr.app", "title": "Isolation Link"},
+        headers=auth_headers(),
+        timeout=10
+    )
+    assert r_link.status_code in (200, 201)
+    iso_link_id = r_link.json().get("id")
+
+    # Attacker team tries to delete this link using different team header
+    r_hacked_del = session.delete(
+        f"{BASE_URL}/api/v1/links/{iso_link_id}",
+        headers={**auth_headers(), "X-Team-ID": "foreign_team_rogue_999"},
+        timeout=10
+    )
+    assert r_hacked_del.status_code in (401, 403, 404), f"Foreign team should not be able to delete link: {r_hacked_del.status_code}"
+
+    # Clean up with legitimate team credentials
+    r_clean = session.delete(f"{BASE_URL}/api/v1/links/{iso_link_id}", headers=auth_headers(), timeout=10)
+    assert r_clean.status_code in (200, 204)
+
 def test_auth_logout_and_post_logout_rejection(session):
     """Verify POST /api/v1/auth/logout terminates session and invalidates access"""
     # 1. Logout

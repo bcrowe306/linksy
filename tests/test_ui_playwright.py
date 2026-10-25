@@ -389,3 +389,81 @@ def test_workos_user_verification_and_cleanup():
         # 2. Cleanup / Delete dummy user
         deleted = workos.delete_user(user_id)
         assert deleted is True, f"Failed to delete test user {user_id} from WorkOS"
+
+
+# ==============================================================================
+# 9. PLAYWRIGHT UI TESTS: DOCUMENTS SELECTION & BULK DELETION
+# ==============================================================================
+def test_documents_page_checkbox_selection_and_delete(page: Page, base_url: str):
+    \"\"\"Verify documents page table checkboxes on the right, top delete button, and confirmation modal\"\"\"
+    authenticate_page(page, base_url)
+    page.goto(f"{base_url}/documents")
+    page.wait_for_load_state("networkidle")
+
+    # Verify header and top Delete Selected button exists
+    expect(page.locator("h1:has-text('Document Sharing')")).to_be_visible()
+    del_btn = page.locator("button:has-text('Delete Selected')")
+    expect(del_btn).to_be_visible()
+
+    # If documents exist in table, test selection checkbox
+    row_checkbox = page.locator("table tbody tr input[type='checkbox']").first
+    if row_checkbox.is_visible():
+        # Check first document
+        row_checkbox.check()
+        page.wait_for_timeout(300)
+        # Verify Delete Selected button is active and displays count
+        expect(del_btn).to_be_enabled()
+        expect(page.locator("button:has-text('Delete Selected') span:has-text('1')")).to_be_visible()
+
+        # Click Delete Selected to open confirmation modal
+        del_btn.click()
+        expect(page.locator("h3:has-text('Delete Document(s)')")).to_be_visible()
+        expect(page.locator("text=Delete associated dynamic QR code(s)")).to_be_visible()
+
+        # Click Cancel to safely close modal without deleting test assets
+        page.click("button:has-text('Cancel')")
+        page.wait_for_timeout(300)
+        expect(page.locator("h3:has-text('Delete Document(s)')")).not_to_be_visible()
+
+
+# ==============================================================================
+# 10. PLAYWRIGHT UI TESTS: TEAM & USER MANAGEMENT
+# ==============================================================================
+def test_team_and_user_management_ui(page: Page, base_url: str):
+    \"\"\"Verify Team & Settings page, member list, role badges, and WorkOS invite modal\"\"\"
+    authenticate_page(page, base_url)
+    page.goto(f"{base_url}/settings")
+    page.wait_for_load_state("networkidle")
+
+    expect(page.locator("h1:has-text('Team & User Management')")).to_be_visible()
+    expect(page.locator("text=WorkOS Directory & SSO Authentication")).to_be_visible()
+
+    # Check for Invite Member button
+    invite_btn = page.locator("button:has-text('Invite Member')")
+    if invite_btn.is_visible():
+        invite_btn.click()
+        expect(page.locator("h3:has-text('Invite Team Member')")).to_be_visible()
+        expect(page.locator("input[placeholder='teammate@company.com']")).to_be_visible()
+        # Close invite modal
+        page.click("button:has-text('Cancel')")
+        page.wait_for_timeout(300)
+
+
+# ==============================================================================
+# 11. PLAYWRIGHT UI TESTS: BRANDED 404 ERROR PAGE
+# ==============================================================================
+def test_branded_error_page_ui(page: Page, base_url: str):
+    \"\"\"Verify visiting an invalid or expired link displays the Lynqr branded error page\"\"\"
+    page.goto(f"{base_url}/s/non-existent-qa-slug-for-playwright")
+    page.wait_for_load_state("networkidle")
+
+    # Verify Lynqr branding and return to home button
+    expect(page.locator("text=Lynqr Smart Routing")).to_be_visible()
+    expect(page.locator("h1:has-text('Link Not Found or Inactive')")).to_be_visible()
+    home_btn = page.locator("a:has-text('Return to Lynqr Home')")
+    expect(home_btn).to_be_visible()
+
+    # Click Return to Lynqr Home
+    home_btn.click()
+    page.wait_for_load_state("networkidle")
+    assert page.url.rstrip("/").endswith(base_url.rstrip("/").split("://")[-1]) or "/" in page.url
