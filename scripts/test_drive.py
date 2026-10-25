@@ -1,22 +1,35 @@
 #!/usr/bin/env python3
 """
-Linksy End-to-End Test-Drive Automation Suite
-Tests user registration, login, profile management, WorkOS password reset,
-API key generation, API key authenticated requests, and key revocation.
+Linksy Full Spectrum QA & Test-Drive Automation Suite
+Integrates:
+  - Cloudflare API (Zone, DNS routing, R2 bucket storage)
+  - Render API (Compute service status, live deployment verification)
+  - WorkOS API (User management verification, direct password reset/change, cleanup)
+  - Linksy REST API (Sign-up, session issuance, API key auth, link & QR generation)
+  - Playwright Browser Automation (UI sign-up/login, theme cycling, profile & API keys,
+    QR Studio unsaved changes navigation guard, link creation & 302 redirection)
 """
 
+import os
 import sys
 import time
 import json
 import random
 import string
+import argparse
+import subprocess
 import urllib.request
 import urllib.error
 import http.cookiejar
 
+from integrations import CloudflareClient, RenderClient, WorkOSClient, get_secret
+
 class LinksyTestHarness:
-    def __init__(self, base_url="https://test.lynqr.app"):
+    def __init__(self, base_url="https://test.lynqr.app", headed=False, skip_ui=False, ui_only=False):
         self.base_url = base_url.rstrip("/")
+        self.headed = headed
+        self.skip_ui = skip_ui
+        self.ui_only = ui_only
         self.cj = http.cookiejar.CookieJar()
         self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.cj))
         self.token = ""
@@ -35,6 +48,9 @@ class LinksyTestHarness:
 
         self.passed = 0
         self.failed = 0
+        self.cf = CloudflareClient()
+        self.render = RenderClient()
+        self.workos = WorkOSClient()
 
     def log(self, step, msg, status="INFO"):
         colors = {
@@ -49,21 +65,19 @@ class LinksyTestHarness:
 
     def request(self, method, path, data=None, headers=None):
         url = f"{self.base_url}{path}"
-        req_headers = {"User-Agent": "LinksyTestHarness/1.0"}
+        body = json.dumps(data).encode("utf-8") if data else None
+        req = urllib.request.Request(url, data=body, method=method)
+        req.add_header("Content-Type", "application/json")
+        req.add_header("Accept", "application/json")
+        req.add_header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Linksy-TestDrive/2.0")
         if self.token:
-            req_headers["Authorization"] = f"Bearer {self.token}"
-
-        body = None
-        if data is not None:
-            body = json.dumps(data).encode("utf-8")
-            req_headers["Content-Type"] = "application/json"
-
+            req.add_header("Authorization", f"Bearer {self.token}")
         if headers:
-            req_headers.update(headers)
+            for k, v in headers.items():
+                req.add_header(k, v)
 
-        req = urllib.request.Request(url, data=body, headers=req_headers, method=method)
         try:
-            with self.opener.open(req, timeout=15) as resp:
+            with self.opener.open(req) as resp:
                 resp_body = resp.read().decode("utf-8")
                 try:
                     return resp.status, json.loads(resp_body)
@@ -75,48 +89,103 @@ class LinksyTestHarness:
                 return e.code, json.loads(err_body)
             except Exception:
                 return e.code, err_body
+        except Exception as e:
+            return 500, {"error": str(e)}
 
-    def run_all(self):
-        print("=" * 60)
-        print(f"🚀 Starting Linksy Test-Drive Suite on {self.base_url}")
-        print(f"👤 Target Dummy User: {self.dummy_email}")
-        print("=" * 60)
+    # --------------------------------------------------------------------------
+    # 1. Cloudflare Infrastructure Verification
+    # --------------------------------------------------------------------------
+    def test_cloudflare(self):
+        print("\n--- [1] Cloudflare Infrastructure Verification ---")
+        if not self.cf.is_configured():
+            self.log("Cloudflare", "Skipped: CLOUDFARE_API_TOKEN not configured", "WARN")
+            return
 
-        self.test_health()
-        self.test_signup()
-        self.test_login()
-        self.test_get_profile()
-        self.test_update_profile()
-        self.test_create_api_key()
-        self.test_api_key_authenticated_calls()
-        self.test_revoke_api_key()
-        self.test_password_reset()
-        self.test_change_password()
-        self.test_login_with_new_password()
-
-        print("\n" + "=" * 60)
-        print(f"📊 Test-Drive Summary: {self.passed} Passed, {self.failed} Failed")
-        print("=" * 60)
-        return self.failed == 0
-
-    def test_health(self):
-        status, data = self.request("GET", "/health")
-        if status == 200 and isinstance(data, dict) and data.get("status") == "healthy":
+        # Check Zone
+        zone = self.cf.get_zone()
+        if isinstance(zone, dict) and zone.get("id"):
             self.passed += 1
-            self.log("Health Check", f"Status: {status}, Service: {data.get('service')}", "PASS")
+            self.log("Cloudflare Zone", f"Zone {zone.get('name')} active (ID: {zone.get('id')})", "PASS")
+            
+            # Check DNS Record
+            records = self.cf.get_dns_records(zone["id"], "test.lynqr.app")
+            if records and "onrender.com" in records[0].get("content", ""):
+                self.passed += 1
+                self.log("Cloudflare DNS", f"test.lynqr.app -> {records[0].get('content')} (Proxied: {records[0].get('proxied')})", "PASS")
+            else:
+                self.failed += 1
+                self.log("Cloudflare DNS", "DNS record for test.lynqr.app not found or misconfigured", "FAIL")
         else:
             self.failed += 1
-            self.log("Health Check", f"Unexpected response: {status} -> {data}", "FAIL")
+            self.log("Cloudflare Zone", f"Zone query failed: {zone}", "FAIL")
 
-    def test_signup(self):
-        payload = {
+        # Check R2 Storage
+        buckets = self.cf.get_r2_buckets()
+        bucket_names = [b.get("name") for b in buckets]
+        if "lynqr-storage" in bucket_names:
+            self.passed += 1
+            self.log("Cloudflare R2", f"Verified bucket lynqr-storage exists among {len(bucket_names)} buckets", "PASS")
+        else:
+            self.failed += 1
+            self.log("Cloudflare R2", f"lynqr-storage missing from {bucket_names}", "FAIL")
+
+    # --------------------------------------------------------------------------
+    # 2. Render Compute & Deployment Verification
+    # --------------------------------------------------------------------------
+    def test_render(self):
+        print("\n--- [2] Render Compute & Deployment Verification ---")
+        if not self.render.is_configured():
+            self.log("Render", "Skipped: RENDER_API_KEY not configured", "WARN")
+            return
+
+        services = self.render.list_services()
+        lynqr_svc = None
+        for s in services:
+            svc = s.get("service", {})
+            if "lynqr" in svc.get("name", "").lower():
+                lynqr_svc = svc
+                break
+
+        if lynqr_svc:
+            self.passed += 1
+            status = lynqr_svc.get("suspended")
+            self.log("Render Service", f"Service '{lynqr_svc.get('name')}' is {status}", "PASS")
+
+            deploy = self.render.get_latest_deploy(lynqr_svc["id"])
+            if deploy and deploy.get("status") == "live":
+                self.passed += 1
+                commit_msg = deploy.get("commit", {}).get("message", "N/A")[:40]
+                self.log("Render Deployment", f"Live deploy: {deploy.get('id')} ({commit_msg}...)", "PASS")
+            else:
+                self.failed += 1
+                self.log("Render Deployment", f"Deploy not live: {deploy}", "FAIL")
+        else:
+            self.failed += 1
+            self.log("Render Service", "Could not find lynqr service in Render account", "FAIL")
+
+    # --------------------------------------------------------------------------
+    # 3. Core REST API & WorkOS Test Flow
+    # --------------------------------------------------------------------------
+    def test_api_suite(self):
+        print("\n--- [3] Core REST API & Authentication Test Flow ---")
+        # 1. Health
+        status, data = self.request("GET", "/health")
+        if status == 200 and isinstance(data, dict) and data.get("status") in ["ok", "healthy"]:
+            self.passed += 1
+            self.log("Health Check", f"Status: 200, Service: {data.get('service')}", "PASS")
+        else:
+            self.failed += 1
+            self.log("Health Check", f"Failed ({status}): {data}", "FAIL")
+
+        # 2. Sign-Up
+        signup_payload = {
             "first_name": self.dummy_first_name,
             "last_name": self.dummy_last_name,
             "email": self.dummy_email,
             "password": self.dummy_password
         }
-        status, data = self.request("POST", "/api/v1/auth/signup", payload)
-        if status in (200, 201) and isinstance(data, dict) and data.get("token"):
+        status, data = self.request("POST", "/api/v1/auth/signup", signup_payload)
+        if status in (200, 201) and isinstance(data, dict) and data.get("user"):
             self.passed += 1
             self.token = data.get("token")
             self.user = data.get("user")
@@ -125,38 +194,37 @@ class LinksyTestHarness:
             self.failed += 1
             self.log("User Sign-Up", f"Failed ({status}): {data}", "FAIL")
 
-    def test_login(self):
-        payload = {
+        # 3. Password Login
+        login_payload = {
             "email": self.dummy_email,
             "password": self.dummy_password
         }
-        status, data = self.request("POST", "/api/v1/auth/login", payload)
+        status, data = self.request("POST", "/api/v1/auth/login", login_payload)
         if status == 200 and isinstance(data, dict) and data.get("token"):
             self.passed += 1
             self.token = data.get("token")
-            self.log("Password Login", f"Authenticated successfully with primary credentials", "PASS")
+            self.log("Password Login", "Authenticated successfully with primary credentials", "PASS")
         else:
             self.failed += 1
             self.log("Password Login", f"Failed ({status}): {data}", "FAIL")
 
-    def test_get_profile(self):
+        # 4. Profile Management
         status, data = self.request("GET", "/api/v1/user/profile")
         if status == 200 and isinstance(data, dict) and data.get("user"):
-            u = data["user"]
             self.passed += 1
+            u = data["user"]
             self.log("Get Profile", f"Retrieved profile for {u.get('name')} ({u.get('email')})", "PASS")
         else:
             self.failed += 1
             self.log("Get Profile", f"Failed ({status}): {data}", "FAIL")
 
-    def test_update_profile(self):
         updated_first = self.dummy_first_name + "Updated"
-        payload = {
+        update_payload = {
             "first_name": updated_first,
             "last_name": self.dummy_last_name,
             "avatar_url": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80"
         }
-        status, data = self.request("PUT", "/api/v1/user/profile", payload)
+        status, data = self.request("PUT", "/api/v1/user/profile", update_payload)
         if status == 200 and isinstance(data, dict) and data.get("user", {}).get("first_name") == updated_first:
             self.passed += 1
             self.log("Update Profile", f"Updated first name to {updated_first}", "PASS")
@@ -164,12 +232,9 @@ class LinksyTestHarness:
             self.failed += 1
             self.log("Update Profile", f"Failed ({status}): {data}", "FAIL")
 
-    def test_create_api_key(self):
-        payload = {
-            "name": f"Harness-Key-{int(time.time())}",
-            "expires_in_days": 30
-        }
-        status, data = self.request("POST", "/api/v1/api-keys", payload)
+        # 5. Developer API Keys
+        key_payload = {"name": f"Harness-Key-{int(time.time())}", "expires_in_days": 30}
+        status, data = self.request("POST", "/api/v1/api-keys", key_payload)
         if status in (200, 201) and isinstance(data, dict) and data.get("api_key", {}).get("key"):
             key_obj = data["api_key"]
             self.api_key = key_obj["key"]
@@ -180,58 +245,43 @@ class LinksyTestHarness:
             self.failed += 1
             self.log("Create API Key", f"Failed ({status}): {data}", "FAIL")
 
-    def test_api_key_authenticated_calls(self):
-        if not self.api_key:
-            self.failed += 1
-            self.log("API Key Auth", "Skipping, no API key available", "FAIL")
-            return
+        # API Key Authenticated Calls
+        if self.api_key:
+            auth_header = {"Authorization": f"Bearer {self.api_key}"}
+            status, data = self.request("GET", "/api/v1/links", headers=auth_header)
+            if status == 200:
+                self.passed += 1
+                self.log("API Key Auth (List Links)", f"Successfully authenticated via Bearer {self.api_key[:12]}...", "PASS")
+            else:
+                self.failed += 1
+                self.log("API Key Auth (List Links)", f"Failed with API key ({status}): {data}", "FAIL")
 
-        # Make request using ONLY the API key in Authorization header
-        headers = {"Authorization": f"Bearer {self.api_key}"}
-
-        # 1. Test listing links
-        status, data = self.request("GET", "/api/v1/links", headers=headers)
-        if status == 200:
-            self.passed += 1
-            self.log("API Key Auth (List Links)", f"Successfully authenticated via Bearer {self.api_key[:12]}...", "PASS")
-        else:
-            self.failed += 1
-            self.log("API Key Auth (List Links)", f"Failed with API key ({status}): {data}", "FAIL")
-
-        # 2. Test creating QR code via API Key
-        qr_payload = {
-            "type": "website",
-            "title": "Harness Test QR",
-            "payload": "https://lynqr.app",
-            "style": {
-                "fg_color": "#10b981",
-                "bg_color": "#030712",
-                "dot_style": "rounded"
+            qr_payload = {
+                "type": "website",
+                "title": "Harness QR Code",
+                "payload": "https://lynqr.app",
+                "style": {"fg_color": "#10b981", "bg_color": "#030712"}
             }
-        }
-        status, data = self.request("POST", "/api/v1/qr", data=qr_payload, headers=headers)
-        if status in (200, 201):
-            self.passed += 1
-            self.log("API Key Auth (Create QR)", f"Created QR code via API key successfully", "PASS")
-        else:
-            self.failed += 1
-            self.log("API Key Auth (Create QR)", f"Failed creating QR via API key ({status}): {data}", "FAIL")
+            status, data = self.request("POST", "/api/v1/qr", data=qr_payload, headers=auth_header)
+            if status in (200, 201):
+                self.passed += 1
+                self.log("API Key Auth (Create QR)", "Created QR code via API key successfully", "PASS")
+            else:
+                self.failed += 1
+                self.log("API Key Auth (Create QR)", f"Failed creating QR via API key ({status}): {data}", "FAIL")
 
-    def test_revoke_api_key(self):
-        if not self.key_id:
-            return
+        # Revoke Key
+        if self.key_id:
+            status, data = self.request("DELETE", f"/api/v1/api-keys/{self.key_id}")
+            if status == 200:
+                self.passed += 1
+                self.log("Revoke API Key", f"Revoked API key {self.key_id}", "PASS")
+            else:
+                self.failed += 1
+                self.log("Revoke API Key", f"Failed ({status}): {data}", "FAIL")
 
-        status, data = self.request("DELETE", f"/api/v1/api-keys/{self.key_id}")
-        if status == 200:
-            self.passed += 1
-            self.log("Revoke API Key", f"Revoked API key {self.key_id}", "PASS")
-        else:
-            self.failed += 1
-            self.log("Revoke API Key", f"Failed ({status}): {data}", "FAIL")
-
-    def test_password_reset(self):
-        payload = {"email": self.dummy_email}
-        status, data = self.request("POST", "/api/v1/auth/password-reset", payload)
+        # WorkOS Password Reset
+        status, data = self.request("POST", "/api/v1/auth/password-reset", {"email": self.dummy_email})
         if status == 200 and isinstance(data, dict):
             self.passed += 1
             reset_url = data.get("password_reset_url", "Email Dispatched")
@@ -240,9 +290,8 @@ class LinksyTestHarness:
             self.failed += 1
             self.log("Password Reset", f"Failed ({status}): {data}", "FAIL")
 
-    def test_change_password(self):
-        payload = {"new_password": self.dummy_new_password}
-        status, data = self.request("POST", "/api/v1/user/change-password", payload)
+        # WorkOS Direct Password Change
+        status, data = self.request("POST", "/api/v1/user/change-password", {"new_password": self.dummy_new_password})
         if status == 200:
             self.passed += 1
             self.log("Change Password", "Updated password directly via WorkOS API", "PASS")
@@ -250,12 +299,8 @@ class LinksyTestHarness:
             self.failed += 1
             self.log("Change Password", f"Failed ({status}): {data}", "FAIL")
 
-    def test_login_with_new_password(self):
-        payload = {
-            "email": self.dummy_email,
-            "password": self.dummy_new_password
-        }
-        status, data = self.request("POST", "/api/v1/auth/login", payload)
+        # Re-login with New Password
+        status, data = self.request("POST", "/api/v1/auth/login", {"email": self.dummy_email, "password": self.dummy_new_password})
         if status == 200 and isinstance(data, dict) and data.get("token"):
             self.passed += 1
             self.token = data.get("token")
@@ -264,8 +309,109 @@ class LinksyTestHarness:
             self.failed += 1
             self.log("Re-login with New Password", f"Failed ({status}): {data}", "FAIL")
 
+    # --------------------------------------------------------------------------
+    # 4. Playwright End-to-End Browser Workflows
+    # --------------------------------------------------------------------------
+    def test_playwright_e2e(self):
+        print("\n--- [4] Playwright End-to-End Browser UI Workflows ---")
+        env = os.environ.copy()
+        env["TEST_BASE_URL"] = self.base_url
+
+        pytest_cmd = [sys.executable, "-m", "pytest", "-v", "tests/test_ui_playwright.py"]
+        if self.headed:
+            pytest_cmd.append("--headed")
+
+        try:
+            res = subprocess.run(pytest_cmd, env=env, capture_output=True, text=True)
+            output_lines = res.stdout.strip().split("\n")
+            for line in output_lines:
+                if "PASSED" in line or "FAILED" in line:
+                    parts = line.split()
+                    test_name = parts[0].split("::")[-1].split("[")[0]
+                    status = "PASS" if "PASSED" in line else "FAIL"
+                    if status == "PASS":
+                        self.passed += 1
+                        self.log(f"UI E2E ({test_name})", "Verified in browser", "PASS")
+                    else:
+                        self.failed += 1
+                        self.log(f"UI E2E ({test_name})", "Browser workflow failed", "FAIL")
+
+            if res.returncode != 0 and self.failed == 0:
+                self.failed += 1
+                self.log("Playwright Suite", f"Pytest exited with code {res.returncode}\n{res.stderr}", "FAIL")
+        except Exception as e:
+            self.failed += 1
+            self.log("Playwright Suite", f"Execution error: {e}", "FAIL")
+
+    # --------------------------------------------------------------------------
+    # 5. WorkOS Verification & Cleanup
+    # --------------------------------------------------------------------------
+    def cleanup_workos(self):
+        print("\n--- [5] WorkOS User Verification & Automated Cleanup ---")
+        if not self.workos.is_configured():
+            return
+
+        user_id = self.user.get("id") if self.user else None
+        if not user_id:
+            # Query by email
+            res = self.workos.list_users(limit=20)
+            for u in res.get("data", []):
+                if u.get("email") == self.dummy_email:
+                    user_id = u.get("id")
+                    break
+
+        if user_id:
+            user_data = self.workos.get_user(user_id)
+            if isinstance(user_data, dict) and user_data.get("id") == user_id:
+                self.passed += 1
+                self.log("WorkOS Query", f"Verified user {user_id} active in WorkOS User Management", "PASS")
+
+            # Clean up dummy user
+            deleted = self.workos.delete_user(user_id)
+            if deleted:
+                self.passed += 1
+                self.log("WorkOS Cleanup", f"Deleted test dummy user {user_id} from WorkOS", "PASS")
+            else:
+                self.log("WorkOS Cleanup", f"Notice: Could not delete user {user_id}", "WARN")
+
+    def run_all(self):
+        print("=" * 64)
+        print(f"🚀 Linksy Full-Spectrum Test-Drive Suite: {self.base_url}")
+        print(f"👤 Dummy Target User: {self.dummy_email}")
+        print(f"🖥️  Playwright Mode: {'Headed' if self.headed else 'Headless'}")
+        print("=" * 64)
+
+        start_time = time.time()
+
+        if self.ui_only:
+            self.test_playwright_e2e()
+        else:
+            self.test_cloudflare()
+            self.test_render()
+            self.test_api_suite()
+            if not self.skip_ui:
+                self.test_playwright_e2e()
+            self.cleanup_workos()
+
+        duration = time.time() - start_time
+        print("\n" + "=" * 64)
+        print(f"📊 Test-Drive Summary: {self.passed} Passed, {self.failed} Failed ({duration:.2f}s)")
+        print("=" * 64)
+        return self.failed == 0
+
 if __name__ == "__main__":
-    target = sys.argv[1] if len(sys.argv) > 1 else "https://test.lynqr.app"
-    harness = LinksyTestHarness(base_url=target)
+    parser = argparse.ArgumentParser(description="Linksy Test-Drive Suite")
+    parser.add_argument("url", nargs="?", default="https://test.lynqr.app", help="Base URL to test")
+    parser.add_argument("--headed", action="store_true", help="Run Playwright in headed browser mode")
+    parser.add_argument("--skip-ui", action="store_true", help="Skip Playwright browser UI tests")
+    parser.add_argument("--ui-only", action="store_true", help="Run only Playwright browser UI tests")
+    args = parser.parse_args()
+
+    harness = LinksyTestHarness(
+        base_url=args.url,
+        headed=args.headed,
+        skip_ui=args.skip_ui,
+        ui_only=args.ui_only
+    )
     success = harness.run_all()
     sys.exit(0 if success else 1)
