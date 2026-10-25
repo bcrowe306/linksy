@@ -71,16 +71,20 @@ func (a *AuthHandler) HandleOAuthLogin(c fiber.Ctx) error {
 
 	providerParam := strings.ToLower(c.Params("provider", "authkit"))
 	screenHint := c.Query("screen_hint", "")
+	isDirect := c.Query("direct", "false") == "true"
 
 	workOSProvider := "authkit"
-	switch providerParam {
-	case "google", "googleoauth":
-		workOSProvider = "GoogleOAuth"
-	case "microsoft", "microsoftoauth":
-		workOSProvider = "MicrosoftOAuth"
-	case "github", "githuboauth":
-		workOSProvider = "GitHubOAuth"
-	case "authkit":
+	if isDirect {
+		switch providerParam {
+		case "google", "googleoauth":
+			workOSProvider = "GoogleOAuth"
+		case "microsoft", "microsoftoauth":
+			workOSProvider = "MicrosoftOAuth"
+		case "github", "githuboauth":
+			workOSProvider = "GitHubOAuth"
+		}
+	} else {
+		// Use AuthKit hosted flow by default to avoid 404s when specific OAuth credentials aren't yet configured
 		workOSProvider = "authkit"
 	}
 
