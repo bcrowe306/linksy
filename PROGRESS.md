@@ -175,8 +175,8 @@ Done (`feat/email`):
 - [x] Live: `scripts/test_drive.py` (73 API checks including billing, admin and reports) and `tests/test_ui_playwright.py` (17 browser flows) after every deploy
 
 ## Open items that need the owner
-- Legal pages (`/terms`, `/privacy`, `/acceptable-use`) need a lawyer's review. They don't yet name a legal entity or a governing law.
-- Confirm the support@lynqr.app mailbox exists (used across the app, emails and legal pages).
-- Confirm lynqr.app is a verified sending domain in Resend (no real email has been confirmed delivered yet).
-- Add lynqr.app to Google Search Console and submit https://lynqr.app/sitemap.xml.
+- Legal pages name **Lynqr LLC** (owner's choice, 2026-10-25), and governing law is "the state where Lynqr LLC is organized". **Form the LLC**, then make the state specific and have a lawyer review the pages.
+- [x] support@lynqr.app exists in Microsoft 365 (confirmed by the owner).
+- [x] Resend: lynqr.app sending domain verified. A test email from noreply@lynqr.app was accepted by Resend on 2026-10-25.
+- [x] Google Search Console: lynqr.app already verified (owner). Submit https://lynqr.app/sitemap.xml under Sitemaps once production is split.
 - lynqr.app and test.lynqr.app share one Render service and database (APP_URL is test.lynqr.app). Split them before real customers arrive so test runs don't touch production data.

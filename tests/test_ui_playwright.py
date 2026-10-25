@@ -6,6 +6,10 @@ import string
 import pytest
 import requests
 from playwright.sync_api import Page, expect
+import re
+
+# Addresses created by the automated suites (also suppressed from email by the app).
+TEST_EMAIL = re.compile(r"^(qa_|testdrive_|api_test_|ui_probe_)[^@]*@lynqr\.app$", re.I)
 
 # Add parent directory to sys.path to import integrations
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -378,10 +382,10 @@ def test_workos_user_verification_and_cleanup():
         assert deleted is True, f"Failed to delete test user {user_id} from WorkOS"
 
     # 3. Comprehensive cleanup: delete all test users generated during test runs
+    # Only ever delete the throwaway accounts these suites create; never real users.
     all_users = workos.list_users(limit=100).get("data", [])
     for u in all_users:
-        em = u.get("email", "").lower()
-        if em not in ("bcrowe306@gmail.com", "bcrowe@nltst.com"):
+        if TEST_EMAIL.match(u.get("email", "")):
             workos.delete_user(u.get("id"))
 
 
