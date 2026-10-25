@@ -235,52 +235,46 @@ def test_signup_and_login_ui(page: Page, base_url: str):
 # 5. PLAYWRIGHT UI TESTS: PROFILE & DEVELOPER API KEYS
 # ==============================================================================
 def test_profile_and_developer_api_keys(page: Page, base_url: str):
-    """Test account profile editing, API key generation modal, and revocation"""
+    """Update the profile, toggle a notification preference, and create and revoke an API key."""
     authenticate_page(page, base_url)
-    
-    # Navigate to Profile via avatar link
     page.click("[data-testid=user-menu]")
     page.get_by_role("menuitem", name="Profile & security").click()
     page.wait_for_url("**/profile", timeout=10000)
-    
-    # 1. Update Profile Form
-    first_name_input = page.locator("input[placeholder='Jane']")
-    first_name_input.fill("QA_Updated")
-    page.click("button:has-text('Save Changes')")
-    expect(page.locator("text=Profile updated successfully")).to_be_visible(timeout=8000)
-    
-    # 2. Switch to Developer API Keys Tab
-    page.click("button:has-text('API Keys')")
-    page.wait_for_timeout(500)
-    
-    # Click Generate New API Key
-    page.click("button:has-text('Generate New API Key')")
-    expect(page.locator("h3:has-text('Generate New API Key')")).to_be_visible()
-    
-    key_name = f"Playwright-Key-{int(time.time())}"
-    page.fill("input[placeholder*='Production Backend Bot']", key_name)
-    page.click("button:has-text('Generate Key')")
-    
-    # Verify Modal with full key appears
-    expect(page.locator("text=API Key Created Successfully")).to_be_visible(timeout=8000)
-    key_locator = page.locator("div.font-mono.text-emerald-400").first
-    full_key = key_locator.inner_text().strip()
-    assert full_key.startswith("lk_live_"), f"Generated key does not start with lk_live_: {full_key}"
+
+    page.fill("[data-testid=profile-first-name]", "QA_Updated")
+    page.click("[data-testid=save-profile]")
+    expect(page.get_by_text("Profile updated successfully")).to_be_visible(timeout=8000)
+
+    page.click("[data-testid=profile-tab-notifications]")
+    toggle = page.locator("[data-testid=pref-weekly_report]")
+    before = toggle.get_attribute("aria-checked")
+    toggle.click()
+    expect(page.get_by_text("Preferences saved")).to_be_visible()
+    page.reload()
+    assert page.locator("[data-testid=pref-weekly_report]").get_attribute("aria-checked") != before
+
+    page.click("[data-testid=profile-tab-security]")
+    expect(page.locator("[data-testid=session-list]")).to_contain_text("This device")
+
+    page.click("[data-testid=profile-tab-api-keys]")
+    page.click("[data-testid=new-api-key]")
+    name = f"Playwright-Key-{int(time.time())}"
+    page.fill("[data-testid=api-key-name]", name)
+    page.click("[data-testid=create-api-key]")
+    full_key = page.locator("[data-testid=new-api-key-value]").inner_text().strip()
+    assert full_key.startswith("lk_live_"), full_key
     SHARED_STATE["api_key"] = full_key
-    
-    # Dismiss copy modal
-    page.click("button:has-text('I Have Saved This Key')")
-    page.wait_for_timeout(1000)
-    
-    # Verify key prefix appears in table
-    prefix = full_key[:12]
-    expect(page.get_by_text(prefix)).to_be_visible()
-    
-    # 3. Revoke API Key
-    revoke_btn = page.locator("button[title='Revoke key']").first
-    if revoke_btn.is_visible():
-        revoke_btn.click()
-        page.wait_for_timeout(1000)
+    page.click("[data-testid=api-key-done]")
+    row = page.locator("[data-testid=api-key-table] tr", has_text=name)
+    expect(row).to_contain_text(full_key[:12])
+
+    r = requests.get(f"{base_url}/api/v1/links", headers={"Authorization": f"Bearer {full_key}"}, timeout=10)
+    assert r.status_code == 200, f"new key rejected: {r.status_code}"
+    row.locator("[data-testid=revoke-key]").click()
+    page.click("[data-testid=confirm-accept]")
+    expect(row).to_have_count(0)
+    r = requests.get(f"{base_url}/api/v1/links", headers={"Authorization": f"Bearer {full_key}"}, timeout=10)
+    assert r.status_code == 401, "revoked key still works"
 
 # ==============================================================================
 # 6. PLAYWRIGHT UI TESTS: QR STUDIO & UNSAVED CHANGES NAVIGATION GUARD
@@ -418,33 +412,30 @@ def test_documents_page_checkbox_selection_and_delete(page: Page, base_url: str)
 # 10. PLAYWRIGHT UI TESTS: TEAM & USER MANAGEMENT
 # ==============================================================================
 def test_team_and_user_management_ui(page: Page, base_url: str):
-    """Verify Team & Settings page, member list, role badges, and WorkOS invite modal"""
+    """Invite a member, verify the one-time invite link, revoke it, and check the audit log."""
     authenticate_page(page, base_url)
-    page.goto(f"{base_url}/settings")
-    page.wait_for_load_state("networkidle")
+    page.goto(f"{base_url}/settings?tab=members")
+    expect(page.locator("[data-testid=member-list]")).to_be_visible()
 
-    expect(page.locator("h1:has-text('Team & User Management')")).to_be_visible()
-    expect(page.locator("text=WorkOS Directory & SSO Authentication")).to_be_visible()
+    invitee = f"qa_invite_ui_{int(time.time())}@lynqr.app"
+    page.click("[data-testid=invite-member]")
+    page.fill("[data-testid=invite-email]", invitee)
+    page.locator("#invite-form").get_by_text("Viewer", exact=True).click()
+    page.click("[data-testid=send-invite]")
+    invite_url = page.locator("[data-testid=invite-url]").inner_text().strip()
+    assert "/invite/lqi_" in invite_url
+    page.get_by_role("button", name="Done").click()
 
-    # Check for Invite Member button
-    invite_btn = page.locator("button:has-text('Invite Member')")
-    if invite_btn.is_visible():
-        invite_btn.click()
-        expect(page.locator("h3:has-text('Invite Team Member')")).to_be_visible()
-        expect(page.locator("input[placeholder='teammate@company.com']")).to_be_visible()
-        # Close invite modal
-        page.click("button:has-text('Cancel')")
-        page.wait_for_timeout(300)
+    preview = requests.get(f"{base_url}/api/v1/invitations/{invite_url.rsplit('/', 1)[1]}", timeout=10)
+    assert preview.status_code == 200 and preview.json()["email"] == invitee
 
-    # Check for member delete button and modal verification
-    trash_btns = page.locator("button[title*='Remove user']")
-    if trash_btns.count() > 0:
-        trash_btns.first.click()
-        expect(page.locator("h3:has-text('Remove Team Member')")).to_be_visible()
-        expect(page.locator("button:has-text('Confirm Removal')")).to_be_visible()
-        page.click("button:has-text('Cancel')")
-        page.wait_for_timeout(300)
-        expect(page.locator("h3:has-text('Remove Team Member')")).not_to_be_visible()
+    row = page.locator("[data-testid=invitation-list] li", has_text=invitee)
+    row.get_by_role("button", name="Revoke").click()
+    page.click("[data-testid=confirm-accept]")
+    expect(row).to_have_count(0)
+
+    page.click("[data-testid=settings-tab-audit]")
+    expect(page.locator("[data-testid=audit-list]")).to_contain_text("revoked an invitation")
 
 
 # ==============================================================================

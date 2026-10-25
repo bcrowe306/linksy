@@ -54,7 +54,7 @@
         <button v-else @click="creating = true" class="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm text-fg-muted hover:bg-subtle">
           <Plus class="w-4 h-4" /> New workspace
         </button>
-        <router-link v-if="auth.pendingInvitations" to="/settings" @click="open = false"
+        <router-link v-if="auth.pendingInvitations" to="/profile?tab=workspaces" @click="open = false"
           class="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm text-brand-500 hover:bg-subtle">
           <Mail class="w-4 h-4" /> {{ auth.pendingInvitations }} pending invitation{{ auth.pendingInvitations === 1 ? '' : 's' }}
         </router-link>

@@ -334,3 +334,36 @@ func TestDevLoginDisabledByDefault(t *testing.T) {
 		t.Fatal("password reset must never return the reset URL")
 	}
 }
+
+func TestPreferencesAndSessions(t *testing.T) {
+	k := testkit.New(t)
+	u := k.Login("prefs@acme.test")
+	r := k.Do("GET", "/api/v1/user/preferences", u.Token, nil)
+	k.Expect(r, http.StatusOK, "get prefs")
+	if r.Map()["security_alerts"] != true || r.Map()["weekly_report"] != false {
+		t.Fatalf("unexpected defaults: %s", r.Body)
+	}
+	k.Expect(k.Do("PUT", "/api/v1/user/preferences", u.Token, map[string]any{"weekly_report": true, "security_alerts": true, "default_timezone": "America/New_York"}), http.StatusOK, "update prefs")
+	if m := k.Do("GET", "/api/v1/user/preferences", u.Token, nil).Map(); m["weekly_report"] != true || m["default_timezone"] != "America/New_York" {
+		t.Fatalf("prefs not persisted: %v", m)
+	}
+
+	second := k.Login("prefs@acme.test")
+	var list struct {
+		Data []struct {
+			ID      string `json:"id"`
+			Current bool   `json:"current"`
+		} `json:"data"`
+	}
+	_ = k.Do("GET", "/api/v1/user/sessions", u.Token, nil).JSON(&list)
+	if len(list.Data) != 2 {
+		t.Fatalf("expected 2 sessions, got %d", len(list.Data))
+	}
+	for _, s := range list.Data {
+		if !s.Current {
+			k.Expect(k.Do("DELETE", "/api/v1/user/sessions/"+s.ID, u.Token, nil), http.StatusOK, "revoke other")
+		}
+	}
+	k.Expect(k.Do("GET", "/api/v1/links", second.Token, nil), http.StatusUnauthorized, "revoked session")
+	k.Expect(k.Do("GET", "/api/v1/user/preferences", "lk_live_x", nil), http.StatusUnauthorized, "api key cannot read prefs")
+}

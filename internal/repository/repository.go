@@ -103,6 +103,16 @@ func (r *Repository) GetUserByEmail(email string) (*models.User, error) {
 	return scanUser(r.queryRow(`SELECT `+userCols+` FROM users WHERE email = ?`, strings.ToLower(email)))
 }
 
+func (r *Repository) GetUserPreferences(userID string) (string, error) {
+	var raw string
+	err := r.queryRow(`SELECT preferences FROM users WHERE id = ?`, userID).Scan(&raw)
+	return raw, notFound(err)
+}
+
+func (r *Repository) SetUserPreferences(userID, raw string) error {
+	return requireAffected(r.exec(`UPDATE users SET preferences = ?, updated_at = ? WHERE id = ?`, raw, now(), userID))
+}
+
 // ----------------- Teams -----------------
 
 // CreateTeam creates a team and its owner membership atomically.
@@ -862,8 +872,10 @@ func (r *Repository) RecordAudit(e *models.AuditEvent) error {
 
 func (r *Repository) ListAudit(teamID string, limit, offset int) ([]models.AuditEvent, error) {
 	rows, err := r.query(`SELECT a.id, a.team_id, a.actor_id, COALESCE(TRIM(u.first_name || ' ' || u.last_name), ''), COALESCE(u.email, ''),
-		a.action, a.target_type, a.target_id, a.metadata, a.ip, a.created_at
-		FROM audit_events a LEFT JOIN users u ON u.id = a.actor_id
+		a.action, a.target_type, a.target_id, COALESCE(t.email, ''), a.metadata, a.ip, a.created_at
+		FROM audit_events a
+		LEFT JOIN users u ON u.id = a.actor_id
+		LEFT JOIN users t ON a.target_type = 'user' AND t.id = a.target_id
 		WHERE a.team_id = ? ORDER BY a.created_at DESC LIMIT ? OFFSET ?`, teamID, limit, offset)
 	if err != nil {
 		return nil, err
@@ -872,7 +884,7 @@ func (r *Repository) ListAudit(teamID string, limit, offset int) ([]models.Audit
 	out := []models.AuditEvent{}
 	for rows.Next() {
 		var e models.AuditEvent
-		if err := rows.Scan(&e.ID, &e.TeamID, &e.ActorID, &e.ActorName, &e.ActorEmail, &e.Action, &e.TargetType, &e.TargetID, &e.Metadata, &e.IP, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.TeamID, &e.ActorID, &e.ActorName, &e.ActorEmail, &e.Action, &e.TargetType, &e.TargetID, &e.TargetLabel, &e.Metadata, &e.IP, &e.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, e)

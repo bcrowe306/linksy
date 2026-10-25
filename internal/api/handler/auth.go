@@ -545,3 +545,23 @@ func (a *AuthHandler) RevokeAPIKey(c fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"message": "API key revoked successfully"})
 }
+
+func (a *AuthHandler) GetPreferences(c fiber.Ctx) error {
+	p, err := a.svc.GetPreferences(middleware.GetAuth(c).UserID)
+	if err != nil {
+		return fail(c, err)
+	}
+	return c.JSON(p)
+}
+
+func (a *AuthHandler) UpdatePreferences(c fiber.Ctx) error {
+	var p models.Preferences
+	if err := c.Bind().Body(&p); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	out, err := a.svc.UpdatePreferences(middleware.GetAuth(c).UserID, p)
+	if err != nil {
+		return fail(c, err)
+	}
+	return c.JSON(out)
+}
