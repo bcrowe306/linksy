@@ -122,6 +122,11 @@ def test_render_service_health_and_deployment():
     
     # Check latest deploy status
     deploy = render.get_latest_deploy(lynqr_service["id"])
+    for _ in range(6):
+        if deploy and deploy.get("status") in ("live", "build_failed", "update_failed", "canceled"):
+            break
+        time.sleep(5)
+        deploy = render.get_latest_deploy(lynqr_service["id"])
     assert deploy is not None, "No deployment records found"
     assert deploy.get("status") == "live", f"Latest Render deploy status is {deploy.get('status')}"
 

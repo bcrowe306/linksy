@@ -89,12 +89,12 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	api.Get("/team/members", teamH.ListMembers)
 
 	// Admin-only Team Operations
-	admin := api.Group("", middleware.RequireAdmin())
-	admin.Post("/team/members/invite", teamH.InviteMember)
-	admin.Put("/team/members/:userId/role", teamH.UpdateMemberRole)
-	admin.Delete("/team/members/:userId", teamH.RemoveMember)
-	admin.Post("/team/members/:userId/reset-credentials", teamH.ResetMemberCredentials)
-	admin.Delete("/team/invitations/:id", teamH.RevokeInvitation)
+	teamAdmin := api.Group("/team", middleware.RequireAdmin())
+	teamAdmin.Post("/members/invite", teamH.InviteMember)
+	teamAdmin.Put("/members/:userId/role", teamH.UpdateMemberRole)
+	teamAdmin.Delete("/members/:userId", teamH.RemoveMember)
+	teamAdmin.Post("/members/:userId/reset-credentials", teamH.ResetMemberCredentials)
+	teamAdmin.Delete("/invitations/:id", teamH.RevokeInvitation)
 
 	// Analytics
 	api.Get("/analytics/summary", h.GetAnalyticsSummary)
