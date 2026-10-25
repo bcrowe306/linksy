@@ -1,6 +1,6 @@
 <template>
   <div>
-    <PageHeader title="Team & Settings" :subtitle="`Manage ${auth.team?.name || 'your workspace'}, its members and its history.`">
+    <PageHeader title="Team & Settings" :subtitle="`Manage ${auth.team?.name || 'your workspace'}, its members, plan and history.`">
       <template #title-extra><HelpLink guide="teams-and-roles">Roles explained</HelpLink></template>
     </PageHeader>
 
@@ -20,6 +20,7 @@
     <WorkspaceGeneral v-if="tab === 'general'" :key="auth.team?.id" />
     <MembersPanel v-else-if="tab === 'members'" :key="`m-${auth.team?.id}`" />
     <AuditLogPanel v-else-if="tab === 'audit'" :key="`a-${auth.team?.id}`" />
+    <BillingPanel v-else-if="tab === 'billing'" :key="`b-${auth.team?.id}`" />
   </div>
 </template>
 
@@ -27,12 +28,13 @@
 import HelpLink from '../components/ui/HelpLink.vue'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { Building2, Users, ScrollText } from 'lucide-vue-next'
+import { Building2, Users, ScrollText, CreditCard } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/auth'
 import PageHeader from '../components/ui/PageHeader.vue'
 import WorkspaceGeneral from '../components/team/WorkspaceGeneral.vue'
 import MembersPanel from '../components/team/MembersPanel.vue'
 import AuditLogPanel from '../components/team/AuditLogPanel.vue'
+import BillingPanel from '../components/team/BillingPanel.vue'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -40,6 +42,7 @@ const route = useRoute()
 const tabs = computed(() => [
   { id: 'members', label: 'Members', icon: Users },
   { id: 'general', label: 'General', icon: Building2 },
+  ...(auth.billing?.enabled ? [{ id: 'billing', label: 'Billing', icon: CreditCard }] : []),
   ...(auth.can('audit:view') ? [{ id: 'audit', label: 'Audit log', icon: ScrollText }] : [])
 ])
 const tab = computed(() => (tabs.value.some((t) => t.id === route.query.tab) ? route.query.tab : 'members'))

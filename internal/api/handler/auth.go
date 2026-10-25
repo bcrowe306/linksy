@@ -342,14 +342,16 @@ func (a *AuthHandler) GetCurrentUser(c fiber.Ctx) error {
 			active = &teams[i]
 		}
 	}
+	bill, _ := a.svc.Billing(service.Actor{UserID: ac.UserID, TeamID: ac.TeamID, Role: ac.Role})
 	return c.JSON(fiber.Map{
 		"authenticated":       true,
 		"user":                publicUser(u),
 		"team":                active,
 		"role":                ac.Role,
-		"permissions":         auth.Permissions(ac.Role),
+		"permissions":         service.EffectivePermissions(ac.Role, ac.ReadOnly),
 		"teams":               teams,
 		"pending_invitations": len(invites),
+		"billing":             bill,
 	})
 }
 

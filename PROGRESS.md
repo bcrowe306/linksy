@@ -15,7 +15,7 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 | 5 | Team & user management UI | `feat/team-management-ui` | ✅ merged (#5, #6), live API 64/64 + UI 15/15 |
 | 6 | Dashboard & analytics (charts, ranges, geo, export, live feed, CF geo headers) | `feat/analytics` | ✅ merged (#7), live API 64/64 + UI 16/16 |
 | 7 | Tooltips, Quick Docs, shortcuts, user guides | `feat/help-docs` | 🚧 PR open |
-| 8 | Stripe billing (7-day no-card trial · $5/mo annual or $8.99 monthly · per workspace) | `feat/billing` | ⏳ keys + pricing received 2026-10-25 |
+| 8 | Stripe billing (7-day no-card trial · $5/mo annual or $8.99 monthly · per workspace) | `feat/billing` | ✅ PR open 2026-10-25 |
 | 9 | SEO & public marketing site | `feat/seo-marketing` | ⏳ requested 2026-10-25 |
 | 10 | Test suites (Go, Vitest, Playwright, live test-drive) | `feat/test-suites` | ⏳ (tests also added per area) |
 | 11 | Email notifications (Resend) | `feat/email` | ⏳ ready: send-only key + from `noreply@lynqr.app` |
@@ -105,7 +105,16 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 - [x] Tooltips across forms (already added per item); chart axis end-label fix
 - [ ] CI + merge + live test-drive
 
-## 8. Stripe billing (plan)
+## 8. Stripe billing
+Done:
+- [x] Migration 0005: per-workspace trial (7 days from creation, existing workspaces get 7 days from today) and subscription columns, plus a `stripe_events` idempotency table
+- [x] `internal/billing`: Stripe REST client (no SDK); catalog bootstrap by lookup key (`lynqr_pro_monthly` $8.99, `lynqr_pro_annual` $60) and customer portal config at startup; webhook signature verification
+- [x] Checkout with promotion codes and live server-side preview; 100%-off codes need no card; the remaining trial days carry over to the subscription
+- [x] Webhooks (`/api/webhooks/stripe`) sync status, interval, renewal, cancellation and discount; replays are ignored
+- [x] Lapse enforcement: the workspace becomes read-only (402 `subscription_required` on writes, effective permissions in `/auth/me`) and links, QR scans and document links show an inactive page (410)
+- [x] Settings → Billing tab (plans, interval toggle, code preview, `?code=` prefill, portal, status); global trial, past-due and read-only banners
+- [x] Go tests with a fake Stripe (state machine, signature, idempotency, RBAC, 402/410); Render env vars set
+Original plan:
 - Per-workspace subscription: 7-day trial without a card, then $5/mo billed annually ($60) or $8.99 monthly; owner-only billing page; Stripe Checkout + Customer Portal; webhook-driven status
 - Lapsed or expired trial → read-only workspace, and links/QR codes show a "subscription inactive" page
 - **Checkout codes** via Stripe Coupons + Promotion Codes: code field on the billing page with a live server-side preview ("50% off for 3 months"), applied to the Checkout session (plus Stripe's own code field); 100%-off codes create card-free comp accounts (`payment_method_collection: if_required`); `?code=` deep links from pricing; redemption stored on the workspace and in the audit log

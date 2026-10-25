@@ -57,8 +57,13 @@ func fail(c fiber.Ctx, err error) error {
 		status = fiber.StatusForbidden
 	case service.IsNotFound(err), errors.Is(err, service.ErrInvitationInvalid):
 		status = fiber.StatusNotFound
-	case errors.Is(err, service.ErrConflict), errors.Is(err, service.ErrAlreadyMember), errors.Is(err, service.ErrSlugTaken):
+	case errors.Is(err, service.ErrConflict), errors.Is(err, service.ErrAlreadyMember), errors.Is(err, service.ErrSlugTaken),
+		errors.Is(err, service.ErrAlreadySubscribed):
 		status = fiber.StatusConflict
+	case errors.Is(err, service.ErrPaymentRequired):
+		return c.Status(fiber.StatusPaymentRequired).JSON(fiber.Map{"error": err.Error(), "code": "subscription_required"})
+	case errors.Is(err, service.ErrBillingDisabled):
+		status = fiber.StatusServiceUnavailable
 	}
 	return c.Status(status).JSON(fiber.Map{"error": err.Error()})
 }
@@ -104,6 +109,9 @@ func (h *Handler) HandleShortLinkRedirect(c fiber.Ctx) error {
 	}
 	c.Set("Cache-Control", "no-store")
 	c.Set("X-Robots-Tag", "noindex, nofollow")
+	if h.svc.TeamLapsed(link.TeamID) {
+		return h.renderInactiveWorkspace(c)
+	}
 	if state != service.LinkOK {
 		if link.FallbackURL != "" {
 			return c.Redirect().Status(fiber.StatusFound).To(link.FallbackURL)
@@ -123,7 +131,7 @@ func (h *Handler) HandleShortLinkRedirect(c fiber.Ctx) error {
 // HandleShortLinkUnlock checks the password posted from the unlock page.
 func (h *Handler) HandleShortLinkUnlock(c fiber.Ctx) error {
 	link, state, err := h.svc.LookupLink(c.Params("slug"))
-	if err != nil || state != service.LinkOK || link.PasswordHash == "" {
+	if err != nil || state != service.LinkOK || link.PasswordHash == "" || h.svc.TeamLapsed(link.TeamID) {
 		return c.Redirect().Status(fiber.StatusSeeOther).To("/s/" + c.Params("slug"))
 	}
 	if !h.svc.CheckLinkPassword(link, c.FormValue("password")) {
@@ -170,6 +178,9 @@ func (h *Handler) HandleLegacyQRScan(c fiber.Ctx) error {
 func (h *Handler) serveScan(c fiber.Ctx, t *service.ScanTarget) error {
 	q := t.QR
 	c.Set("Cache-Control", "no-store")
+	if h.svc.TeamLapsed(q.TeamID) {
+		return h.renderInactiveWorkspace(c)
+	}
 	if t.Inactive {
 		return h.renderBrandedError(c, "This QR Code Is Inactive", "The owner of this QR code has paused it or its destination has expired.", fiber.StatusGone)
 	}
@@ -195,7 +206,10 @@ func (h *Handler) serveScan(c fiber.Ctx, t *service.ScanTarget) error {
 
 // HandleDocumentLink serves /d/{id}, a stable link to a document's current version.
 func (h *Handler) HandleDocumentLink(c fiber.Ctx) error {
-	target, err := h.svc.DocumentRedirect(c.Params("id"))
+	target, teamID, err := h.svc.DocumentRedirect(c.Params("id"))
+	if err == nil && h.svc.TeamLapsed(teamID) {
+		return h.renderInactiveWorkspace(c)
+	}
 	if err != nil {
 		return h.renderBrandedError(c, "Document Not Found", "This document has been removed.", fiber.StatusNotFound)
 	}
@@ -520,6 +534,10 @@ func (h *Handler) DownloadDocumentFile(c fiber.Ctx) error {
 	if err != nil {
 		return h.renderBrandedError(c, "Document Not Found", "This document has been removed or replaced.", fiber.StatusNotFound)
 	}
+	if h.svc.TeamLapsed(doc.TeamID) {
+		rc.Close()
+		return h.renderInactiveWorkspace(c)
+	}
 	// SendStream closes rc once the body has been written.
 
 	c.Set("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -815,4 +833,12 @@ button{margin-top:12px;width:100%%;padding:12px;border:0;border-radius:12px;back
 	// that redirect goes to the link's (external) destination.
 	c.Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https: http:; frame-ancestors 'none'; base-uri 'none'")
 	return c.Status(status).Type("html").SendString(page)
+}
+
+// renderInactiveWorkspace is shown to visitors when the owning workspace's subscription has lapsed.
+func (h *Handler) renderInactiveWorkspace(c fiber.Ctx) error {
+	c.Set("Cache-Control", "no-store")
+	c.Set("X-Robots-Tag", "noindex, nofollow")
+	return h.renderBrandedError(c, "Temporarily Unavailable",
+		"This link or QR code is currently inactive. If it belongs to you, sign in to Lynqr to reactivate it.", fiber.StatusGone)
 }

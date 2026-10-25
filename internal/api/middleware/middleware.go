@@ -29,6 +29,8 @@ type AuthContext struct {
 	// ViaCookie is true when the credential came from the browser cookie
 	// (and therefore needs CSRF protection on unsafe methods).
 	ViaCookie bool
+	// ReadOnly is set when the workspace's subscription has lapsed.
+	ReadOnly bool
 }
 
 // DefaultCSP is applied to every response; the API docs page relaxes it.
@@ -184,7 +186,7 @@ func Authenticate(c fiber.Ctx, svc *service.Service) (*AuthContext, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &AuthContext{UserID: key.UserID, TeamID: teamID, Role: role, APIKey: key}, nil
+		return &AuthContext{UserID: key.UserID, TeamID: teamID, Role: role, APIKey: key, ReadOnly: svc.TeamLapsed(teamID)}, nil
 	}
 
 	sess, err := svc.ResolveSession(token)
@@ -195,7 +197,7 @@ func Authenticate(c fiber.Ctx, svc *service.Service) (*AuthContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &AuthContext{UserID: sess.UserID, TeamID: teamID, Role: role, Session: sess, ViaCookie: viaCookie}, nil
+	return &AuthContext{UserID: sess.UserID, TeamID: teamID, Role: role, Session: sess, ViaCookie: viaCookie, ReadOnly: svc.TeamLapsed(teamID)}, nil
 }
 
 // SameOrigin enforces that unsafe cookie-authenticated requests originate
@@ -237,7 +239,7 @@ func GetAuth(c fiber.Ctx) *AuthContext {
 // Actor converts the request's auth context into a service Actor.
 func Actor(c fiber.Ctx) service.Actor {
 	a := GetAuth(c)
-	return service.Actor{UserID: a.UserID, TeamID: a.TeamID, Role: a.Role, IP: ClientIP(c)}
+	return service.Actor{UserID: a.UserID, TeamID: a.TeamID, Role: a.Role, IP: ClientIP(c), ReadOnly: a.ReadOnly}
 }
 
 // RequirePermission rejects requests whose role lacks the permission.
@@ -253,6 +255,12 @@ func RequirePermission(p auth.Permission) fiber.Handler {
 				"code":  "forbidden",
 			})
 		}
+		if a.ReadOnly && !containsPerm(service.EffectivePermissions(a.Role, true), p) {
+			return c.Status(fiber.StatusPaymentRequired).JSON(fiber.Map{
+				"error": service.ErrPaymentRequired.Error(),
+				"code":  "subscription_required",
+			})
+		}
 		return c.Next()
 	}
 }
@@ -265,4 +273,13 @@ func RequireSession() fiber.Handler {
 		}
 		return c.Next()
 	}
+}
+
+func containsPerm(list []auth.Permission, p auth.Permission) bool {
+	for _, x := range list {
+		if x == p {
+			return true
+		}
+	}
+	return false
 }

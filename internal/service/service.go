@@ -48,6 +48,8 @@ type Actor struct {
 	TeamID string
 	Role   models.UserRole
 	IP     string
+	// ReadOnly is set when the workspace's subscription has lapsed.
+	ReadOnly bool
 }
 
 func (a Actor) require(p auth.Permission) error {
@@ -56,6 +58,9 @@ func (a Actor) require(p auth.Permission) error {
 	}
 	if !auth.Can(a.Role, p) {
 		return ErrForbidden
+	}
+	if a.ReadOnly && writePermissions[p] {
+		return ErrPaymentRequired
 	}
 	return nil
 }
@@ -66,6 +71,8 @@ type Service struct {
 	appURL  string
 	ipSalt  string
 	live    *liveHub
+	billing *billingConfig
+	lapses  lapseCache
 }
 
 func New(repo *repository.Repository, storage storage.StorageProvider, appURL string) *Service {
@@ -701,13 +708,13 @@ func (s *Service) resolveTarget(q *models.QRCode, userAgent string) *ScanTarget 
 	return t
 }
 
-// DocumentRedirect returns the current file URL behind a stable /d/{id} link.
-func (s *Service) DocumentRedirect(docID string) (string, error) {
+// DocumentRedirect returns the current file URL behind a stable /d/{id} link and its team.
+func (s *Service) DocumentRedirect(docID string) (string, string, error) {
 	doc, err := s.repo.GetDocumentByID(docID)
 	if err != nil {
-		return "", ErrDocNotFound
+		return "", "", ErrDocNotFound
 	}
-	return s.storage.GetURL(doc.StoredPath), nil
+	return s.storage.GetURL(doc.StoredPath), doc.TeamID, nil
 }
 
 // ----------------- Document Management & Sharing -----------------

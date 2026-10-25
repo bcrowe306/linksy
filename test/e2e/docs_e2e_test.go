@@ -16,7 +16,7 @@ var undocumented = []string{
 	"/api/v1/auth/", "/api/v1/user/", "/api/v1/api-keys", "/api/v1/teams", "/api/v1/invitations/",
 	"/api/v1/team/members/", "/api/v1/team/invitations/", "/api/v1/team/transfer", "/api/v1/team/leave",
 	"/api/v1/documents/files/", "/api/v1/documents/bulk-delete", "/api/v1/analytics/summary",
-	"/api/v1/analytics/live", "/api/v1/openapi", "/api/docs", "/api/*",
+	"/api/v1/analytics/live", "/api/v1/billing", "/api/v1/openapi", "/api/docs", "/api/*",
 }
 
 // Session-only methods on otherwise documented paths.
