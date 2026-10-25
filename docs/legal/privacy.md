@@ -6,7 +6,7 @@ updated: October 25, 2026
 
 # Privacy Policy
 
-This policy explains what information Lynqr (lynqr.app) collects, why, who we share it with, and the choices you have. It covers two groups of people: **customers** who sign up and use Lynqr, and **visitors** who click a Lynqr short link or scan a Lynqr QR code.
+This policy explains what information **Lynqr LLC** ("Lynqr", "we"), the operator of lynqr.app and the party responsible for your information, collects, why, who we share it with, and the choices you have. It covers two groups of people: **customers** who sign up and use Lynqr, and **visitors** who click a Lynqr short link or scan a Lynqr QR code.
 
 ## Information about customers
 
@@ -90,4 +90,4 @@ If we make material changes to this policy, we'll let customers know by email or
 
 ## Contact
 
-Questions or requests: [support@lynqr.app](mailto:support@lynqr.app).
+Questions or requests: [support@lynqr.app](mailto:support@lynqr.app). Lynqr is operated by Lynqr LLC.

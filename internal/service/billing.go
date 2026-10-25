@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -341,7 +342,10 @@ func (s *Service) syncSubscription(subID, customer string) error {
 		t, err = s.repo.GetTeamByCustomer(customer)
 	}
 	if err != nil || t == nil {
-		return fmt.Errorf("no workspace for subscription %s", subID)
+		// Checkouts started on another environment (e.g. test.lynqr.app shares
+		// the Stripe account) aren't ours: acknowledge so Stripe stops retrying.
+		log.Printf("[billing] ignoring subscription %s: no matching workspace here", subID)
+		return nil
 	}
 
 	before := t.Billing.State(time.Now())

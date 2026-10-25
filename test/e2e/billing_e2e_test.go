@@ -153,3 +153,11 @@ func TestBillingDisabledNeverLocksUsers(t *testing.T) {
 	k.Expect(k.Do("POST", "/api/v1/links", u.Token, map[string]any{"target_url": "https://example.com"}), http.StatusCreated, "no enforcement without Stripe")
 	k.Expect(k.Do("POST", "/api/v1/billing/checkout", u.Token, map[string]any{"interval": "month"}), http.StatusServiceUnavailable, "checkout unavailable")
 }
+
+func TestWebhookForUnknownWorkspaceIsAcknowledged(t *testing.T) {
+	k := testkit.New(t)
+	f := k.EnableBilling()
+	f.Subscriptions["sub_other_env"] = testkit.Sub{ID: "sub_other_env", Customer: "cus_other", Status: "active", TeamID: "team_from_another_env"}.Build()
+	k.Expect(webhook(k, "evt_other", "customer.subscription.created", map[string]any{"id": "sub_other_env", "customer": "cus_other"}, testkit.WebhookSecret),
+		http.StatusOK, "other environment's subscription")
+}

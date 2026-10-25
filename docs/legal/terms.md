@@ -6,7 +6,7 @@ updated: October 25, 2026
 
 # Terms of Service
 
-These terms apply when you create an account or a workspace on Lynqr (lynqr.app), or use any part of the service. By using Lynqr you agree to them. If you use Lynqr for an organization, you agree on its behalf and confirm you're allowed to.
+These terms are an agreement between you and **Lynqr LLC** ("Lynqr", "we", "us"), which operates lynqr.app. They apply when you create an account or a workspace, or use any part of the service. By using Lynqr you agree to them. If you use Lynqr for an organization, you agree on its behalf and confirm you're allowed to.
 
 ## 1. The service
 
@@ -62,10 +62,14 @@ To the fullest extent permitted by law, Lynqr isn't liable for indirect, inciden
 
 You can stop using Lynqr at any time. Owners can delete a workspace from **Team & Settings → General**, which permanently deletes its links, QR codes, documents and analytics. To delete your account entirely, email [support@lynqr.app](mailto:support@lynqr.app). We may suspend or terminate access if you seriously or repeatedly breach these terms.
 
-## 12. Changes to these terms
+## 12. Governing law and disputes
+
+These terms are governed by the laws of the United States and of the state in which Lynqr LLC is organized, without regard to conflict-of-law rules. Before filing a claim, please contact us at [support@lynqr.app](mailto:support@lynqr.app) so we can try to resolve the issue informally. If you're a consumer, nothing in these terms takes away rights you have under the laws of the place where you live.
+
+## 13. Changes to these terms
 
 We may update these terms. If a change is material, we'll notify workspace owners by email or in the app at least 30 days before it takes effect. Continuing to use Lynqr after that means you accept the updated terms.
 
-## 13. Contact
+## 14. Contact
 
-Questions about these terms? Email [support@lynqr.app](mailto:support@lynqr.app).
+Questions about these terms? Email [support@lynqr.app](mailto:support@lynqr.app). Lynqr is operated by Lynqr LLC.
