@@ -64,6 +64,37 @@
   --fg-subtle: 124 124 134;
 }
 
+/*
+ * Chart tokens (validated with the dataviz palette validator against the card
+ * surfaces in both modes): two categorical series, one sequential blue ramp.
+ */
+:root {
+  --series-1: 42 120 214;   /* clicks */
+  --series-2: 235 104 52;   /* scans  */
+  --seq-0: 241 246 253;
+  --seq-1: 205 226 251;
+  --seq-2: 158 197 244;
+  --seq-3: 109 167 236;
+  --seq-4: 57 135 229;
+  --seq-5: 37 106 191;
+  --seq-6: 16 66 129;
+  --chart-grid: 233 233 237;
+  --chart-axis: 200 200 207;
+}
+.dark {
+  --series-1: 57 135 229;
+  --series-2: 217 89 38;
+  --seq-0: 30 31 38;
+  --seq-1: 16 66 129;
+  --seq-2: 24 79 149;
+  --seq-3: 37 106 191;
+  --seq-4: 57 135 229;
+  --seq-5: 109 167 236;
+  --seq-6: 158 197 244;
+  --chart-grid: 40 40 46;
+  --chart-axis: 60 60 68;
+}
+
 /* Brand: electric indigo → violet */
 :root {
   --brand-50: 238 242 255;

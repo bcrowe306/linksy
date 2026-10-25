@@ -106,6 +106,9 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 
 	// Analytics
 	api.Get("/analytics/summary", can(auth.PermViewAnalytics), h.GetAnalyticsSummary)
+	api.Get("/analytics/report", can(auth.PermViewAnalytics), h.GetAnalyticsReport)
+	api.Get("/analytics/export", can(auth.PermExportAssets), h.ExportAnalytics)
+	api.Get("/analytics/live", can(auth.PermViewAnalytics), h.LiveUpgrade, h.LiveFeed())
 
 	// Workspaces (multi-team membership & switching)
 	api.Get("/teams", sessionOnly, teamH.ListTeams)

@@ -12,8 +12,8 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 | 2 | Theme system + modern UI redesign | `feat/ui-redesign` | ✅ merged (#2), live UI 15/15 + API pytest 15/15 |
 | 3 | QR studio: real preview, all types, styling, exports | `feat/qr-studio` | ✅ merged (#3), live API 64/64 + UI 14/14 |
 | 4 | Links: password, UTM, expiry & pause | `feat/link-controls` | ✅ merged (#4), live API 64/64 + UI 15/15 |
-| 5 | Team & user management UI | `feat/team-management-ui` | 🚧 PR open |
-| 6 | Dashboard & analytics (charts, ranges, geo, export, live feed, CF geo headers) | `feat/analytics` | ⏳ |
+| 5 | Team & user management UI | `feat/team-management-ui` | ✅ merged (#5, #6), live API 64/64 + UI 15/15 |
+| 6 | Dashboard & analytics (charts, ranges, geo, export, live feed, CF geo headers) | `feat/analytics` | 🚧 PR open |
 | 7 | Tooltips, Quick Docs, shortcuts, user guides | `feat/help-docs` | ⏳ |
 | 8 | Stripe billing (7-day no-card trial · $5/mo annual or $8.99 monthly · per workspace) | `feat/billing` | ⏳ keys + pricing received 2026-10-25 |
 | 9 | SEO & public marketing site | `feat/seo-marketing` | ⏳ requested 2026-10-25 |
@@ -83,6 +83,17 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 - [x] Profile tabs: profile (avatar upload, client-side center-crop to 256px), security (change password, active sessions, sign out others), API keys (expiry, last used, show-once secret, revoke), workspaces (invitations for you: accept/decline; switch), notifications (preferences + report time zone)
 - [x] Backend: notification preferences (`/user/preferences`, migration 0004); audit entries resolve the affected member
 - [x] Tests: e2e for preferences and session revocation; two-user local Playwright flow (invite → accept → role → suspend → reactivate → audit → rename → API key → prefs → leave); live suite updated
+- [x] CI + merge + live test-drive
+
+## 6. Dashboard & analytics (feat/analytics)
+- [x] Ingestion: bot/link-preview filtering, referrer stored as domain only, channel classification (direct/social/email/search/web/qr), richer device/browser/OS parsing, country normalization, live event hub
+- [x] Cloudflare "Add visitor location headers" managed transform enabled on lynqr.app (city/region now captured)
+- [x] Report API (`/analytics/report`): any range ≤ 2 years in the viewer's IANA time zone, hourly/daily/weekly zero-filled series (DST-correct rollup from UTC hours), previous-period comparison, unique visitors, weekday×hour heatmap, countries/regions/cities, devices/browsers/OS, channels/referrers, top links and QR codes
+- [x] Exports: raw events CSV (formula-injection safe, 100k cap), report JSON, printable PDF report with KPI tiles, trend chart and tables
+- [x] Live websocket (`/analytics/live`) with same-origin check; dashboard live feed with reconnect/backoff
+- [x] Charts built to the dataviz method: validated two-series palette (light+dark), sequential blue ramp, thin marks, crosshair tooltips, legends, partial-period fading, and a table view for every chart
+- [x] Dashboard: greeting, onboarding checklist, KPI tiles with deltas + sparklines, trend, live activity, top links/QR/countries, recent assets; Analytics: date-range presets/custom, asset filter, shareable URL, KPIs, trend, world choropleth, locations, tech breakdowns, channels, referrers, heatmap, top assets
+- [x] Tests: ingestion enrichment & bot filtering, tz/DST-correct series and heatmap, previous period, report/export e2e (incl. CSV injection, tenant isolation), websocket e2e (incl. cross-origin rejection); live Playwright analytics test
 - [ ] CI + merge + live test-drive
 
 ## 8. Stripe billing (plan)
