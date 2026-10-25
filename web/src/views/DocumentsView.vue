@@ -1,6 +1,7 @@
 <template>
   <div>
     <PageHeader title="Documents" subtitle="Host menus, brochures and reports behind a QR code. Replace the file any time; the QR code never changes.">
+      <template #title-extra><HelpLink guide="documents" /></template>
       <template #actions>
         <button v-if="canEdit && selected.length" class="btn-danger-ghost" data-testid="delete-selected" @click="askDelete(selected)">
           <Trash2 class="w-4 h-4" /> Delete selected <span class="badge-danger">{{ selected.length }}</span>
@@ -95,6 +96,7 @@
 </template>
 
 <script setup>
+import HelpLink from '../components/ui/HelpLink.vue'
 import { ref, computed } from 'vue'
 import {
   FileText, UploadCloud, RefreshCw, Trash2, QrCode, ExternalLink, Loader2, FileImage, FileSpreadsheet, Presentation

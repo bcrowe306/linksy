@@ -1,6 +1,8 @@
 <template>
   <div>
-    <PageHeader title="Team & Settings" :subtitle="`Manage ${auth.team?.name || 'your workspace'}, its members and its history.`" />
+    <PageHeader title="Team & Settings" :subtitle="`Manage ${auth.team?.name || 'your workspace'}, its members and its history.`">
+      <template #title-extra><HelpLink guide="teams-and-roles">Roles explained</HelpLink></template>
+    </PageHeader>
 
     <nav class="mb-6 flex gap-1 overflow-x-auto border-b border-line" aria-label="Settings sections">
       <router-link
@@ -22,6 +24,7 @@
 </template>
 
 <script setup>
+import HelpLink from '../components/ui/HelpLink.vue'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { Building2, Users, ScrollText } from 'lucide-vue-next'

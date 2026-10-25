@@ -1,0 +1,810 @@
+openapi: 3.1.0
+info:
+  title: Lynqr API
+  version: "1.0"
+  summary: Dynamic QR codes, short links and analytics.
+  description: |
+    The Lynqr REST API lets you create and manage short links, QR codes and hosted documents, and read
+    click and scan analytics, from your own code.
+
+    ## Authentication
+    Create an API key in **Profile → API keys** and send it as a bearer token:
+
+    ```
+    Authorization: Bearer lk_live_…
+    ```
+
+    A key acts as the user who created it, with that user's **current role** in the workspace that was
+    active when the key was created. If the user loses access to the workspace, the key stops working.
+
+    ## Rate limits
+    600 requests per minute per key. Over the limit you receive `429 Too Many Requests` and a
+    `Retry-After` header.
+
+    ## Errors
+    Errors are JSON objects with a human-readable `error` message:
+
+    | Status | Meaning |
+    |---|---|
+    | 400 | Invalid input (the message says what to fix) |
+    | 401 | Missing, invalid, expired or revoked credentials |
+    | 403 | Your role doesn't allow this action |
+    | 404 | Not found **in this workspace** |
+    | 409 | Conflict, e.g. a custom slug that's already taken |
+    | 429 | Rate limit exceeded |
+  contact:
+    name: Lynqr support
+    url: https://lynqr.app
+servers:
+  - url: /
+    description: This environment
+security:
+  - ApiKey: []
+tags:
+  - name: Links
+    description: Short links with custom back-halves, passwords, UTM tags, expiry and fallback URLs.
+  - name: QR codes
+    description: Static and dynamic QR codes in nine content types, with full styling and exports.
+  - name: Documents
+    description: Hosted files behind dynamic QR codes. Replace a file without reprinting.
+  - name: Analytics
+    description: Clicks, scans, visitors, geography, devices, channels and exports.
+  - name: Workspace
+    description: The workspace your key belongs to.
+  - name: Public
+    description: Unauthenticated endpoints used by visitors and scanners.
+
+paths:
+  /api/v1/links:
+    get:
+      tags: [Links]
+      summary: List short links
+      operationId: listLinks
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Links in this workspace, newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/Link" } }
+                  limit: { type: integer }
+                  offset: { type: integer }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [Links]
+      summary: Create a short link
+      operationId: createLink
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LinkCreate" }
+            example:
+              target_url: https://example.com/launch
+              custom_slug: launch
+              title: Product launch
+              utm_source: newsletter
+              utm_medium: email
+              utm_campaign: launch_2026
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Link" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+      x-codeSamples:
+        - lang: cURL
+          source: |
+            curl -X POST https://lynqr.app/api/v1/links \
+              -H "Authorization: Bearer $LYNQR_KEY" \
+              -H "Content-Type: application/json" \
+              -d '{"target_url":"https://example.com/launch","custom_slug":"launch","utm_source":"newsletter"}'
+        - lang: Go
+          source: |
+            body := strings.NewReader(`{"target_url":"https://example.com/launch","custom_slug":"launch"}`)
+            req, _ := http.NewRequest("POST", "https://lynqr.app/api/v1/links", body)
+            req.Header.Set("Authorization", "Bearer "+os.Getenv("LYNQR_KEY"))
+            req.Header.Set("Content-Type", "application/json")
+            resp, err := http.DefaultClient.Do(req)
+        - lang: Python
+          source: |
+            import os, requests
+            r = requests.post(
+                "https://lynqr.app/api/v1/links",
+                headers={"Authorization": f"Bearer {os.environ['LYNQR_KEY']}"},
+                json={"target_url": "https://example.com/launch", "custom_slug": "launch"},
+            )
+            print(r.json()["slug"])
+        - lang: JavaScript
+          source: |
+            const res = await fetch("https://lynqr.app/api/v1/links", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${process.env.LYNQR_KEY}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ target_url: "https://example.com/launch", custom_slug: "launch" }),
+            });
+            const link = await res.json();
+
+  /api/v1/links/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Links]
+      summary: Get a short link
+      operationId: getLink
+      responses:
+        "200": { description: The link, content: { application/json: { schema: { $ref: "#/components/schemas/Link" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [Links]
+      summary: Update a short link
+      description: |
+        Omitted optional fields are left unchanged. Send `"password": ""` to remove password protection,
+        and `"slug"` to change the back-half (the old short URL stops working).
+      operationId: updateLink
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LinkUpdate" }
+            example: { target_url: https://example.com/new-destination, is_active: true }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Link" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+    delete:
+      tags: [Links]
+      summary: Delete a short link
+      operationId: deleteLink
+      responses:
+        "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/qr:
+    get:
+      tags: [QR codes]
+      summary: List QR codes
+      operationId: listQRCodes
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: QR codes in this workspace, newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/QRCode" } }
+    post:
+      tags: [QR codes]
+      summary: Create a QR code
+      description: |
+        `raw_data` is a JSON string whose shape depends on `type`. See `QRContent` for every type.
+        Website codes use `target_url`; document codes use `document_id`; app codes are always dynamic.
+        Set `link_id` to attach a dynamic website code to an existing short link.
+      operationId: createQRCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QRCreate" }
+            examples:
+              dynamicWebsite:
+                summary: Dynamic website code with a frame
+                value:
+                  type: website
+                  title: Spring poster
+                  target_url: https://example.com/spring
+                  is_dynamic: true
+                  style: { dot_style: extra-rounded, eye_shape: rounded, frame_style: banner-bottom, label_text: SCAN ME, border_color: "#4f46e5" }
+              wifi:
+                summary: Wi-Fi network (static)
+                value: { type: wifi, title: Guest Wi-Fi, raw_data: '{"ssid":"Cafe","password":"welcome","encryption":"WPA"}' }
+              vcard:
+                summary: Contact card
+                value: { type: vcard, title: Ada's card, raw_data: '{"first_name":"Ada","last_name":"Lovelace","email":"ada@example.com","phone":"+15550100"}' }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/QRCode" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+      x-codeSamples:
+        - lang: cURL
+          source: |
+            curl -X POST https://lynqr.app/api/v1/qr \
+              -H "Authorization: Bearer $LYNQR_KEY" \
+              -H "Content-Type: application/json" \
+              -d '{"type":"website","title":"Poster","target_url":"https://example.com","is_dynamic":true}'
+        - lang: Go
+          source: |
+            payload := `{"type":"website","title":"Poster","target_url":"https://example.com","is_dynamic":true}`
+            req, _ := http.NewRequest("POST", "https://lynqr.app/api/v1/qr", strings.NewReader(payload))
+            req.Header.Set("Authorization", "Bearer "+os.Getenv("LYNQR_KEY"))
+            req.Header.Set("Content-Type", "application/json")
+            resp, err := http.DefaultClient.Do(req)
+        - lang: Python
+          source: |
+            r = requests.post("https://lynqr.app/api/v1/qr",
+                headers={"Authorization": f"Bearer {key}"},
+                json={"type": "website", "title": "Poster", "target_url": "https://example.com", "is_dynamic": True})
+            qr = r.json()
+            svg = requests.get(f"https://lynqr.app/api/v1/qr/{qr['id']}/export?format=svg",
+                headers={"Authorization": f"Bearer {key}"}).content
+        - lang: JavaScript
+          source: |
+            const qr = await fetch("https://lynqr.app/api/v1/qr", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ type: "website", title: "Poster", target_url: "https://example.com", is_dynamic: true }),
+            }).then((r) => r.json());
+
+  /api/v1/qr/preview:
+    post:
+      tags: [QR codes]
+      summary: Preview a design
+      description: Renders an unsaved design as SVG and checks that it scans. Nothing is stored.
+      operationId: previewQR
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type: { $ref: "#/components/schemas/QRType" }
+                target_url: { type: string }
+                raw_data: { type: string }
+                is_dynamic: { type: boolean }
+                style: { $ref: "#/components/schemas/QRStyle" }
+                size: { type: integer, default: 512 }
+      responses:
+        "200":
+          description: Rendered preview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  svg: { type: string }
+                  payload: { type: string, description: The exact content encoded in the code. }
+                  dynamic: { type: boolean }
+                  style: { $ref: "#/components/schemas/QRStyle" }
+                  check: { $ref: "#/components/schemas/ScanCheck" }
+
+  /api/v1/qr/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [QR codes]
+      summary: Get a QR code
+      operationId: getQRCode
+      responses:
+        "200": { description: The QR code, content: { application/json: { schema: { $ref: "#/components/schemas/QRCode" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [QR codes]
+      summary: Update a QR code
+      description: |
+        Dynamic codes keep their encoded scan URL, so printed copies follow new content immediately.
+        Changing a static code's content changes its pattern.
+      operationId: updateQRCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                target_url: { type: string, description: New destination (website codes). }
+                raw_data: { type: string }
+                document_id: { type: string, description: Switch the document behind a document code. }
+                style: { $ref: "#/components/schemas/QRStyle" }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/QRCode" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [QR codes]
+      summary: Delete a QR code
+      operationId: deleteQRCode
+      responses:
+        "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/qr/{id}/export:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [QR codes]
+      summary: Download a QR code
+      operationId: exportQRCode
+      parameters:
+        - { name: format, in: query, schema: { type: string, enum: [png, svg, pdf, jpeg], default: png } }
+        - { name: size, in: query, description: "Width of the code area in pixels (PNG/JPEG/SVG), 128–4096.", schema: { type: integer, default: 1024 } }
+        - { name: layout, in: query, description: "PDF only: an A4 sheet or a page sized to the code.", schema: { type: string, enum: [sheet, card], default: sheet } }
+        - { name: download, in: query, description: Send as an attachment., schema: { type: boolean } }
+      responses:
+        "200":
+          description: The rendered code
+          content:
+            image/png: { schema: { type: string, format: binary } }
+            image/svg+xml: { schema: { type: string } }
+            application/pdf: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/documents:
+    get:
+      tags: [Documents]
+      summary: List documents
+      operationId: listDocuments
+      responses:
+        "200":
+          description: Documents in this workspace
+          content:
+            application/json:
+              schema: { type: object, properties: { data: { type: array, items: { $ref: "#/components/schemas/Document" } } } }
+
+  /api/v1/documents/upload:
+    post:
+      tags: [Documents]
+      summary: Upload a document
+      description: Uploads a file (max 15 MB) and creates a dynamic QR code for it.
+      operationId: uploadDocument
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } }
+      responses:
+        "201":
+          description: Uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document: { $ref: "#/components/schemas/Document" }
+                  download_url: { type: string }
+                  qr_code: { $ref: "#/components/schemas/QRCode" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+      x-codeSamples:
+        - lang: cURL
+          source: |
+            curl -X POST https://lynqr.app/api/v1/documents/upload \
+              -H "Authorization: Bearer $LYNQR_KEY" \
+              -F "file=@menu.pdf"
+
+  /api/v1/documents/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    put:
+      tags: [Documents]
+      summary: Replace a document
+      description: Uploads a new version. Every QR code and link pointing at the document serves it immediately.
+      operationId: replaceDocument
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } }
+      responses:
+        "200":
+          description: Replaced
+          content: { application/json: { schema: { type: object, properties: { document: { $ref: "#/components/schemas/Document" }, download_url: { type: string } } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [Documents]
+      summary: Delete a document
+      operationId: deleteDocument
+      parameters:
+        - { name: delete_qr, in: query, description: Also delete QR codes that serve this document., schema: { type: boolean } }
+      responses:
+        "200": { description: Deleted, content: { application/json: { schema: { type: object, properties: { deleted_qr_count: { type: integer } } } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/analytics/report:
+    get:
+      tags: [Analytics]
+      summary: Get an analytics report
+      description: |
+        A complete report for a time range: totals, the previous period, a zero-filled series, a weekday×hour
+        heatmap, geography, devices, browsers, operating systems, channels, referrers and top assets.
+        Bots and link previews are excluded.
+      operationId: getReport
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/TZ"
+        - { name: link_id, in: query, schema: { type: string } }
+        - { name: qr_id, in: query, schema: { type: string } }
+      responses:
+        "200": { description: Report, content: { application/json: { schema: { $ref: "#/components/schemas/Report" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+      x-codeSamples:
+        - lang: cURL
+          source: |
+            curl "https://lynqr.app/api/v1/analytics/report?from=2026-10-01&to=2026-10-31&tz=America/New_York" \
+              -H "Authorization: Bearer $LYNQR_KEY"
+
+  /api/v1/analytics/export:
+    get:
+      tags: [Analytics]
+      summary: Export analytics
+      description: "`csv` = raw events (up to 100,000), `json` = the report, `pdf` = a printable report."
+      operationId: exportAnalytics
+      parameters:
+        - { name: format, in: query, required: true, schema: { type: string, enum: [csv, json, pdf] } }
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/TZ"
+        - { name: link_id, in: query, schema: { type: string } }
+        - { name: qr_id, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: The export file
+          content:
+            text/csv: { schema: { type: string } }
+            application/json: { schema: { $ref: "#/components/schemas/Report" } }
+            application/pdf: { schema: { type: string, format: binary } }
+
+  /api/v1/team:
+    get:
+      tags: [Workspace]
+      summary: Get the workspace
+      operationId: getTeam
+      responses:
+        "200":
+          description: The workspace this key belongs to, and your role in it
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  team: { $ref: "#/components/schemas/Team" }
+                  role: { $ref: "#/components/schemas/Role" }
+                  permissions: { type: array, items: { type: string } }
+
+  /api/v1/team/members:
+    get:
+      tags: [Workspace]
+      summary: List members
+      operationId: listMembers
+      responses:
+        "200":
+          description: Members (and, for admins, pending invitations)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  members: { type: array, items: { $ref: "#/components/schemas/Member" } }
+
+  /api/v1/team/audit:
+    get:
+      tags: [Workspace]
+      summary: Audit log
+      description: Requires the Admin or Owner role.
+      operationId: auditLog
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200": { description: Recent audit events, newest first }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /s/{slug}:
+    get:
+      tags: [Public]
+      summary: Follow a short link
+      security: []
+      parameters: [{ name: slug, in: path, required: true, schema: { type: string } }]
+      responses:
+        "302": { description: Redirect to the destination (with UTM tags) }
+        "401": { description: Password page (protected links) }
+        "404": { description: Unknown link }
+        "410": { description: Paused or expired link without a fallback URL }
+
+  /q/{code}:
+    get:
+      tags: [Public]
+      summary: Scan a dynamic QR code
+      security: []
+      parameters: [{ name: code, in: path, required: true, schema: { type: string } }]
+      responses:
+        "302": { description: Redirect to the current destination }
+        "200": { description: Hosted contact card (text/vcard) or app-store chooser }
+        "404": { description: Unknown code }
+        "410": { description: Destination paused or expired }
+
+  /api/v1/health:
+    get:
+      tags: [Public]
+      summary: Health check
+      security: []
+      responses:
+        "200": { description: Service is healthy }
+
+components:
+  securitySchemes:
+    ApiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: lk_live_…
+      description: An API key from Profile → API keys.
+
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: string } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+    Offset: { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+    From: { name: from, in: query, description: "Start: RFC 3339 or YYYY-MM-DD (in `tz`). Default: 7 days ago.", schema: { type: string } }
+    To: { name: to, in: query, description: "End: RFC 3339 or an inclusive YYYY-MM-DD date. Default: now.", schema: { type: string } }
+    TZ: { name: tz, in: query, description: "IANA time zone for buckets and dates, e.g. Europe/Berlin. Default: UTC.", schema: { type: string } }
+
+  responses:
+    BadRequest: { description: Invalid input, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    Unauthorized: { description: Missing or invalid credentials, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    Forbidden: { description: Your role doesn't allow this, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    NotFound: { description: Not found in this workspace, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    Conflict: { description: Conflict, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  schemas:
+    Error:
+      type: object
+      properties: { error: { type: string, example: "that custom slug is already in use" } }
+
+    Role: { type: string, enum: [owner, admin, member, viewer] }
+
+    Link:
+      type: object
+      properties:
+        id: { type: string }
+        slug: { type: string, example: launch }
+        target_url: { type: string, format: uri }
+        title: { type: string }
+        description: { type: string }
+        is_active: { type: boolean }
+        expires_at: { type: [string, "null"], format: date-time }
+        has_password: { type: boolean }
+        utm_source: { type: string }
+        utm_medium: { type: string }
+        utm_campaign: { type: string }
+        utm_term: { type: string }
+        utm_content: { type: string }
+        fallback_url: { type: string }
+        click_count: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    LinkCreate:
+      type: object
+      required: [target_url]
+      properties:
+        target_url: { type: string, format: uri, description: "Public http(s) destination. Private and loopback addresses are rejected." }
+        custom_slug: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{2,63}$", description: Optional back-half. Random if omitted. }
+        title: { type: string }
+        description: { type: string }
+        expires_at: { type: string, format: date-time }
+        password: { type: string, minLength: 4, maxLength: 72 }
+        fallback_url: { type: string, format: uri, description: Where paused or expired links send visitors. }
+        utm_source: { type: string, maxLength: 100 }
+        utm_medium: { type: string, maxLength: 100 }
+        utm_campaign: { type: string, maxLength: 100 }
+        utm_term: { type: string, maxLength: 100 }
+        utm_content: { type: string, maxLength: 100 }
+
+    LinkUpdate:
+      type: object
+      properties:
+        target_url: { type: string, format: uri }
+        slug: { type: string }
+        title: { type: string }
+        description: { type: string }
+        is_active: { type: boolean, default: true }
+        expires_at: { type: [string, "null"], format: date-time }
+        password: { type: string, description: '"" removes protection.' }
+        fallback_url: { type: string }
+        utm_source: { type: string }
+        utm_medium: { type: string }
+        utm_campaign: { type: string }
+        utm_term: { type: string }
+        utm_content: { type: string }
+
+    QRType: { type: string, enum: [website, document, vcard, wifi, app, text, email, sms, phone] }
+
+    QRContent:
+      description: Shapes of `raw_data` (as a JSON string) per QR type.
+      oneOf:
+        - title: vcard
+          type: object
+          properties:
+            format: { type: string, enum: [vcard3, vcard4, mecard] }
+            first_name: { type: string }
+            last_name: { type: string }
+            organization: { type: string }
+            title: { type: string }
+            phone: { type: string }
+            mobile: { type: string }
+            email: { type: string }
+            website: { type: string }
+            street: { type: string }
+            city: { type: string }
+            region: { type: string }
+            postal_code: { type: string }
+            country: { type: string }
+            note: { type: string }
+        - title: wifi
+          type: object
+          required: [ssid]
+          properties:
+            ssid: { type: string }
+            password: { type: string }
+            encryption: { type: string, enum: [WPA, WPA3, WEP, nopass] }
+            hidden: { type: boolean }
+        - title: app
+          type: object
+          properties:
+            app_store_url: { type: string }
+            play_store_url: { type: string }
+            web_url: { type: string }
+        - title: email
+          type: object
+          required: [email]
+          properties: { email: { type: string }, subject: { type: string }, body: { type: string } }
+        - title: sms
+          type: object
+          required: [phone]
+          properties: { phone: { type: string }, message: { type: string } }
+        - title: phone
+          type: object
+          required: [phone]
+          properties: { phone: { type: string } }
+        - title: text
+          type: string
+          maxLength: 1200
+          description: For text codes, raw_data is the text itself (not JSON).
+
+    QRCreate:
+      type: object
+      required: [type, title]
+      properties:
+        type: { $ref: "#/components/schemas/QRType" }
+        title: { type: string, maxLength: 120 }
+        target_url: { type: string, description: Website destination. }
+        raw_data: { type: string, description: See QRContent. }
+        is_dynamic: { type: boolean, description: "Website and vCard codes only; documents and app codes are always dynamic." }
+        document_id: { type: string, description: Required for document codes. }
+        link_id: { type: string, description: Attach a website code to an existing short link. }
+        style: { $ref: "#/components/schemas/QRStyle" }
+
+    QRCode:
+      type: object
+      properties:
+        id: { type: string }
+        type: { $ref: "#/components/schemas/QRType" }
+        title: { type: string }
+        payload: { type: string, description: The content encoded in the code. }
+        raw_data: { type: string }
+        is_dynamic: { type: boolean }
+        code: { type: string, description: Short scan code (dynamic codes). }
+        scan_url: { type: string, description: "Public scan address, e.g. https://lynqr.app/q/AbC1234." }
+        target_url: { type: string, description: Current destination (website codes). }
+        link_id: { type: string }
+        owns_link: { type: boolean }
+        document_id: { type: string }
+        style: { $ref: "#/components/schemas/QRStyle" }
+        scan_count: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    QRStyle:
+      type: object
+      description: Every field is optional and validated; invalid values fall back to defaults.
+      properties:
+        fg_color: { type: string, example: "#111827" }
+        bg_color: { type: string, example: "#ffffff" }
+        is_transparent: { type: boolean }
+        gradient_type: { type: string, enum: [none, linear, radial] }
+        gradient_start: { type: string }
+        gradient_end: { type: string }
+        gradient_angle: { type: integer, minimum: 0, maximum: 359 }
+        dot_style: { type: string, enum: [square, rounded, extra-rounded, dots, classy] }
+        eye_shape: { type: string, enum: [square, rounded, extra-rounded, circle, leaf] }
+        eye_inner_shape: { type: string, enum: [square, rounded, circle, leaf] }
+        eye_color: { type: string }
+        eye_inner_color: { type: string }
+        error_correction: { type: string, enum: [L, M, Q, H], description: Forced to H when a logo is used. }
+        margin: { type: integer, minimum: 1, maximum: 10, default: 2 }
+        logo_base64: { type: string, description: "data:image/(png|jpeg|gif|webp);base64,… (max 512 KB)" }
+        logo_size: { type: number, minimum: 0.12, maximum: 0.3 }
+        logo_bg_shape: { type: string, enum: [none, circle, rounded, square] }
+        logo_padding: { type: integer }
+        frame_style: { type: string, enum: [none, border, banner-bottom, banner-top, card, pill] }
+        border_width: { type: integer }
+        border_color: { type: string }
+        border_radius: { type: integer }
+        frame_bg_color: { type: string }
+        label_text: { type: string, maxLength: 40 }
+        label_color: { type: string }
+        label_size: { type: integer, minimum: 50, maximum: 160, description: Percent of the default size. }
+
+    ScanCheck:
+      type: object
+      properties:
+        scannable: { type: boolean, description: The rendered design was decoded successfully. }
+        contrast: { type: number }
+        modules: { type: integer }
+        warnings: { type: array, items: { type: string } }
+
+    Document:
+      type: object
+      properties:
+        id: { type: string }
+        filename: { type: string }
+        mime_type: { type: string }
+        file_size: { type: integer }
+        version: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    NameCount:
+      type: object
+      properties: { name: { type: string }, count: { type: integer } }
+
+    Totals:
+      type: object
+      properties: { clicks: { type: integer }, scans: { type: integer }, total: { type: integer }, visitors: { type: integer } }
+
+    Report:
+      type: object
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        timezone: { type: string }
+        granularity: { type: string, enum: [hour, day, week] }
+        totals: { $ref: "#/components/schemas/Totals" }
+        previous: { $ref: "#/components/schemas/Totals" }
+        series:
+          type: array
+          items: { type: object, properties: { t: { type: string, format: date-time }, clicks: { type: integer }, scans: { type: integer } } }
+        heatmap:
+          type: array
+          description: "[weekday (Sunday = 0)][hour] in the report time zone."
+          items: { type: array, items: { type: integer } }
+        countries: { type: array, items: { $ref: "#/components/schemas/NameCount" } }
+        regions: { type: array, items: { $ref: "#/components/schemas/NameCount" } }
+        cities:
+          type: array
+          items: { type: object, properties: { city: { type: string }, region: { type: string }, country: { type: string }, count: { type: integer } } }
+        devices: { type: array, items: { $ref: "#/components/schemas/NameCount" } }
+        browsers: { type: array, items: { $ref: "#/components/schemas/NameCount" } }
+        os: { type: array, items: { $ref: "#/components/schemas/NameCount" } }
+        referrers: { type: array, items: { $ref: "#/components/schemas/NameCount" } }
+        channels: { type: array, items: { $ref: "#/components/schemas/NameCount" } }
+        top_links:
+          type: array
+          items: { type: object, properties: { id: { type: string }, title: { type: string }, label: { type: string }, count: { type: integer } } }
+        top_qr_codes:
+          type: array
+          items: { type: object, properties: { id: { type: string }, title: { type: string }, label: { type: string }, count: { type: integer } } }
+
+    Team:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        owner_id: { type: string }
+        created_at: { type: string, format: date-time }
+
+    Member:
+      type: object
+      properties:
+        user_id: { type: string }
+        name: { type: string }
+        email: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+        status: { type: string, enum: [active, suspended] }
+        created_at: { type: string, format: date-time }

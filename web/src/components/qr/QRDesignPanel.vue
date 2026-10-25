@@ -156,12 +156,16 @@
         <label class="label">Rounded corners <span class="font-mono text-fg-subtle">{{ s.border_radius }}</span></label>
         <input v-model.number="s.border_radius" type="range" min="0" max="64" class="w-full accent-brand-500" />
       </div>
-      <button type="button" class="btn-ghost btn-sm" @click="reset"><RotateCcw class="h-3.5 w-3.5" /> Reset design</button>
+      <div class="flex items-center justify-between">
+        <button type="button" class="btn-ghost btn-sm" @click="reset"><RotateCcw class="h-3.5 w-3.5" /> Reset design</button>
+        <HelpLink guide="designing-qr-codes">Design tips for scannable codes</HelpLink>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
+import HelpLink from '../ui/HelpLink.vue'
 import { ref, computed, defineComponent, h } from 'vue'
 import { LayoutTemplate, Shapes, Palette, ImagePlus, Frame, SlidersHorizontal, Trash2, ArrowLeftRight, RotateCcw } from 'lucide-vue-next'
 import { STYLE_PRESETS, DEFAULT_STYLE } from '../../lib/qrContent'

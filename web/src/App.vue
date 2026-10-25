@@ -8,7 +8,7 @@
     <Sidebar
       :collapsed="sidebarCollapsed"
       :mobile-open="mobileNavOpen"
-      @open-help="isHelpOpen = true"
+      @open-help="help.open()"
       @toggle-collapse="toggleCollapse"
       @close-mobile="mobileNavOpen = false"
     />
@@ -23,7 +23,8 @@
     </div>
 
     <CreateModal :isOpen="isCreateOpen" :initial-tab="createTab" @close="isCreateOpen = false" @created="onAssetCreated" />
-    <HelpDrawer :isOpen="isHelpOpen" @close="isHelpOpen = false" />
+    <HelpDrawer />
+    <ShortcutsModal />
   </div>
 
   <ToastHost />
@@ -39,6 +40,9 @@ import CreateModal from './components/CreateModal.vue'
 import HelpDrawer from './components/HelpDrawer.vue'
 import ToastHost from './components/ui/ToastHost.vue'
 import ConfirmHost from './components/ui/ConfirmHost.vue'
+import ShortcutsModal from './components/ShortcutsModal.vue'
+import { useHelp } from './composables/useHelp'
+import { useShortcuts } from './composables/useShortcuts'
 import { useLynqrStore } from './stores/lynqr'
 import { useAuthStore } from './stores/auth'
 
@@ -47,7 +51,7 @@ const store = useLynqrStore()
 const authStore = useAuthStore()
 const isCreateOpen = ref(false)
 const createTab = ref('link')
-const isHelpOpen = ref(false)
+const help = useHelp()
 const mobileNavOpen = ref(false)
 const sidebarCollapsed = ref(localStorage.getItem('lynqr_sidebar_collapsed') === '1')
 
@@ -63,6 +67,8 @@ function openCreate(tab = 'link') {
   isCreateOpen.value = true
 }
 
+useShortcuts(openCreate)
+
 function onAssetCreated() {
   store.refreshAll()
 }
@@ -77,5 +83,5 @@ watch(
   { immediate: true }
 )
 
-defineExpose({ openCreate, isHelpOpen })
+defineExpose({ openCreate })
 </script>

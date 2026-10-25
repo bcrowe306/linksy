@@ -16,7 +16,7 @@
           <text :x="padL - 8" :y="y(t) + 4" text-anchor="end" class="fill-fg-subtle text-[11px] tabular-nums">{{ compact(t) }}</text>
         </g>
         <!-- x labels -->
-        <text v-for="i in xLabelIdx" :key="`x${i}`" :x="x(i)" :y="height - 6" text-anchor="middle" class="fill-fg-subtle text-[11px]">{{ bucketLabel(points[i].t, granularity) }}</text>
+        <text v-for="i in xLabelIdx" :key="`x${i}`" :x="x(i)" :y="height - 6" :text-anchor="i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'middle'" class="fill-fg-subtle text-[11px]">{{ bucketLabel(points[i].t, granularity) }}</text>
         <!-- series -->
         <g v-for="s in series" :key="s.key">
           <path v-if="series.length === 1" :d="areaPath(s.key)" :fill="`rgb(var(${s.color}) / 0.1)`" />
@@ -103,6 +103,11 @@ const xLabelIdx = computed(() => {
   const step = Math.max(1, Math.ceil(n / max))
   const idx = []
   for (let i = 0; i < n; i += step) idx.push(i)
+  // Always label the last bucket, dropping a neighbor that would collide with it.
+  if (idx[idx.length - 1] !== n - 1) {
+    if (n - 1 - idx[idx.length - 1] < step / 2) idx.pop()
+    idx.push(n - 1)
+  }
   return idx
 })
 

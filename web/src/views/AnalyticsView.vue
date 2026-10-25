@@ -1,6 +1,8 @@
 <template>
   <div>
-    <PageHeader title="Analytics" subtitle="Clicks and scans across your links and QR codes. Bots and link previews are excluded." />
+    <PageHeader title="Analytics" subtitle="Clicks and scans across your links and QR codes. Bots and link previews are excluded.">
+      <template #title-extra><HelpLink guide="analytics">How we measure</HelpLink></template>
+    </PageHeader>
 
     <!-- Filters: one row above everything they scope -->
     <div class="mb-6 flex flex-wrap items-center gap-2">
@@ -82,6 +84,7 @@
 </template>
 
 <script setup>
+import HelpLink from '../components/ui/HelpLink.vue'
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Activity, MousePointerClick, ScanLine, Users, Download, FileSpreadsheet, FileText, Braces } from 'lucide-vue-next'

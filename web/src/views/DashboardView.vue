@@ -16,7 +16,7 @@
       <div class="flex flex-col gap-4 bg-gradient-to-r from-brand-500/10 via-violet-500/10 to-transparent p-5 sm:flex-row sm:items-center">
         <div class="flex-1">
           <h2 class="text-base font-semibold text-fg">Get started with Lynqr</h2>
-          <p class="text-sm text-fg-muted">{{ doneCount }} of {{ steps.length }} done. Each step takes under a minute.</p>
+          <p class="text-sm text-fg-muted">{{ doneCount }} of {{ steps.length }} done. Each step takes under a minute. <HelpLink guide="getting-started">Read the guide</HelpLink></p>
         </div>
         <div class="h-2 w-40 overflow-hidden rounded-full bg-subtle"><div class="h-full rounded-full bg-brand-500 transition-all" :style="{ width: `${(doneCount / steps.length) * 100}%` }" /></div>
       </div>
@@ -105,6 +105,7 @@
 </template>
 
 <script setup>
+import HelpLink from '../components/ui/HelpLink.vue'
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Activity, MousePointerClick, ScanLine, Users, BarChart3, CheckCircle2, Circle } from 'lucide-vue-next'
