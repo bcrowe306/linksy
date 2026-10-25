@@ -69,6 +69,8 @@ func main() {
 	// Initialize Fiber v3 App
 	app := fiber.New(fiber.Config{
 		AppName:   "Lynqr",
+		// Request values outlive handlers (async analytics), so they must not alias fasthttp's reused buffers.
+		Immutable: true,
 		BodyLimit: 16 << 20, // documents are capped at 15MB in the upload handler
 	})
 

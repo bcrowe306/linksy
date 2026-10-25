@@ -39,7 +39,7 @@ const DefaultCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'uns
 func SetupCommon(app *fiber.App) {
 	app.Use(recover.New())
 	app.Use(logger.New(logger.Config{
-		Format: "[${time}] ${status} - ${latency} ${method} ${path}\n",
+		Format: "[${time}] ${status} - ${latency} ${method} ${path} client=${reqHeader:CF-Connecting-IP}\n",
 	}))
 	app.Use(SecurityHeaders())
 	// API keys are bearer credentials, so any origin may call the API. Credentials
@@ -90,10 +90,22 @@ func RedirectRateLimiter() fiber.Handler {
 	})
 }
 
-// AuthRateLimiter throttles credential endpoints (login, signup, password reset).
+// AuthRateLimiter throttles credential endpoints (login, signup, password reset)
+// to slow password guessing. Each call creates an independent counter.
 func AuthRateLimiter() fiber.Handler {
 	return limiter.New(limiter.Config{
-		Max:               20,
+		Max:               30,
+		Expiration:        1 * time.Minute,
+		KeyGenerator:      ClientIP,
+		LimiterMiddleware: limiter.SlidingWindow{},
+	})
+}
+
+// FlowRateLimiter covers OAuth redirects, callbacks and invitation previews,
+// which are cheap and may be hit by many users behind one office NAT.
+func FlowRateLimiter() fiber.Handler {
+	return limiter.New(limiter.Config{
+		Max:               120,
 		Expiration:        1 * time.Minute,
 		KeyGenerator:      ClientIP,
 		LimiterMiddleware: limiter.SlidingWindow{},

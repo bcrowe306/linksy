@@ -499,12 +499,13 @@ func (r *Repository) DeleteLink(id, teamID string) error {
 
 // ----------------- QR Codes -----------------
 
-const qrCols = `id, team_id, user_id, link_id, document_id, type, title, payload, raw_data, style, scan_count, created_at, updated_at`
+const qrCols = `id, team_id, user_id, link_id, document_id, COALESCE(code, ''), is_dynamic, type, title, payload, raw_data, style, scan_count, created_at, updated_at`
+const qrInsertCols = `id, team_id, user_id, link_id, document_id, code, is_dynamic, type, title, payload, raw_data, style, scan_count, created_at, updated_at`
 
 func scanQR(row interface{ Scan(...any) error }) (*models.QRCode, error) {
 	var q models.QRCode
 	var styleJSON string
-	if err := row.Scan(&q.ID, &q.TeamID, &q.UserID, &q.LinkID, &q.DocumentID, &q.Type, &q.Title, &q.Payload, &q.RawData,
+	if err := row.Scan(&q.ID, &q.TeamID, &q.UserID, &q.LinkID, &q.DocumentID, &q.Code, &q.IsDynamic, &q.Type, &q.Title, &q.Payload, &q.RawData,
 		&styleJSON, &q.ScanCount, &q.CreatedAt, &q.UpdatedAt); err != nil {
 		return nil, notFound(err)
 	}
@@ -522,14 +523,29 @@ func (r *Repository) CreateQRCode(q *models.QRCode) error {
 	if err != nil {
 		return err
 	}
-	_, err = r.exec(`INSERT INTO qr_codes (`+qrCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		q.ID, q.TeamID, q.UserID, q.LinkID, q.DocumentID, string(q.Type), q.Title, q.Payload, q.RawData, string(styleJSON), q.ScanCount, q.CreatedAt, q.UpdatedAt)
+	var code any
+	if q.Code != "" {
+		code = q.Code
+	}
+	_, err = r.exec(`INSERT INTO qr_codes (`+qrInsertCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		q.ID, q.TeamID, q.UserID, q.LinkID, q.DocumentID, code, q.IsDynamic, string(q.Type), q.Title, q.Payload, q.RawData, string(styleJSON), q.ScanCount, q.CreatedAt, q.UpdatedAt)
 	return err
 }
 
 // GetQRCodeByID is used by the public scan redirector and is not team-scoped.
 func (r *Repository) GetQRCodeByID(id string) (*models.QRCode, error) {
 	return scanQR(r.queryRow(`SELECT `+qrCols+` FROM qr_codes WHERE id = ?`, id))
+}
+
+// GetQRCodeByCode resolves a public scan code (/q/{code}).
+func (r *Repository) GetQRCodeByCode(code string) (*models.QRCode, error) {
+	return scanQR(r.queryRow(`SELECT `+qrCols+` FROM qr_codes WHERE code = ?`, code))
+}
+
+func (r *Repository) QRCodeExists(code string) bool {
+	var n int
+	_ = r.queryRow(`SELECT COUNT(*) FROM qr_codes WHERE code = ?`, code).Scan(&n)
+	return n > 0
 }
 
 func (r *Repository) GetQRCode(id, teamID string) (*models.QRCode, error) {

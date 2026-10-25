@@ -195,9 +195,7 @@ async function createQR(doc) {
     await api.createQRCode({
       type: 'document',
       title: `Doc: ${doc.filename}`,
-      target_url: `${window.location.origin}${fileUrl(doc)}`,
-      document_id: doc.id,
-      is_dynamic: true
+      document_id: doc.id
     })
     toast.success(`QR code created for ${doc.filename}`)
     await store.fetchQRCodes()

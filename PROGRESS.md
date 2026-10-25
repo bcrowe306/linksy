@@ -9,8 +9,8 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 | # | Area | Branch | Status |
 |---|------|--------|--------|
 | 1 | Auth & tenancy hardening | `feat/auth-tenancy` | ✅ merged (#1), live test-drive 63/63 API + 13/13 UI |
-| 2 | Theme system + modern UI redesign | `feat/ui-redesign` | 🚧 PR open |
-| 3 | QR editor: real preview, 8 types, styling, exports | `feat/qr-studio` | ⏳ |
+| 2 | Theme system + modern UI redesign | `feat/ui-redesign` | ✅ merged (#2), live UI 15/15 + API pytest 15/15 |
+| 3 | QR studio: real preview, all types, styling, exports | `feat/qr-studio` | 🚧 PR open |
 | 4 | Links: password, UTM, expiry & pause | `feat/link-controls` | ⏳ |
 | 5 | Team & user management UI | `feat/team-management-ui` | ⏳ |
 | 6 | Dashboard & analytics (charts, ranges, geo, export, live feed, CF geo headers) | `feat/analytics` | ⏳ |
@@ -46,6 +46,21 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 - [x] Rebuilt: auth pages (split-screen brand layout, OAuth buttons, password strength), invite & reset pages, create modal, Links (filters/sort/pause/edit/delete), QR gallery (downloads, type filter), Documents (versions, replace, bulk delete), API reference, help drawer
 - [x] Remaining views (dashboard, analytics, studio, settings, profile) theme-correct now; fully rebuilt in items 3, 5 and 6
 - [x] Fixed: embedded API reference blocked by X-Frame-Options DENY
+- [x] CI + merge + live test-drive
+
+## 3. QR studio (feat/qr-studio)
+- [x] New vector-first engine (`internal/qr`): one Scene drawn by SVG, raster (PNG/JPEG via gg) and vector PDF renderers, so exports match the preview
+- [x] Styles: 5 module shapes (neighbor-aware fluid/classy), 5 eye frames × 4 eye centers, eye colors, solid/linear(angle)/radial gradients, transparent bg, quiet zone, rounded corners, logo with module excavation + badge, 6 frames (border, banner, top banner, card, badge) with auto-fit, auto-legible labels
+- [x] Security: every style value validated/normalized; SVG output contains only numbers, validated colors, escaped text and re-encoded PNG (fixes SVG script injection); remote logo URLs dropped (SSRF)
+- [x] Fixes: quiet-zone border offset made eye styling wrong; labels were never drawn; eye/frame/angle options were ignored
+- [x] Scannability check: every preview is decoded with ZXing + WCAG contrast, density and quiet-zone warnings
+- [x] Types: website, document, vCard (3.0/4.0/MeCard, escaped), Wi-Fi (escaped, WPA3), app stores (device routing + chooser page), text, email, SMS, phone (new)
+- [x] Dynamic codes get their own short scan code `/q/{code}`: scans tracked separately from link clicks; paused/expired destinations show a branded page; legacy `/qr/r/{id}` still works
+- [x] Document codes resolve the current file (survive replacement); stable `/d/{id}` document links; dynamic vCards hosted as .vcf
+- [x] Exports: PNG/JPEG up to 4096px, JPEG on custom background, SVG, PDF A4 sheet and PDF card/sticker
+- [x] Studio UI: type picker, per-type forms with tooltips, templates, pattern/colors/logo/frame/advanced panels, debounced live server preview with scan badge, duplicate, unsaved-changes guard, downloads
+- [x] Auth limiter split (credentials 30/min, OAuth/invite flows 120/min); logs include CF client IP to verify per-client limiting
+- [x] Tests: every shape/eye/frame combination must decode; SVG injection; payload escaping per type; e2e for scans, app routing, vCard hosting, document replacement, static types, preview, export options
 - [ ] CI + merge + live test-drive
 
 ## Open questions / blocked items

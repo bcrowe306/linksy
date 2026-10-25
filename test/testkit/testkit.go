@@ -59,7 +59,7 @@ func New(t *testing.T) *Kit {
 	svc := service.New(repo, store, AppURL)
 	svc.SetIPSalt("test-salt")
 
-	app := fiber.New()
+	app := fiber.New(fiber.Config{Immutable: true})
 	api.SetupRouter(app, svc, &config.Config{AppURL: AppURL})
 	return &Kit{T: t, App: app, Svc: svc, Repo: repo, DB: database}
 }

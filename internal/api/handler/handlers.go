@@ -13,6 +13,7 @@ import (
 
 	"github.com/bcrowe306/linksy/internal/api/middleware"
 	"github.com/bcrowe306/linksy/internal/models"
+	"github.com/bcrowe306/linksy/internal/qr"
 	"github.com/bcrowe306/linksy/internal/service"
 )
 
@@ -73,19 +74,20 @@ func (h *Handler) Health(c fiber.Ctx) error {
 
 // ----------------- Public Redirection -----------------
 
-// visitorEvent captures request metadata for analytics before the handler returns.
+// visitorEvent captures request metadata for analytics. Values are copied
+// because the event is recorded asynchronously after the request buffer is reused.
 func visitorEvent(c fiber.Ctx, eventType, teamID string, linkID, qrID *string) *models.AnalyticsEvent {
 	return &models.AnalyticsEvent{
 		TeamID:    teamID,
 		LinkID:    linkID,
 		QRCodeID:  qrID,
 		EventType: eventType,
-		IP:        middleware.ClientIP(c),
-		UserAgent: c.Get("User-Agent"),
-		Referrer:  c.Get("Referer"),
+		IP:        strings.Clone(middleware.ClientIP(c)),
+		UserAgent: strings.Clone(c.Get("User-Agent")),
+		Referrer:  strings.Clone(c.Get("Referer")),
 		Country:   strings.ToUpper(c.Get("CF-IPCountry")),
-		Region:    c.Get("CF-Region"),
-		City:      c.Get("CF-IPCity"),
+		Region:    strings.Clone(c.Get("CF-Region")),
+		City:      strings.Clone(c.Get("CF-IPCity")),
 	}
 }
 
@@ -103,23 +105,59 @@ func (h *Handler) HandleShortLinkRedirect(c fiber.Ctx) error {
 	return c.Redirect().Status(fiber.StatusFound).To(link.TargetURL)
 }
 
-func (h *Handler) HandleQRScanRedirect(c fiber.Ctx) error {
-	qrCode, err := h.svc.GetPublicQRCode(c.Params("id"))
+// HandleQRScan serves /q/{code}: records the scan and sends the visitor to
+// the code's current destination.
+func (h *Handler) HandleQRScan(c fiber.Ctx) error {
+	t, err := h.svc.ResolveScan(c.Params("code"), c.Get("User-Agent"))
 	if err != nil {
-		return h.renderBrandedError(c, "QR Code Not Found", "The QR code you scanned does not exist, is inactive, or has been removed.", fiber.StatusNotFound)
+		return h.renderBrandedError(c, "QR Code Not Found", "The QR code you scanned does not exist or has been removed.", fiber.StatusNotFound)
+	}
+	return h.serveScan(c, t)
+}
+
+// HandleLegacyQRScan keeps codes printed with /qr/r/{id} working.
+func (h *Handler) HandleLegacyQRScan(c fiber.Ctx) error {
+	t, err := h.svc.ResolveLegacyScan(c.Params("id"), c.Get("User-Agent"))
+	if err != nil {
+		return h.renderBrandedError(c, "QR Code Not Found", "The QR code you scanned does not exist or has been removed.", fiber.StatusNotFound)
+	}
+	return h.serveScan(c, t)
+}
+
+func (h *Handler) serveScan(c fiber.Ctx, t *service.ScanTarget) error {
+	q := t.QR
+	c.Set("Cache-Control", "no-store")
+	if t.Inactive {
+		return h.renderBrandedError(c, "This QR Code Is Inactive", "The owner of this QR code has paused it or its destination has expired.", fiber.StatusGone)
 	}
 
-	h.svc.RecordQRScan(qrCode.ID)
-	ev := visitorEvent(c, "scan", qrCode.TeamID, qrCode.LinkID, &qrCode.ID)
+	h.svc.RecordQRScan(q.ID)
+	ev := visitorEvent(c, "scan", q.TeamID, q.LinkID, &q.ID)
 	go h.svc.TrackEvent(ev)
 
-	c.Set("Cache-Control", "no-store")
-	if qrCode.LinkID != nil || qrCode.Type == models.QRTypeWebsite || qrCode.Type == models.QRTypeDocument {
-		return c.Redirect().Status(fiber.StatusFound).To(qrCode.Payload)
+	switch {
+	case t.VCard != "":
+		c.Set("Content-Type", "text/vcard; charset=utf-8")
+		c.Set("Content-Disposition", `inline; filename="contact.vcf"`)
+		return c.SendString(t.VCard)
+	case t.Redirect != "":
+		return c.Redirect().Status(fiber.StatusFound).To(t.Redirect)
+	case t.App != nil:
+		return h.renderAppChooser(c, q.Title, t.App.AppStoreURL, t.App.PlayStoreURL)
 	}
-	// For vCard, WiFi, plain text etc., deliver raw content
+	// Static payloads scanned through the legacy route: show the raw content.
 	c.Set("Content-Type", "text/plain; charset=utf-8")
-	return c.SendString(qrCode.Payload)
+	return c.SendString(q.Payload)
+}
+
+// HandleDocumentLink serves /d/{id}, a stable link to a document's current version.
+func (h *Handler) HandleDocumentLink(c fiber.Ctx) error {
+	target, err := h.svc.DocumentRedirect(c.Params("id"))
+	if err != nil {
+		return h.renderBrandedError(c, "Document Not Found", "This document has been removed.", fiber.StatusNotFound)
+	}
+	c.Set("Cache-Control", "no-store")
+	return c.Redirect().Status(fiber.StatusFound).To(target)
 }
 
 // ----------------- Links API -----------------
@@ -265,11 +303,12 @@ func (h *Handler) GetQR(c fiber.Ctx) error {
 }
 
 type UpdateQRRequest struct {
-	Title     string         `json:"title"`
-	TargetURL string         `json:"target_url"`
-	Payload   string         `json:"payload"`
-	RawData   string         `json:"raw_data"`
-	Style     models.QRStyle `json:"style"`
+	Title      string          `json:"title"`
+	TargetURL  string          `json:"target_url"`
+	Payload    string          `json:"payload"`
+	RawData    string          `json:"raw_data"`
+	Style      *models.QRStyle `json:"style"`
+	DocumentID string          `json:"document_id"`
 }
 
 func (h *Handler) UpdateQR(c fiber.Ctx) error {
@@ -280,7 +319,9 @@ func (h *Handler) UpdateQR(c fiber.Ctx) error {
 	if req.TargetURL == "" && req.Payload != "" {
 		req.TargetURL = req.Payload
 	}
-	updated, err := h.svc.UpdateQRCode(middleware.Actor(c), c.Params("id"), req.Title, req.TargetURL, req.RawData, req.Style)
+	updated, err := h.svc.UpdateQRCode(middleware.Actor(c), c.Params("id"), service.UpdateQRInput{
+		Title: req.Title, TargetURL: req.TargetURL, RawData: req.RawData, Style: req.Style, DocumentID: req.DocumentID,
+	})
 	if err != nil {
 		return fail(c, err)
 	}
@@ -290,17 +331,35 @@ func (h *Handler) UpdateQR(c fiber.Ctx) error {
 func (h *Handler) ExportQR(c fiber.Ctx) error {
 	id := c.Params("id")
 	format := strings.ToLower(c.Query("format", "png"))
-	data, mime, err := h.svc.ExportQRCode(middleware.Actor(c), id, format, queryInt(c, "size", 512))
+	data, mime, err := h.svc.ExportQRCode(middleware.Actor(c), id, service.ExportOptions{
+		Format: format, Size: queryInt(c, "size", 1024), Layout: qr.PDFLayout(c.Query("layout", "sheet")),
+	})
 	if err != nil {
 		return fail(c, err)
 	}
 
 	c.Set("Content-Type", mime)
 	c.Set("Cache-Control", "private, no-cache")
+	if format == "jpg" {
+		format = "jpeg"
+	}
 	if c.Query("download") == "true" {
 		c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"lynqr-qr-%s.%s\"", id[:min(len(id), 8)], format))
 	}
 	return c.Send(data)
+}
+
+// PreviewQR renders an unsaved design for the studio (SVG + scannability check).
+func (h *Handler) PreviewQR(c fiber.Ctx) error {
+	var req service.PreviewInput
+	if err := c.Bind().Body(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	res, err := h.svc.Preview(middleware.Actor(c), req)
+	if err != nil {
+		return fail(c, err)
+	}
+	return c.JSON(res)
 }
 
 func (h *Handler) DeleteQR(c fiber.Ctx) error {
@@ -343,7 +402,7 @@ func (h *Handler) UploadDocument(c fiber.Ctx) error {
 	// Auto-create dynamic QR code for this document (Requirement 8)
 	qrCode, _ := h.svc.CreateQRCode(a, service.CreateQRInput{
 		Type:       models.QRTypeDocument,
-		Title:      "Doc: " + doc.Filename,
+		Title:      truncateRunes("Doc: "+doc.Filename, 120),
 		TargetURL:  downloadURL,
 		IsDynamic:  true,
 		DocumentID: doc.ID,
@@ -613,4 +672,31 @@ func (h *Handler) renderBrandedError(c fiber.Ctx, title, message string, statusC
 </html>`, html.EscapeString(title), html.EscapeString(title), html.EscapeString(message))
 
 	return c.Status(statusCode).Type("html").SendString(page)
+}
+
+// renderAppChooser shows store buttons when the scanning device can't be matched.
+func (h *Handler) renderAppChooser(c fiber.Ctx, title, ios, android string) error {
+	btn := func(href, label string) string {
+		if href == "" {
+			return ""
+		}
+		return fmt.Sprintf(`<a class="btn" href="%s" rel="noopener">%s</a>`, html.EscapeString(href), label)
+	}
+	page := fmt.Sprintf(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>%s | Lynqr</title><style>
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif;background:#0c0c0e;color:#f4f4f6;padding:24px}
+.card{max-width:380px;width:100%%;text-align:center;background:#16161a;border:1px solid #2c2c32;border-radius:20px;padding:32px}
+h1{font-size:20px;margin:0 0 8px}p{color:#acacb4;font-size:14px;margin:0 0 24px}
+.btn{display:block;margin-top:12px;padding:12px 16px;border-radius:12px;background:#4f46e5;color:#fff;text-decoration:none;font-weight:600}
+</style></head><body><div class="card"><h1>%s</h1><p>Choose your app store to continue.</p>%s%s</div></body></html>`,
+		html.EscapeString(title), html.EscapeString(title), btn(ios, "Download on the App Store"), btn(android, "Get it on Google Play"))
+	return c.Type("html").SendString(page)
+}
+
+func truncateRunes(s string, n int) string {
+	r := []rune(s)
+	if len(r) > n {
+		return string(r[:n])
+	}
+	return s
 }
