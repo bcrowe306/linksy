@@ -179,4 +179,5 @@ Done (`feat/email`):
 - [x] support@lynqr.app exists in Microsoft 365 (confirmed by the owner).
 - [x] Resend: lynqr.app sending domain verified. A test email from noreply@lynqr.app was accepted by Resend on 2026-10-25.
 - [x] Google Search Console: lynqr.app already verified (owner). Submit https://lynqr.app/sitemap.xml under Sitemaps once production is split.
-- lynqr.app and test.lynqr.app share one Render service and database (APP_URL is test.lynqr.app). Split them before real customers arrive so test runs don't touch production data.
+- [x] **Production split from test (2026-10-25).** Production is `lynqr` (Starter) with `lynqr-prod-db` (Basic 256 MB Postgres), the `lynqr-prod` R2 bucket, the WorkOS production environment and its own APP_SECRET, serving lynqr.app (www redirects to the apex). Test is `lynqr-test` (free) with `linksy-db`, `lynqr-storage` and the WorkOS **staging** environment at test.lynqr.app. Automated suites only touch test, and their WorkOS cleanup is limited to throwaway accounts. Stripe webhooks go to production; events from test checkouts are acknowledged and ignored. Both auto-deploy from `main` (see `render.yaml`).
+- The test database is on Render's free plan and will be deleted on **2026-11-23**. Recreate it then, or upgrade it, to keep test.lynqr.app working.

@@ -1,4 +1,40 @@
+# Lynqr runs as two separate Render environments. This file documents them; it
+# is not connected to a Render Blueprint, so editing it changes nothing on Render.
+#
+#   production  lynqr       https://lynqr.app (www redirects)   Starter + paid Postgres
+#   test        lynqr-test  https://test.lynqr.app              Free  + free Postgres
+#
+# Both auto-deploy from `main`. Secrets marked `sync: false` are set in the dashboard.
 services:
+  - type: web
+    name: lynqr
+    runtime: go
+    plan: starter
+    region: oregon
+    buildCommand: "make build"
+    startCommand: "./bin/linksy"
+    healthCheckPath: /health
+    domains: [lynqr.app, www.lynqr.app]
+    envVars:
+      - { key: PORT, value: 10000 }
+      - { key: DB_TYPE, value: postgres }
+      - key: DATABASE_URL
+        fromDatabase: { name: lynqr-prod-db, property: internalConnectionString }
+      - { key: APP_URL, value: https://lynqr.app }
+      - { key: STORAGE_TYPE, value: r2 }
+      - { key: R2_BUCKET, value: lynqr-prod }
+      - { key: R2_ENDPOINT, sync: false }
+      - { key: R2_ACCESS_KEY_ID, sync: false }
+      - { key: R2_SECRET_ACCESS_KEY, sync: false }
+      - { key: APP_SECRET, generateValue: true }
+      - { key: WORKOS_API_KEY, sync: false }     # WorkOS production environment
+      - { key: WORKOS_CLIENT_ID, sync: false }
+      - { key: WORKOS_REDIRECT_URI, value: https://lynqr.app/api/v1/auth/callback }
+      - { key: STRIPE_SECRET_KEY, sync: false }
+      - { key: STRIPE_WEBHOOK_SECRET, sync: false }  # Stripe webhooks are sent to lynqr.app only
+      - { key: RESEND_API_KEY, sync: false }
+      - { key: ADMIN_EMAILS, sync: false }
+
   - type: web
     name: lynqr-test
     runtime: go
@@ -6,38 +42,34 @@ services:
     region: oregon
     buildCommand: "make build"
     startCommand: "./bin/linksy"
+    domains: [test.lynqr.app]
     envVars:
-      - key: PORT
-        value: 10000
-      - key: DB_TYPE
-        value: postgres
+      - { key: PORT, value: 10000 }
+      - { key: DB_TYPE, value: postgres }
       - key: DATABASE_URL
-        fromDatabase:
-          name: linksy-db
-          property: internalConnectionString
-      - key: STORAGE_TYPE
-        value: r2
-      - key: R2_ENDPOINT
-        sync: false
-      - key: R2_ACCESS_KEY_ID
-        sync: false
-      - key: R2_SECRET_ACCESS_KEY
-        sync: false
-      - key: R2_BUCKET
-        value: lynqr-storage
-      - key: APP_URL
-        value: https://test.lynqr.app
-      - key: WORKOS_API_KEY
-        sync: false
-      - key: WORKOS_CLIENT_ID
-        sync: false
-      - key: APP_SECRET
-        generateValue: true
-      - key: WORKOS_REDIRECT_URI
-        value: https://test.lynqr.app/api/v1/auth/callback
+        fromDatabase: { name: linksy-db, property: internalConnectionString }
+      - { key: APP_URL, value: https://test.lynqr.app }
+      - { key: STORAGE_TYPE, value: r2 }
+      - { key: R2_BUCKET, value: lynqr-storage }
+      - { key: R2_ENDPOINT, sync: false }
+      - { key: R2_ACCESS_KEY_ID, sync: false }
+      - { key: R2_SECRET_ACCESS_KEY, sync: false }
+      - { key: APP_SECRET, generateValue: true }
+      - { key: WORKOS_API_KEY, sync: false }     # WorkOS staging environment (automated suites create and delete users here)
+      - { key: WORKOS_CLIENT_ID, sync: false }
+      - { key: WORKOS_REDIRECT_URI, value: https://test.lynqr.app/api/v1/auth/callback }
+      - { key: STRIPE_SECRET_KEY, sync: false }  # live key by owner's choice; tests stop at Checkout
+      - { key: STRIPE_WEBHOOK_SECRET, sync: false }
+      - { key: RESEND_API_KEY, sync: false }
+      - { key: ADMIN_EMAILS, sync: false }
 
 databases:
-  - name: linksy-db
+  - name: lynqr-prod-db
+    plan: basic-256mb
+    region: oregon
+    databaseName: lynqr
+    user: lynqr
+  - name: linksy-db       # free plan: Render deletes it after 30 days (next: 2026-11-23)
     plan: free
     region: oregon
     databaseName: linksy_db
