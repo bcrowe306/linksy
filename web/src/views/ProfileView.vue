@@ -151,7 +151,8 @@
     <section v-else-if="tab === 'notifications'" class="card max-w-2xl p-5 sm:p-6">
       <h2 class="text-sm font-semibold text-fg">Email notifications</h2>
       <p class="mb-4 text-xs text-fg-muted">Choose what Lynqr emails you about. Security emails can't be turned off for your protection.</p>
-      <ul class="divide-y divide-line">
+      <div v-if="!prefsLoaded" class="space-y-3"><div v-for="i in 4" :key="i" class="skeleton h-10" /></div>
+      <ul v-else class="divide-y divide-line">
         <li v-for="n in notificationOptions" :key="n.key" class="flex items-center justify-between gap-4 py-3">
           <div>
             <p class="text-sm font-medium text-fg">{{ n.label }}</p>
@@ -354,6 +355,7 @@ async function respond(inv, accept) {
 
 // ----- Notifications -----
 const prefs = ref({})
+const prefsLoaded = ref(false)
 const browserTZ = Intl.DateTimeFormat().resolvedOptions().timeZone
 const timezones = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : []
 const notificationOptions = [
@@ -380,7 +382,11 @@ watch(
   (t) => {
     if (t === 'security') loadSessions()
     if (t === 'api-keys') loadKeys()
-    if (t === 'notifications') api.getPreferences().then((p) => (prefs.value = p))
+    if (t === 'notifications')
+      api.getPreferences().then((p) => {
+        prefs.value = p
+        prefsLoaded.value = true
+      })
   },
   { immediate: true }
 )

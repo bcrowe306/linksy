@@ -2,7 +2,7 @@
   <button
     type="button"
     role="switch"
-    :aria-checked="modelValue"
+    :aria-checked="modelValue ? 'true' : 'false'"
     :disabled="disabled"
     class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200
       focus-visible:ring-4 focus-visible:ring-brand-500/20 disabled:opacity-50 disabled:cursor-not-allowed"

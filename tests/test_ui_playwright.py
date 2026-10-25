@@ -247,11 +247,12 @@ def test_profile_and_developer_api_keys(page: Page, base_url: str):
 
     page.click("[data-testid=profile-tab-notifications]")
     toggle = page.locator("[data-testid=pref-weekly_report]")
+    expect(toggle).to_be_visible()
     before = toggle.get_attribute("aria-checked")
     toggle.click()
     expect(page.get_by_text("Preferences saved")).to_be_visible()
     page.reload()
-    assert page.locator("[data-testid=pref-weekly_report]").get_attribute("aria-checked") != before
+    expect(page.locator("[data-testid=pref-weekly_report]")).to_have_attribute("aria-checked", "false" if before == "true" else "true")
 
     page.click("[data-testid=profile-tab-security]")
     expect(page.locator("[data-testid=session-list]")).to_contain_text("This device")
