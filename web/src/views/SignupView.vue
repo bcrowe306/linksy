@@ -175,11 +175,12 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { QrCode, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
 const firstName = ref('')
@@ -212,7 +213,8 @@ async function handleSubmit() {
       email: email.value,
       password: password.value,
     })
-    router.push('/')
+    const target = route.query.redirect || '/'
+    router.push(target)
   } catch (err) {
     errorMessage.value = err.message || 'Registration failed'
   } finally {

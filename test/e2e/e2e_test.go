@@ -86,6 +86,7 @@ func TestLinksAndRedirectE2E(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/api/v1/links", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer sess_user_demo123_test")
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("failed creating link: %v", err)
@@ -116,6 +117,7 @@ func TestLinksAndRedirectE2E(t *testing.T) {
 	})
 	upReq := httptest.NewRequest("PUT", "/api/v1/links/"+link.ID, bytes.NewReader(updateBody))
 	upReq.Header.Set("Content-Type", "application/json")
+	upReq.Header.Set("Authorization", "Bearer sess_user_demo123_test")
 	upResp, err := app.Test(upReq)
 	if err != nil {
 		t.Fatalf("update failed: %v", err)
@@ -145,6 +147,7 @@ func TestQRCodeAndExportE2E(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/api/v1/qr", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer sess_user_demo123_test")
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("create QR failed: %v", err)
@@ -158,6 +161,7 @@ func TestQRCodeAndExportE2E(t *testing.T) {
 
 	// 2. Export QR as PNG
 	exportReq := httptest.NewRequest("GET", "/api/v1/qr/"+qr.ID+"/export?format=png", nil)
+	exportReq.Header.Set("Authorization", "Bearer sess_user_demo123_test")
 	exportResp, err := app.Test(exportReq)
 	if err != nil {
 		t.Fatalf("export failed: %v", err)
@@ -171,6 +175,7 @@ func TestQRCodeAndExportE2E(t *testing.T) {
 
 	// 3. Export QR as PDF
 	pdfReq := httptest.NewRequest("GET", "/api/v1/qr/"+qr.ID+"/export?format=pdf", nil)
+	pdfReq.Header.Set("Authorization", "Bearer sess_user_demo123_test")
 	pdfResp, _ := app.Test(pdfReq)
 	if pdfResp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200 OK for PDF export, got %d", pdfResp.StatusCode)
@@ -189,6 +194,7 @@ func TestDocumentUploadAndSharingE2E(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/api/v1/documents/upload", &b)
 	req.Header.Set("Content-Type", w.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer sess_user_demo123_test")
 
 	resp, err := app.Test(req)
 	if err != nil {
@@ -228,5 +234,30 @@ func TestOpenAPISpecAndDocsEndpoint(t *testing.T) {
 	}
 	if docsResp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200 OK, got %d", docsResp.StatusCode)
+	}
+}
+
+func TestUnauthenticatedRouteProtection(t *testing.T) {
+	app, cleanup := setupTestApp(t)
+	defer cleanup()
+
+	// 1. Unauthenticated request to /api/v1/links must return 401
+	req := httptest.NewRequest("GET", "/api/v1/links", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401 Unauthorized for unauthenticated /api/v1/links, got %d", resp.StatusCode)
+	}
+
+	// 2. Unauthenticated request to /api/v1/user/profile must return 401
+	reqProfile := httptest.NewRequest("GET", "/api/v1/user/profile", nil)
+	respProfile, err := app.Test(reqProfile)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	if respProfile.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401 Unauthorized for unauthenticated /api/v1/user/profile, got %d", respProfile.StatusCode)
 	}
 }

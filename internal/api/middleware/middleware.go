@@ -57,10 +57,10 @@ func AuthMiddleware(validators ...KeyValidator) fiber.Handler {
 		cookieToken := c.Cookies("linksy_session")
 		teamHeader := c.Get("X-Team-ID")
 
-		userID := "usr_demo123"
 		teamID := "team_default"
 		role := models.RoleOwner
 		var apiKey *models.APIKey
+		var userID string
 
 		if teamHeader != "" {
 			teamID = teamHeader
@@ -73,34 +73,47 @@ func AuthMiddleware(validators ...KeyValidator) fiber.Handler {
 			token = cookieToken
 		}
 
-		if token != "" {
-			// 1. Check if token is a Linksy API Key (lk_live_...)
-			if strings.HasPrefix(token, "lk_live_") && validator != nil {
-				if key, err := validator.ValidateAPIKey(token); err == nil && key != nil {
-					userID = key.UserID
-					if key.TeamID != "" {
-						teamID = key.TeamID
-					}
-					apiKey = key
-				}
-			} else if strings.HasPrefix(token, "user_") {
-				userID = token
-			} else if strings.HasPrefix(token, "sess_") {
-				clean := strings.TrimPrefix(token, "sess_")
-				if strings.HasPrefix(clean, "user_") {
-					parts := strings.Split(clean, "_")
-					if len(parts) >= 2 {
-						userID = "user_" + parts[1]
-					}
-				} else {
-					parts := strings.Split(clean, "_")
-					userID = parts[0]
-				}
-			} else if strings.HasPrefix(token, "workos_sess_") {
-				userID = strings.TrimPrefix(token, "workos_sess_")
-			} else {
-				userID = "usr_" + token[:min(len(token), 10)]
+		if token == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Authentication required. Please sign in or provide a valid API key.",
+			})
+		}
+
+		// 1. Check if token is a Linksy API Key (lk_live_...)
+		if strings.HasPrefix(token, "lk_live_") {
+			if validator == nil {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "API key validator not available"})
 			}
+			key, err := validator.ValidateAPIKey(token)
+			if err != nil || key == nil {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid or expired API key"})
+			}
+			userID = key.UserID
+			if key.TeamID != "" {
+				teamID = key.TeamID
+			}
+			apiKey = key
+		} else if strings.HasPrefix(token, "user_") {
+			userID = token
+		} else if strings.HasPrefix(token, "sess_") {
+			clean := strings.TrimPrefix(token, "sess_")
+			if strings.HasPrefix(clean, "user_") {
+				parts := strings.Split(clean, "_")
+				if len(parts) >= 2 {
+					userID = "user_" + parts[1]
+				}
+			} else {
+				parts := strings.Split(clean, "_")
+				userID = parts[0]
+			}
+		} else if strings.HasPrefix(token, "workos_sess_") {
+			userID = strings.TrimPrefix(token, "workos_sess_")
+		} else {
+			userID = "usr_" + token[:min(len(token), 10)]
+		}
+
+		if userID == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid session or authentication token"})
 		}
 
 		c.Locals("auth", &AuthContext{

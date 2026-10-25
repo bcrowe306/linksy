@@ -177,6 +177,15 @@ class LinksyTestHarness:
             self.failed += 1
             self.log("Health Check", f"Failed ({status}): {data}", "FAIL")
 
+        # 1.5 Unauthenticated Route Blocking
+        unauth_status, _ = self.request("GET", "/api/v1/links")
+        if unauth_status == 401:
+            self.passed += 1
+            self.log("Unauthenticated Route Block", "Unauthenticated request to /api/v1/links blocked (401 Unauthorized)", "PASS")
+        else:
+            self.failed += 1
+            self.log("Unauthenticated Route Block", f"Expected 401, got {unauth_status}", "FAIL")
+
         # 2. Sign-Up
         signup_payload = {
             "first_name": self.dummy_first_name,

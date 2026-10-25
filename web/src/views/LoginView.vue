@@ -176,7 +176,8 @@ async function handleSubmit() {
   isSubmitting.value = true
   try {
     await authStore.loginWithPassword(email.value, password.value)
-    router.push('/')
+    const target = route.query.redirect || '/'
+    router.push(target)
   } catch (err) {
     errorMessage.value = err.message || 'Invalid email or password'
   } finally {

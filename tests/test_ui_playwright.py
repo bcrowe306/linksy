@@ -120,10 +120,46 @@ def test_render_service_health_and_deployment():
     assert deploy.get("status") == "live", f"Latest Render deploy status is {deploy.get('status')}"
 
 # ==============================================================================
+# 2.5 ROUTE AUTHENTICATION & ACCESS CONTROL TESTS
+# ==============================================================================
+def test_unauthenticated_route_blocks_and_redirects(page: Page, base_url: str):
+    """Verify that unauthenticated access to protected routes redirects to /login"""
+    page.goto(f"{base_url}/login")
+    page.wait_for_load_state("networkidle")
+    page.context.clear_cookies()
+    page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
+
+    # 1. Visiting / (dashboard) redirects to /login
+    page.goto(f"{base_url}/")
+    page.wait_for_load_state("networkidle")
+    assert "/login" in page.url, f"Expected redirect to /login from /, got {page.url}"
+
+    # 2. Visiting /profile redirects to /login
+    page.goto(f"{base_url}/profile")
+    page.wait_for_load_state("networkidle")
+    assert "/login" in page.url, f"Expected redirect to /login from /profile, got {page.url}"
+
+    # 3. Visiting /links redirects to /login
+    page.goto(f"{base_url}/links")
+    page.wait_for_load_state("networkidle")
+    assert "/login" in page.url, f"Expected redirect to /login from /links, got {page.url}"
+
+    # 4. Visiting /qr-studio redirects to /login
+    page.goto(f"{base_url}/qr-studio")
+    page.wait_for_load_state("networkidle")
+    assert "/login" in page.url, f"Expected redirect to /login from /qr-studio, got {page.url}"
+
+    # 5. Public /api-docs route remains accessible
+    page.goto(f"{base_url}/api-docs")
+    page.wait_for_load_state("networkidle")
+    assert "/api-docs" in page.url, f"Public /api-docs was redirected: {page.url}"
+
+# ==============================================================================
 # 3. PLAYWRIGHT UI TESTS: THEME SYSTEM
 # ==============================================================================
 def test_theme_system_toggle_and_persistence(page: Page, base_url: str):
     """Verify dark/light theme switching and persistence across page reloads"""
+    authenticate_page(page, base_url)
     page.goto(base_url)
     page.wait_for_load_state("networkidle")
     
