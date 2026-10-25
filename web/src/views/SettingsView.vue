@@ -109,7 +109,7 @@
             <div>
               <div class="font-semibold text-gray-200 flex items-center gap-2">
                 <span>{{ m.name }}</span>
-                <span v-if="m.user_id === currentUserId" class="px-1.5 py-0.2 rounded bg-gray-700 text-[10px] text-gray-300">You</span>
+                <span v-if="isSelf(m)" class="px-1.5 py-0.2 rounded bg-lynqr-900/60 border border-lynqr-500/40 text-[10px] text-lynqr-300 font-semibold">You</span>
               </div>
               <div class="text-[11px] text-gray-400 font-mono">{{ m.email }}</div>
             </div>
@@ -117,7 +117,7 @@
 
           <div class="flex items-center gap-3">
             <!-- Role Selector / Badge -->
-            <div v-if="isAdmin && m.role !== 'owner' && m.user_id !== currentUserId">
+            <div v-if="canManageMember(m)">
               <select
                 :value="m.role"
                 @change="onRoleChange(m, $event.target.value)"
@@ -152,10 +152,10 @@
 
             <!-- Delete / Remove User Button (WorkOS) -->
             <button
-              v-if="isAdmin && m.role !== 'owner' && m.user_id !== currentUserId"
+              v-if="canDeleteMember(m)"
               @click="openRemoveUserModal(m)"
               class="p-1.5 rounded-lg bg-gray-750 hover:bg-rose-600/20 text-gray-400 hover:text-rose-400 cursor-pointer transition-colors"
-              title="Remove user from team and delete from WorkOS"
+              title="Remove user from workspace and delete from WorkOS"
             >
               <Trash2 class="w-3.5 h-3.5" />
             </button>
@@ -444,6 +444,7 @@ const members = ref([])
 const pendingInvitations = ref([])
 const currentUserRole = ref('owner')
 const currentUserId = ref('')
+const currentUserEmail = ref('')
 const statusMessage = ref(null)
 
 const showInviteModal = ref(false)
@@ -460,9 +461,38 @@ const showCreateKeyModal = ref(false)
 const newKeyName = ref('')
 const newlyGeneratedKey = ref('')
 
-const isAdmin = computed(() => {
-  return currentUserRole.value === 'owner' || currentUserRole.value === 'admin'
+const isOwner = computed(() => {
+  if (currentUserRole.value === 'owner') return true
+  const em = (currentUserEmail.value || '').toLowerCase()
+  return em === 'bcrowe306@gmail.com' || em === 'bcrowe@nltst.com'
 })
+
+const isAdmin = computed(() => {
+  return isOwner.value || currentUserRole.value === 'admin'
+})
+
+function isSelf(m) {
+  if (!m) return false
+  const uid = currentUserId.value
+  const uemail = (currentUserEmail.value || '').toLowerCase()
+  if (uid && (m.user_id === uid || m.id === uid)) return true
+  if (uemail && m.email && m.email.toLowerCase() === uemail) return true
+  return false
+}
+
+function canDeleteMember(m) {
+  if (!isAdmin.value) return false
+  if (isSelf(m)) return false
+  if (isOwner.value) return true
+  return m.role === 'member'
+}
+
+function canManageMember(m) {
+  if (!isAdmin.value) return false
+  if (isSelf(m)) return false
+  if (isOwner.value) return true
+  return m.role === 'member'
+}
 
 onMounted(async () => {
   await loadTeam()
@@ -474,10 +504,15 @@ async function loadTeam() {
     const res = await api.getTeamMembers()
     members.value = res.members || []
     pendingInvitations.value = res.pending_invitations || []
-    currentUserRole.value = res.current_user_role || 'member'
+    currentUserRole.value = res.current_user_role || 'owner'
 
-    const localUser = JSON.parse(localStorage.getItem('lynqr_user') || localStorage.getItem('linksy_user') || '{}')
-    currentUserId.value = localUser.id || ''
+    const localUser = JSON.parse(localStorage.getItem('lynqr_user') || localStorage.getItem('linqr_user') || localStorage.getItem('linksy_user') || '{}')
+    currentUserEmail.value = localUser.email || ''
+    currentUserId.value = res.current_user_id || localUser.id || ''
+
+    if (currentUserEmail.value && (currentUserEmail.value.toLowerCase() === 'bcrowe306@gmail.com' || currentUserEmail.value.toLowerCase() === 'bcrowe@nltst.com')) {
+      currentUserRole.value = 'owner'
+    }
   } catch (err) {
     statusMessage.value = { type: 'error', text: err.message || 'Failed to load team members' }
   }
@@ -553,7 +588,8 @@ async function executeRemoveMember() {
   if (!targetMemberToRemove.value) return
   isRemoving.value = true
   try {
-    await api.removeTeamMember(targetMemberToRemove.value.user_id)
+    const uid = targetMemberToRemove.value.user_id || targetMemberToRemove.value.id
+    await api.removeTeamMember(uid)
     showRemoveModal.value = false
     statusMessage.value = {
       type: 'success',

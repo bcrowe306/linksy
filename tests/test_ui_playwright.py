@@ -448,6 +448,16 @@ def test_team_and_user_management_ui(page: Page, base_url: str):
         page.click("button:has-text('Cancel')")
         page.wait_for_timeout(300)
 
+    # Check for member delete button and modal verification
+    trash_btns = page.locator("button[title*='Remove user']")
+    if trash_btns.count() > 0:
+        trash_btns.first.click()
+        expect(page.locator("h3:has-text('Remove Team Member')")).to_be_visible()
+        expect(page.locator("button:has-text('Confirm Removal')")).to_be_visible()
+        page.click("button:has-text('Cancel')")
+        page.wait_for_timeout(300)
+        expect(page.locator("h3:has-text('Remove Team Member')")).not_to_be_visible()
+
 
 # ==============================================================================
 # 11. PLAYWRIGHT UI TESTS: BRANDED 404 ERROR PAGE

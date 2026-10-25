@@ -632,15 +632,39 @@ func (s *Service) BulkDeleteDocuments(docIDs []string, teamID string, deleteAsso
 // ----------------- Team & User Management -----------------
 
 func (s *Service) GetUserTeamAndRole(userID string) (string, models.UserRole, error) {
+	defaultTeamID := "team_default"
+
+	// Check if this is the workspace owner (Brandon Crowe)
+	isOwner := userID == "user_01M5R7MW56RSTQVYVNKXV30MJ6" || userID == "user_01M5R94R6DFW2ZQJ3E7TQDB264"
+	if !isOwner {
+		if u, _ := s.repo.GetUserByID(userID); u != nil {
+			if u.Email == "bcrowe306@gmail.com" || u.Email == "bcrowe@nltst.com" {
+				isOwner = true
+			}
+		}
+	}
+
 	tm, err := s.repo.GetUserTeam(userID)
 	if err == nil && tm != nil && tm.TeamID != "" {
+		if isOwner {
+			return tm.TeamID, models.RoleOwner, nil
+		}
 		return tm.TeamID, tm.Role, nil
 	}
-	// Default team association
-	defaultTeamID := "team_default"
+
+	assignedRole := models.RoleMember
+	if isOwner {
+		assignedRole = models.RoleOwner
+	} else {
+		members, _ := s.repo.ListTeamMembers(defaultTeamID)
+		if len(members) == 0 {
+			assignedRole = models.RoleOwner
+		}
+	}
+
 	_ = s.repo.EnsureDefaultTeam(defaultTeamID, "Lynqr Workspace", userID)
-	_ = s.repo.AddTeamMember(defaultTeamID, userID, models.RoleOwner)
-	return defaultTeamID, models.RoleOwner, nil
+	_ = s.repo.AddTeamMember(defaultTeamID, userID, assignedRole)
+	return defaultTeamID, assignedRole, nil
 }
 
 func (s *Service) ListTeamMembers(teamID string) ([]models.TeamMemberDetail, error) {

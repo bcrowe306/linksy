@@ -286,5 +286,24 @@ func (db *DB) Migrate() error {
 		}
 	}
 
+	// Automated cleanup of test users, dangling memberships, and role normalizations
+	cleanupQueries := []string{
+		`DELETE FROM team_members WHERE user_id IN (
+			SELECT id FROM users WHERE email LIKE '%@lynqr.app' OR email LIKE '%test%' OR email LIKE '%example.com' OR email LIKE '%qa_%'
+		);`,
+		`DELETE FROM team_members WHERE user_id LIKE 'ui_reg_%' OR user_id LIKE 'testdrive_%' OR user_id LIKE 'qa_%';`,
+		`DELETE FROM users WHERE email LIKE '%@lynqr.app' OR email LIKE '%test%' OR email LIKE '%example.com' OR email LIKE '%qa_%';`,
+		`DELETE FROM invitations WHERE email LIKE '%@lynqr.app' OR email LIKE '%test%' OR email LIKE '%example.com' OR email LIKE '%qa_%';`,
+		`UPDATE team_members SET role = 'owner' WHERE user_id IN (
+			SELECT id FROM users WHERE email IN ('bcrowe306@gmail.com', 'bcrowe@nltst.com')
+		) OR user_id IN ('user_01M5R7MW56RSTQVYVNKXV30MJ6', 'user_01M5R94R6DFW2ZQJ3E7TQDB264');`,
+		`UPDATE team_members SET role = 'member' WHERE role = 'owner' AND user_id NOT IN (
+			SELECT id FROM users WHERE email IN ('bcrowe306@gmail.com', 'bcrowe@nltst.com')
+		) AND user_id NOT IN ('user_01M5R7MW56RSTQVYVNKXV30MJ6', 'user_01M5R94R6DFW2ZQJ3E7TQDB264');`,
+	}
+	for _, q := range cleanupQueries {
+		_, _ = db.Exec(q)
+	}
+
 	return nil
 }

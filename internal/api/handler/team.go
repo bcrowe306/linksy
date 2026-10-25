@@ -122,6 +122,7 @@ func (t *TeamHandler) ListMembers(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"team_id":             teamID,
 		"team_name":           "Lynqr Workspace",
+		"current_user_id":     auth.UserID,
 		"current_user_role":   auth.Role,
 		"members":             members,
 		"pending_invitations": invitations,
@@ -250,11 +251,39 @@ func (t *TeamHandler) RemoveMember(c fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// 2. If provisioned in WorkOS, remove/disable from WorkOS User Management
-	if strings.HasPrefix(targetUserID, "user_") {
-		workosKey := t.getActiveWorkOSKey()
-		if workosKey != "" {
-			delReq, err := http.NewRequest("DELETE", "https://api.workos.com/user_management/users/"+targetUserID, nil)
+	// 2. Remove from WorkOS User Management
+	workosKey := t.getActiveWorkOSKey()
+	if workosKey != "" {
+		wUserID := targetUserID
+		if !strings.HasPrefix(wUserID, "user_") {
+			user, _ := t.svc.GetUserProfile(targetUserID)
+			emailToFind := ""
+			if user != nil {
+			emailToFind = user.Email
+			} else if strings.Contains(targetUserID, "@") {
+				emailToFind = targetUserID
+			}
+			if emailToFind != "" {
+				searchReq, err := http.NewRequest("GET", "https://api.workos.com/user_management/users?email="+emailToFind, nil)
+				if err == nil {
+					searchReq.Header.Set("Authorization", "Bearer "+workosKey)
+					if searchResp, err := t.httpClient.Do(searchReq); err == nil {
+						var sResult struct {
+							Data []struct {
+								ID string `json:"id"`
+							} `json:"data"`
+						}
+						if json.NewDecoder(searchResp.Body).Decode(&sResult) == nil && len(sResult.Data) > 0 {
+							wUserID = sResult.Data[0].ID
+						}
+						searchResp.Body.Close()
+					}
+				}
+			}
+		}
+
+		if strings.HasPrefix(wUserID, "user_") {
+			delReq, err := http.NewRequest("DELETE", "https://api.workos.com/user_management/users/"+wUserID, nil)
 			if err == nil {
 				delReq.Header.Set("Authorization", "Bearer "+workosKey)
 				if resp, err := t.httpClient.Do(delReq); err == nil {

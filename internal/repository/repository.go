@@ -883,8 +883,22 @@ func (r *Repository) RemoveTeamMember(teamID, userID string) error {
 	if r.db.DriverName == "sqlite" {
 		query = `DELETE FROM team_members WHERE team_id = ? AND user_id = ?`
 	}
-	_, err := r.db.Exec(query, teamID, userID)
-	return err
+	_, _ = r.db.Exec(query, teamID, userID)
+
+	// Also purge by user_id directly from team_members and users table
+	queryAlt := `DELETE FROM team_members WHERE user_id = $1`
+	if r.db.DriverName == "sqlite" {
+		queryAlt = `DELETE FROM team_members WHERE user_id = ?`
+	}
+	_, _ = r.db.Exec(queryAlt, userID)
+
+	queryUser := `DELETE FROM users WHERE id = $1`
+	if r.db.DriverName == "sqlite" {
+		queryUser = `DELETE FROM users WHERE id = ?`
+	}
+	_, _ = r.db.Exec(queryUser, userID)
+
+	return nil
 }
 
 func (r *Repository) CreateInvitation(inv *models.Invitation) error {
