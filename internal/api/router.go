@@ -50,6 +50,9 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	// Stripe webhooks (signature-verified)
 	app.Post("/api/webhooks/stripe", h.StripeWebhook)
 
+	// Free QR code generator (static codes, nothing stored)
+	app.Post("/api/v1/public/qr", middleware.PublicToolRateLimiter(), h.PublicQR)
+
 	// Signed one-click unsubscribe links from emails
 	app.Get("/email/unsubscribe", flowLimit, h.Unsubscribe)
 	app.Post("/email/unsubscribe", flowLimit, h.Unsubscribe)
@@ -197,6 +200,13 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 			h.SetSite(site)
 			app.Get("/guides", h.GuidesIndex)
 			app.Get("/guides/:slug", h.GuidePage)
+			for _, slug := range handler.GeneratorSlugs() {
+				if slug == "" {
+					app.Get("/qr-code-generator", h.GeneratorPage(slug))
+				} else {
+					app.Get("/qr-code-generator/"+slug, h.GeneratorPage(slug))
+				}
+			}
 			for _, slug := range []string{"terms", "privacy", "acceptable-use"} {
 				app.Get("/"+slug, h.LegalPage(slug))
 			}

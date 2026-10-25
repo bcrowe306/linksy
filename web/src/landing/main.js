@@ -1,6 +1,7 @@
 import '../style.css'
 import { THEME_KEY, applyTheme, readThemePreference, onSystemThemeChange } from '../lib/theme'
 import { MONTHLY_CENTS, ANNUAL_CENTS } from '../lib/pricing'
+import { initGenerator } from './generator'
 
 applyTheme()
 onSystemThemeChange(() => readThemePreference() === 'system' && applyTheme('system'))
@@ -54,3 +55,6 @@ if (code) {
 }
 
 document.querySelectorAll('[data-year]').forEach((el) => (el.textContent = String(new Date().getFullYear())))
+
+const generator = document.querySelector('[data-qr-generator]')
+if (generator) initGenerator(generator)

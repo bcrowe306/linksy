@@ -1,0 +1,94 @@
+{{define "generator"}}{{template "head" .}}{{$d := .Data}}
+    <main id="main">
+      <section class="relative overflow-hidden border-b border-line">
+        <div class="pointer-events-none absolute inset-x-0 -top-40 -z-10 flex justify-center" aria-hidden="true">
+          <div class="h-[28rem] w-[56rem] rounded-full bg-gradient-to-tr from-brand-500/20 via-violet-500/15 to-sky-400/10 blur-3xl"></div>
+        </div>
+        <div class="mx-auto max-w-6xl px-4 pb-10 pt-12 text-center sm:px-6">
+          <p class="mx-auto mb-4 inline-flex items-center gap-2 rounded-full border border-line bg-surface/70 px-3 py-1 text-xs font-medium text-fg-muted">Free · No sign-up · No watermark</p>
+          <h1 class="text-3xl font-extrabold tracking-tight text-fg sm:text-5xl">{{$d.Heading}}</h1>
+          <p class="mx-auto mt-4 max-w-2xl text-lg text-fg-muted">{{$d.Intro}}</p>
+        </div>
+      </section>
+
+      <section class="mx-auto max-w-6xl px-4 py-10 sm:px-6" data-qr-generator data-type="{{$d.Type}}">
+        <nav class="mb-6 flex gap-1 overflow-x-auto rounded-xl bg-subtle p-1 text-sm" aria-label="QR code type">
+          {{range $d.Tabs}}<a href="{{.Path}}" class="shrink-0 rounded-lg px-3 py-2 font-medium transition {{if .Active}}bg-surface text-fg shadow-sm{{else}}text-fg-muted hover:text-fg{{end}}"{{if .Active}} aria-current="page"{{end}}>{{.Label}}</a>{{end}}
+        </nav>
+        <div class="grid gap-6 lg:grid-cols-5">
+          <form class="card space-y-5 p-5 sm:p-6 lg:col-span-3" data-qr-form>
+            <fieldset class="space-y-4">
+              <legend class="mb-1 text-sm font-semibold text-fg">1. Content</legend>
+              {{if eq $d.Type "website"}}
+              <div><label class="label" for="g-url">Website URL</label><input id="g-url" data-target class="input" inputmode="url" autocomplete="url" placeholder="https://example.com/menu" value="https://lynqr.app" /></div>
+              {{else if eq $d.Type "text"}}
+              <div><label class="label" for="g-text">Text</label><textarea id="g-text" data-raw="text" rows="4" maxlength="1000" class="input" placeholder="Any text, up to about 1,000 characters">Hello from Lynqr!</textarea></div>
+              {{else if eq $d.Type "wifi"}}
+              <div class="grid gap-4 sm:grid-cols-2">
+                <div><label class="label" for="g-ssid">Network name (SSID)</label><input id="g-ssid" data-raw="ssid" class="input" value="Cafe Guest" autocomplete="off" /></div>
+                <div><label class="label" for="g-pass">Password</label><input id="g-pass" data-raw="password" class="input" value="welcome2026" autocomplete="off" /></div>
+                <div><label class="label" for="g-enc">Security</label><select id="g-enc" data-raw="encryption" class="input"><option value="WPA">WPA/WPA2</option><option value="WPA3">WPA3</option><option value="WEP">WEP</option><option value="nopass">None (open)</option></select></div>
+                <label class="mt-7 flex items-center gap-2 text-sm text-fg"><input type="checkbox" data-raw="hidden" class="rounded" /> Hidden network</label>
+              </div>
+              <p class="text-xs text-fg-subtle">Your Wi-Fi details are turned into a QR code in our server's memory and never stored.</p>
+              {{else if eq $d.Type "vcard"}}
+              <div class="grid gap-4 sm:grid-cols-2">
+                <div><label class="label" for="g-fn">First name</label><input id="g-fn" data-raw="first_name" class="input" value="Alex" /></div>
+                <div><label class="label" for="g-ln">Last name</label><input id="g-ln" data-raw="last_name" class="input" value="Rivera" /></div>
+                <div><label class="label" for="g-org">Company</label><input id="g-org" data-raw="organization" class="input" value="Northwind Coffee" /></div>
+                <div><label class="label" for="g-title">Job title</label><input id="g-title" data-raw="title" class="input" /></div>
+                <div><label class="label" for="g-mob">Mobile</label><input id="g-mob" data-raw="mobile" class="input" inputmode="tel" value="+1 555 0100" /></div>
+                <div><label class="label" for="g-em">Email</label><input id="g-em" data-raw="email" class="input" inputmode="email" value="alex@example.com" /></div>
+                <div class="sm:col-span-2"><label class="label" for="g-web">Website</label><input id="g-web" data-raw="website" class="input" inputmode="url" /></div>
+              </div>
+              {{else if eq $d.Type "email"}}
+              <div><label class="label" for="g-to">Send to</label><input id="g-to" data-raw="email" class="input" inputmode="email" value="hello@example.com" /></div>
+              <div><label class="label" for="g-sub">Subject</label><input id="g-sub" data-raw="subject" class="input" value="Question about my order" /></div>
+              <div><label class="label" for="g-body">Message</label><textarea id="g-body" data-raw="body" rows="3" class="input"></textarea></div>
+              {{else if eq $d.Type "sms"}}
+              <div><label class="label" for="g-ph">Phone number</label><input id="g-ph" data-raw="phone" class="input" inputmode="tel" value="+1 555 0100" /></div>
+              <div><label class="label" for="g-msg">Message</label><textarea id="g-msg" data-raw="message" rows="3" class="input">JOIN</textarea></div>
+              {{else if eq $d.Type "phone"}}
+              <div><label class="label" for="g-tel">Phone number</label><input id="g-tel" data-raw="phone" class="input" inputmode="tel" value="+1 555 0100" /></div>
+              {{end}}
+            </fieldset>
+            <fieldset class="space-y-4 border-t border-line pt-5">
+              <legend class="mb-1 text-sm font-semibold text-fg">2. Style</legend>
+              <div class="grid gap-4 sm:grid-cols-2">
+                <div><label class="label" for="g-fg">Code color</label><input id="g-fg" type="color" data-style="fg_color" value="#111114" class="h-10 w-full cursor-pointer rounded-lg border border-line bg-surface p-1" /></div>
+                <div><label class="label" for="g-bg">Background</label><input id="g-bg" type="color" data-style="bg_color" value="#ffffff" class="h-10 w-full cursor-pointer rounded-lg border border-line bg-surface p-1" /></div>
+                <div><label class="label" for="g-dots">Pattern</label><select id="g-dots" data-style="dot_style" class="input"><option value="square">Square</option><option value="rounded" selected>Rounded</option><option value="dots">Dots</option><option value="classy">Classy</option><option value="extra-rounded">Extra rounded</option></select></div>
+                <div><label class="label" for="g-eyes">Corners</label><select id="g-eyes" data-style="eye_shape" class="input"><option value="square">Square</option><option value="rounded" selected>Rounded</option><option value="extra-rounded">Extra rounded</option><option value="circle">Circle</option><option value="leaf">Leaf</option></select></div>
+              </div>
+            </fieldset>
+            <div class="rounded-xl border border-brand-500/30 bg-brand-500/5 p-4 text-sm">
+              <p class="font-semibold text-fg">Want to change it after printing?</p>
+              <p class="mt-1 text-fg-muted">This is a static code. Make it <strong class="text-fg">dynamic</strong> with Lynqr to edit the destination anytime, add your logo and a "Scan me" frame, and see every scan in real time.</p>
+              <a href="/signup" class="mt-3 inline-flex text-sm font-semibold text-brand-500 hover:underline" data-cta="generator">Try it free for 7 days →</a>
+            </div>
+          </form>
+
+          <div class="order-first lg:order-none lg:col-span-2">
+            <div class="card p-5 sm:p-6 lg:sticky lg:top-24">
+              <div class="mx-auto aspect-square w-full max-w-[320px] rounded-xl bg-white p-2 [&>svg]:h-full [&>svg]:w-full" data-qr-preview role="img" aria-label="QR code preview"></div>
+              <p class="mt-3 min-h-[1.25rem] text-center text-xs" data-qr-status aria-live="polite"></p>
+              <div class="mt-4 grid grid-cols-2 gap-2">
+                <button type="button" class="btn-primary justify-center" data-download="png">Download PNG</button>
+                <button type="button" class="btn-secondary justify-center" data-download="svg">Download SVG</button>
+              </div>
+              <p class="mt-3 text-center text-xs text-fg-subtle">High resolution (1024 px PNG, or scalable SVG). Free for commercial use.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="border-t border-line bg-surface/40">
+        <div class="prose-lynqr mx-auto max-w-3xl px-4 py-14 sm:px-6">
+          <h2>{{$d.HowTitle}}</h2>
+          <ol>{{range $d.Steps}}<li>{{.}}</li>{{end}}</ol>
+          {{range $d.FAQ}}<h3>{{.Q}}</h3><p>{{.A}}</p>{{end}}
+          <p>Learn more in our guides: <a href="/guides/qr-types">QR code types</a>, <a href="/guides/dynamic-vs-static">dynamic vs. static codes</a> and <a href="/guides/designing-qr-codes">designing QR codes that scan</a>.</p>
+        </div>
+      </section>
+    </main>
+{{template "foot" .}}{{end}}

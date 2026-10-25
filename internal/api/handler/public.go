@@ -68,7 +68,16 @@ var sitemapPages = []struct{ path, freq, priority string }{
 func (h *Handler) SitemapXML(c fiber.Ctx) error {
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n" + `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
-	for _, p := range sitemapPages {
+	pages := append([]struct{ path, freq, priority string }{}, sitemapPages...)
+	for _, slug := range GeneratorSlugs() {
+		pages = append(pages, struct{ path, freq, priority string }{generatorPath(slug), "monthly", "0.9"})
+	}
+	if h.site != nil {
+		for _, g := range h.site.Guides {
+			pages = append(pages, struct{ path, freq, priority string }{"/guides/" + g.Slug, "monthly", "0.6"})
+		}
+	}
+	for _, p := range pages {
 		fmt.Fprintf(&b, "  <url><loc>https://lynqr.app%s</loc><changefreq>%s</changefreq><priority>%s</priority></url>\n", p.path, p.freq, p.priority)
 	}
 	b.WriteString("</urlset>\n")

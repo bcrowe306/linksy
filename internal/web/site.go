@@ -148,6 +148,7 @@ type View struct {
 	Guides      []Page
 	JSONLD      template.JS
 	Assets      template.HTML
+	Data        any // page-specific data (e.g. the QR generator)
 }
 
 // Render executes a page template.
