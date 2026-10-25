@@ -50,10 +50,11 @@ jobs:
           LYNQR_TEST_POSTGRES_URL: postgres://lynqr:lynqr@localhost:5432/lynqr_test?sslmode=disable
         run: go test -race ./test/... ./internal/service/...
 
-      - name: Install Frontend Dependencies & Build SPA
+      - name: Install Frontend Dependencies, Test & Build SPA
         working-directory: web
         run: |
           npm ci
+          npm test
           npm run build
 
       - name: Build Go Binary

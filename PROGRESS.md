@@ -167,3 +167,8 @@ Done (`feat/email`):
 - [x] Sent: welcome; new-browser sign-in and password-change security alerts (always on); invitations (with the accept link) and "member joined" for the inviter; role changes; subscription confirmed, payment failed, subscription ended; trial reminders at 3 days, 1 day and on end; an opt-in weekly analytics report; abuse reports to staff
 - [x] Preferences respected (team activity, usage alerts, weekly report); signed `/email/unsubscribe` links; scheduled emails recorded in `email_log` so each goes out once
 - [x] Test-suite addresses are never emailed (`EMAIL_SUPPRESS_PATTERN`); password reset and verification emails stay with WorkOS
+
+## 10. Test suites
+- [x] Go: unit, service and e2e suites against SQLite and Postgres 16 in CI, with fakes for Stripe and email
+- [x] Vitest (`npm test`, also in `make test` and CI): formatting and range math, link forms, QR content serialization, guides, API client error and session signals, Toggle, the billing banner states, admin helpers, and the free generator payload. It caught the generator sending text codes as JSON.
+- [x] Live: `scripts/test_drive.py` (73 API checks including billing, admin and reports) and `tests/test_ui_playwright.py` (17 browser flows) after every deploy

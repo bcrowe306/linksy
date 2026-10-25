@@ -5,6 +5,11 @@ const backend = { target: 'http://localhost:8080', changeOrigin: true }
 
 export default defineConfig({
   plugins: [vue()],
+  test: {
+    environment: 'jsdom',
+    include: ['src/**/*.test.js'],
+    restoreMocks: true
+  },
   build: {
     rollupOptions: {
       // The app (index.html) and the public landing page (home.html)
