@@ -1,103 +1,90 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { api, onUnauthorized } from '../api/client'
 
+// Session state is derived from the server (/api/v1/auth/me); the session
+// itself lives in an HttpOnly cookie the browser JavaScript can't read.
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref(localStorage.getItem('lynqr_token') || localStorage.getItem('linqr_token') || localStorage.getItem('linksy_token') || '')
-  const user = ref(JSON.parse(localStorage.getItem('lynqr_user') || localStorage.getItem('linqr_user') || localStorage.getItem('linksy_user') || 'null'))
-  const authConfig = ref({ enabled: false, login_url: '', providers: [] })
+  const user = ref(null)
+  const team = ref(null)
+  const teams = ref([])
+  const role = ref(null)
+  const permissions = ref([])
+  const pendingInvitations = ref(0)
+  const authConfig = ref({ enabled: false, dev_login: false, providers: [] })
+  const loaded = ref(false)
   const loading = ref(false)
   const error = ref('')
+  let loadPromise = null
 
-  const isAuthenticated = computed(() => !!token.value && !!user.value)
+  const isAuthenticated = computed(() => !!user.value)
   const initials = computed(() => {
-    if (!user.value || !user.value.name) return 'LK'
-    const parts = user.value.name.trim().split(' ')
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-    }
-    return user.value.name.substring(0, 2).toUpperCase()
+    const name = user.value?.name || user.value?.email || ''
+    const parts = name.trim().split(/\s+/).filter(Boolean)
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    return (name.substring(0, 2) || 'LQ').toUpperCase()
   })
+
+  function can(permission) {
+    return permissions.value.includes(permission)
+  }
+
+  function applyMe(me) {
+    if (me?.authenticated) {
+      user.value = me.user
+      team.value = me.team
+      teams.value = me.teams || []
+      role.value = me.role
+      permissions.value = me.permissions || []
+      pendingInvitations.value = me.pending_invitations || 0
+    } else {
+      user.value = null
+      team.value = null
+      teams.value = []
+      role.value = null
+      permissions.value = []
+      pendingInvitations.value = 0
+      if (me?.error) error.value = me.error
+    }
+  }
+
+  async function refresh() {
+    try {
+      applyMe(await api.me())
+    } catch {
+      applyMe(null)
+    } finally {
+      loaded.value = true
+    }
+  }
+
+  // ensureLoaded resolves the session once per page load (used by the router guard).
+  function ensureLoaded() {
+    if (loaded.value) return Promise.resolve()
+    if (!loadPromise) loadPromise = refresh()
+    return loadPromise
+  }
 
   async function checkAuthConfig() {
     try {
-      const res = await fetch('/api/v1/auth/config')
-      if (res.ok) {
-        authConfig.value = await res.json()
-      }
+      authConfig.value = await api.authConfig()
     } catch (e) {
       console.error('Failed to load auth config:', e)
     }
   }
 
-  function handleAuthRedirect() {
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('auth_success') === 'true' || (params.get('token') && params.get('email'))) {
-      const u = {
-        id: params.get('user_id') || 'usr_' + Date.now(),
-        email: params.get('email'),
-        name: params.get('name') || params.get('email')
-      }
-      const tok = params.get('token')
-
-      token.value = tok
-      user.value = u
-
-      localStorage.setItem('lynqr_token', tok)
-      localStorage.setItem('lynqr_user', JSON.stringify(u))
-      localStorage.setItem('linqr_token', tok)
-      localStorage.setItem('linksy_token', tok)
-      localStorage.setItem('linksy_user', JSON.stringify(u))
-
-      // Clean query params from address bar
-      const cleanUrl = window.location.pathname + window.location.hash
-      window.history.replaceState({}, document.title, cleanUrl)
-    }
-  }
-
-  async function signUpWithPassword(payloadOrFirst, lastName, email, password) {
-    let fn, ln, em, pw
-    if (typeof payloadOrFirst === 'object' && payloadOrFirst !== null) {
-      fn = payloadOrFirst.first_name || payloadOrFirst.firstName || ''
-      ln = payloadOrFirst.last_name || payloadOrFirst.lastName || ''
-      em = payloadOrFirst.email || ''
-      pw = payloadOrFirst.password || ''
-    } else {
-      fn = payloadOrFirst
-      ln = lastName
-      em = email
-      pw = password
-    }
-    return signup(fn, ln, em, pw)
-  }
-
-  async function signup(firstName, lastName, email, password) {
+  // Runs an auth call; returns { verificationRequired, pendingToken } when the
+  // provider asks for an emailed verification code.
+  async function runAuth(fn) {
     loading.value = true
     error.value = ''
     try {
-      const res = await fetch('/api/v1/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          first_name: firstName,
-          last_name: lastName,
-          email,
-          password
-        })
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to create account')
+      const data = await fn()
+      if (data?.verification_required) {
+        return { verificationRequired: true, pendingToken: data.pending_token, email: data.email, message: data.message }
       }
-
-      token.value = data.token
-      user.value = data.user
-      localStorage.setItem('lynqr_token', data.token)
-      localStorage.setItem('lynqr_user', JSON.stringify(data.user))
-      localStorage.setItem('linqr_token', data.token)
-      localStorage.setItem('linksy_token', data.token)
-      localStorage.setItem('linksy_user', JSON.stringify(data.user))
-      return data
+      await refresh()
+      return { verificationRequired: false }
     } catch (err) {
       error.value = err.message
       throw err
@@ -106,77 +93,67 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function loginWithPassword(email, password) {
-    loading.value = true
-    error.value = ''
-    try {
-      const res = await fetch('/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      })
+  const loginWithPassword = (email, password) => runAuth(() => api.login(email, password))
+  const signup = (payload) => runAuth(() => api.signup(payload))
+  const verifyEmail = (pendingToken, code) => runAuth(() => api.verifyEmail(pendingToken, code))
+  const devLogin = (payload) => runAuth(() => api.devLogin(payload))
 
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.error || 'Invalid email or password')
-      }
-
-      token.value = data.token
-      user.value = data.user
-      localStorage.setItem('lynqr_token', data.token)
-      localStorage.setItem('lynqr_user', JSON.stringify(data.user))
-      localStorage.setItem('linqr_token', data.token)
-      localStorage.setItem('linksy_token', data.token)
-      localStorage.setItem('linksy_user', JSON.stringify(data.user))
-      return data
-    } catch (err) {
-      error.value = err.message
-      throw err
-    } finally {
-      loading.value = false
-    }
+  function loginWithOAuth(provider, { screenHint = '', redirect = '' } = {}) {
+    const params = new URLSearchParams()
+    if (screenHint) params.set('screen_hint', screenHint)
+    if (redirect) params.set('redirect', redirect)
+    const qs = params.toString()
+    window.location.href = `/api/v1/auth/oauth/${provider}${qs ? `?${qs}` : ''}`
   }
 
-  function loginWithOAuth(provider, screenHint = '') {
-    let url = `/api/v1/auth/oauth/${provider}`
-    if (screenHint) {
-      url += `?screen_hint=${screenHint}`
-    }
-    window.location.href = url
+  async function switchTeam(teamId) {
+    await api.switchTeam(teamId)
+    await refresh()
   }
 
   async function logout() {
     try {
-      await fetch('/api/v1/auth/logout', { method: 'POST' })
-    } catch (e) {
-      // ignore
+      await api.logout()
+    } catch {
+      // session may already be gone
     }
-    token.value = ''
-    user.value = null
-    localStorage.removeItem('lynqr_token')
-    localStorage.removeItem('lynqr_user')
-    localStorage.removeItem('linqr_token')
-    localStorage.removeItem('linksy_token')
-    localStorage.removeItem('linksy_user')
+    applyMe(null)
     window.location.href = '/login'
   }
 
-  // Initialize
+  // A 401 anywhere means the session ended; send the user to sign in.
+  onUnauthorized(() => {
+    if (user.value) {
+      applyMe(null)
+      const here = window.location.pathname + window.location.search
+      window.location.href = `/login?redirect=${encodeURIComponent(here)}`
+    }
+  })
+
   checkAuthConfig()
-  handleAuthRedirect()
 
   return {
-    token,
     user,
+    team,
+    teams,
+    role,
+    permissions,
+    pendingInvitations,
     authConfig,
+    loaded,
     loading,
     error,
     isAuthenticated,
     initials,
-    signup,
-    signUpWithPassword,
+    can,
+    refresh,
+    ensureLoaded,
     loginWithPassword,
+    signup,
+    verifyEmail,
+    devLogin,
     loginWithOAuth,
+    switchTeam,
     logout
   }
 })

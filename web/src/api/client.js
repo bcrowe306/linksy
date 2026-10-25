@@ -1,246 +1,151 @@
-const BASE_URL = ''
+// Lynqr API client. Authentication uses the HttpOnly session cookie set by the
+// server, so no credentials are ever stored in localStorage.
 
-function getHeaders(custom = {}) {
-  const token = localStorage.getItem('lynqr_token') || localStorage.getItem('linqr_token') || localStorage.getItem('linksy_token')
-  const headers = { ...custom }
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
+export class ApiError extends Error {
+  constructor(message, status, body) {
+    super(message)
+    this.status = status
+    this.body = body
   }
-  return headers
 }
 
+let unauthorizedHandler = null
+export function onUnauthorized(fn) {
+  unauthorizedHandler = fn
+}
+
+export async function request(method, path, { body, form, query, raw } = {}) {
+  let url = path
+  if (query) {
+    const params = new URLSearchParams()
+    Object.entries(query).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') params.append(k, v)
+    })
+    const qs = params.toString()
+    if (qs) url += `?${qs}`
+  }
+
+  const init = { method, credentials: 'same-origin', headers: { Accept: 'application/json' } }
+  if (form) {
+    init.body = form
+  } else if (body !== undefined) {
+    init.headers['Content-Type'] = 'application/json'
+    init.body = JSON.stringify(body)
+  }
+
+  const res = await fetch(url, init)
+  if (raw) return res
+
+  let data = null
+  const text = await res.text()
+  if (text) {
+    try {
+      data = JSON.parse(text)
+    } catch {
+      data = { message: text }
+    }
+  }
+
+  if (!res.ok) {
+    if (res.status === 401 && unauthorizedHandler) unauthorizedHandler()
+    throw new ApiError(data?.error || `Request failed (${res.status})`, res.status, data)
+  }
+  return data
+}
+
+const get = (path, query) => request('GET', path, { query })
+const post = (path, body) => request('POST', path, { body })
+const put = (path, body) => request('PUT', path, { body })
+const del = (path, body) => request('DELETE', path, { body })
+
 export const api = {
+  // Auth & session
+  authConfig: () => get('/api/v1/auth/config'),
+  me: () => get('/api/v1/auth/me'),
+  login: (email, password) => post('/api/v1/auth/login', { email, password }),
+  signup: (payload) => post('/api/v1/auth/signup', payload),
+  verifyEmail: (pendingToken, code) => post('/api/v1/auth/verify-email', { pending_token: pendingToken, code }),
+  devLogin: (payload) => post('/api/v1/auth/dev-login', payload),
+  logout: () => post('/api/v1/auth/logout'),
+  requestPasswordReset: (email) => post('/api/v1/auth/password-reset', { email }),
+  confirmPasswordReset: (token, newPassword) => post('/api/v1/auth/password-reset/confirm', { token, new_password: newPassword }),
+
+  // Profile, sessions & API keys
+  getProfile: () => get('/api/v1/user/profile'),
+  updateProfile: (data) => put('/api/v1/user/profile', data),
+  changePassword: (currentPassword, newPassword) =>
+    post('/api/v1/user/change-password', { current_password: currentPassword, new_password: newPassword }),
+  getSessions: () => get('/api/v1/user/sessions'),
+  revokeSession: (id) => del(`/api/v1/user/sessions/${id}`),
+  revokeOtherSessions: () => post('/api/v1/user/sessions/revoke-others'),
+  getApiKeys: () => get('/api/v1/api-keys'),
+  createApiKey: (name, expiresInDays = 0) => post('/api/v1/api-keys', { name, expires_in_days: expiresInDays }),
+  revokeApiKey: (id) => del(`/api/v1/api-keys/${id}`),
+
+  // Workspaces
+  getTeams: () => get('/api/v1/teams'),
+  createTeam: (name) => post('/api/v1/teams', { name }),
+  switchTeam: (teamId) => post('/api/v1/teams/switch', { team_id: teamId }),
+  getTeam: () => get('/api/v1/team'),
+  renameTeam: (name) => put('/api/v1/team', { name }),
+  deleteTeam: (confirmName) => del('/api/v1/team', { confirm_name: confirmName }),
+  transferOwnership: (userId) => post('/api/v1/team/transfer', { user_id: userId }),
+  leaveTeam: () => post('/api/v1/team/leave'),
+  getAuditLog: (limit = 50, offset = 0) => get('/api/v1/team/audit', { limit, offset }),
+
+  // Members & invitations
+  getTeamMembers: () => get('/api/v1/team/members'),
+  inviteTeamMember: (email, role = 'member') => post('/api/v1/team/members/invite', { email, role }),
+  updateMemberRole: (userId, role) => put(`/api/v1/team/members/${userId}/role`, { role }),
+  suspendMember: (userId) => post(`/api/v1/team/members/${userId}/suspend`),
+  reactivateMember: (userId) => post(`/api/v1/team/members/${userId}/reactivate`),
+  removeTeamMember: (userId) => del(`/api/v1/team/members/${userId}`),
+  resetMemberCredentials: (userId) => post(`/api/v1/team/members/${userId}/reset-credentials`),
+  revokeInvitation: (id) => del(`/api/v1/team/invitations/${id}`),
+  previewInvitation: (token) => get(`/api/v1/invitations/${encodeURIComponent(token)}`),
+  acceptInvitation: (token) => post(`/api/v1/invitations/${encodeURIComponent(token)}/accept`),
+  getMyInvitations: () => get('/api/v1/user/invitations'),
+  respondToInvitation: (id, accept) => post(`/api/v1/user/invitations/${id}/${accept ? 'accept' : 'decline'}`),
+
   // Links
-  async getLinks(limit = 50, offset = 0) {
-    const res = await fetch(`${BASE_URL}/api/v1/links?limit=${limit}&offset=${offset}`, {
-      headers: getHeaders()
-    })
-    return res.json()
-  },
-  async createLink(data) {
-    const res = await fetch(`${BASE_URL}/api/v1/links`, {
-      method: 'POST',
-      headers: getHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(data)
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || 'Failed to create link')
-    }
-    return res.json()
-  },
-  async updateLink(id, data) {
-    const res = await fetch(`${BASE_URL}/api/v1/links/${id}`, {
-      method: 'PUT',
-      headers: getHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(data)
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || 'Failed to update link')
-    }
-    return res.json()
-  },
-  async deleteLink(id) {
-    const res = await fetch(`${BASE_URL}/api/v1/links/${id}`, {
-      method: 'DELETE',
-      headers: getHeaders()
-    })
-    if (!res.ok) throw new Error('Failed to delete link')
-    return true
-  },
+  getLinks: (limit = 100, offset = 0) => get('/api/v1/links', { limit, offset }),
+  getLink: (id) => get(`/api/v1/links/${id}`),
+  createLink: (data) => post('/api/v1/links', data),
+  updateLink: (id, data) => put(`/api/v1/links/${id}`, data),
+  deleteLink: (id) => del(`/api/v1/links/${id}`),
 
   // QR Codes
-  async getQRCodes(limit = 50, offset = 0) {
-    const res = await fetch(`${BASE_URL}/api/v1/qr?limit=${limit}&offset=${offset}`, {
-      headers: getHeaders()
-    })
-    return res.json()
-  },
-  async createQRCode(data) {
-    const res = await fetch(`${BASE_URL}/api/v1/qr`, {
-      method: 'POST',
-      headers: getHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(data)
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || 'Failed to create QR code')
-    }
-    return res.json()
-  },
-  async updateQRCode(id, data) {
-    const res = await fetch(`${BASE_URL}/api/v1/qr/${id}`, {
-      method: 'PUT',
-      headers: getHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(data)
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || 'Failed to update QR code')
-    }
-    return res.json()
-  },
-  async deleteQRCode(id) {
-    const res = await fetch(`${BASE_URL}/api/v1/qr/${id}`, {
-      method: 'DELETE',
-      headers: getHeaders()
-    })
-    if (!res.ok) throw new Error('Failed to delete QR code')
-    return true
-  },
+  getQRCodes: (limit = 100, offset = 0) => get('/api/v1/qr', { limit, offset }),
+  getQRCode: (id) => get(`/api/v1/qr/${id}`),
+  createQRCode: (data) => post('/api/v1/qr', data),
+  updateQRCode: (id, data) => put(`/api/v1/qr/${id}`, data),
+  deleteQRCode: (id) => del(`/api/v1/qr/${id}`),
   getExportUrl(id, format = 'png', size = 512, download = true) {
-    return `${BASE_URL}/api/v1/qr/${id}/export?format=${format}&size=${size}&download=${download}`
+    return `/api/v1/qr/${id}/export?format=${format}&size=${size}&download=${download}`
   },
 
   // Documents
-  async uploadDocument(file) {
-    const formData = new FormData()
-    formData.append('file', file)
-    const res = await fetch(`${BASE_URL}/api/v1/documents/upload`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: formData
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || 'Failed to upload document')
-    }
-    return res.json()
+  uploadDocument(file) {
+    const form = new FormData()
+    form.append('file', file)
+    return request('POST', '/api/v1/documents/upload', { form })
   },
-  async updateDocument(id, file) {
-    const formData = new FormData()
-    formData.append('file', file)
-    const res = await fetch(`${BASE_URL}/api/v1/documents/${id}`, {
-      method: 'PUT',
-      headers: getHeaders(),
-      body: formData
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || 'Failed to update document')
-    }
-    return res.json()
+  updateDocument(id, file) {
+    const form = new FormData()
+    form.append('file', file)
+    return request('PUT', `/api/v1/documents/${id}`, { form })
   },
-  async getDocuments() {
-    const res = await fetch(`${BASE_URL}/api/v1/documents`, {
-      headers: getHeaders()
-    })
-    return res.json()
-  },
-  async deleteDocument(id, deleteQR = false) {
-    const res = await fetch(`${BASE_URL}/api/v1/documents/${id}?delete_qr=${deleteQR}`, {
-      method: 'DELETE',
-      headers: getHeaders()
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || 'Failed to delete document')
-    }
-    return res.json()
-  },
-  async bulkDeleteDocuments(documentIds, deleteQR = false) {
-    const res = await fetch(`${BASE_URL}/api/v1/documents/bulk-delete`, {
-      method: 'POST',
-      headers: {
-        ...getHeaders(),
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ document_ids: documentIds, delete_qr: deleteQR })
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || 'Failed to delete documents')
-    }
-    return res.json()
-  },
-
-  // Team & User Management
-  async getTeamMembers() {
-    const res = await fetch(`${BASE_URL}/api/v1/team/members`, {
-      headers: getHeaders()
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || 'Failed to fetch team members')
-    }
-    return res.json()
-  },
-  async inviteTeamMember(email, role = 'member') {
-    const res = await fetch(`${BASE_URL}/api/v1/team/members/invite`, {
-      method: 'POST',
-      headers: {
-        ...getHeaders(),
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ email, role })
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || 'Failed to invite team member')
-    }
-    return res.json()
-  },
-  async updateMemberRole(userId, role) {
-    const res = await fetch(`${BASE_URL}/api/v1/team/members/${userId}/role`, {
-      method: 'PUT',
-      headers: {
-        ...getHeaders(),
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ role })
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || 'Failed to update member role')
-    }
-    return res.json()
-  },
-  async removeTeamMember(userId) {
-    const res = await fetch(`${BASE_URL}/api/v1/team/members/${userId}`, {
-      method: 'DELETE',
-      headers: getHeaders()
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || 'Failed to remove member')
-    }
-    return res.json()
-  },
-  async resetMemberCredentials(userId) {
-    const res = await fetch(`${BASE_URL}/api/v1/team/members/${userId}/reset-credentials`, {
-      method: 'POST',
-      headers: getHeaders()
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || 'Failed to reset credentials')
-    }
-    return res.json()
-  },
-  async revokeInvitation(invitationId) {
-    const res = await fetch(`${BASE_URL}/api/v1/team/invitations/${invitationId}`, {
-      method: 'DELETE',
-      headers: getHeaders()
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || 'Failed to revoke invitation')
-    }
-    return res.json()
-  },
+  getDocuments: () => get('/api/v1/documents'),
+  deleteDocument: (id, deleteQR = false) => request('DELETE', `/api/v1/documents/${id}`, { query: { delete_qr: deleteQR } }),
+  bulkDeleteDocuments: (documentIds, deleteQR = false) =>
+    post('/api/v1/documents/bulk-delete', { document_ids: documentIds, delete_qr: deleteQR }),
 
   // Analytics
-  async getAnalyticsSummary(linkId = null, qrId = null) {
-    let url = `${BASE_URL}/api/v1/analytics/summary`
-    const params = new URLSearchParams()
-    if (linkId) params.append('link_id', linkId)
-    if (qrId) params.append('qr_id', qrId)
-    if (params.toString()) url += `?${params.toString()}`
-
-    const res = await fetch(url, {
-      headers: getHeaders()
+  getAnalyticsSummary: (params = {}) =>
+    get('/api/v1/analytics/summary', {
+      link_id: params.linkId,
+      qr_id: params.qrId,
+      from: params.from,
+      to: params.to
     })
-    return res.json()
-  }
 }

@@ -1,6 +1,7 @@
 <template>
   <header class="h-16 bg-gray-900 border-b border-gray-800 px-6 flex items-center justify-between z-10">
-    <div class="flex items-center gap-4 flex-1 max-w-xl">
+    <div class="flex items-center gap-4 flex-1 max-w-2xl">
+      <WorkspaceSwitcher v-if="authStore.isAuthenticated" />
       <!-- Search Input -->
       <div class="relative w-full">
         <Search class="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -88,6 +89,7 @@ import { ref, computed } from 'vue'
 import { Search, Plus, Sun, Moon, Monitor, LogOut } from 'lucide-vue-next'
 import { useThemeStore } from '../stores/theme'
 import { useAuthStore } from '../stores/auth'
+import WorkspaceSwitcher from './WorkspaceSwitcher.vue'
 
 defineEmits(['open-create', 'search'])
 const themeStore = useThemeStore()

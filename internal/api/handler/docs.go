@@ -28,6 +28,10 @@ func (h *Handler) HandleAPIDocs(c fiber.Ctx) error {
 </html>`
 
 	c.Set("Content-Type", "text/html; charset=utf-8")
+	// Scalar is loaded from jsDelivr and injects inline styles and fonts.
+	c.Set("Content-Security-Policy", "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "+
+		"style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:; img-src 'self' data: https:; "+
+		"connect-src 'self' https://cdn.jsdelivr.net; frame-ancestors 'self'; object-src 'none'")
 	return c.SendString(html)
 }
 

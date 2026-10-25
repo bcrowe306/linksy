@@ -31,6 +31,8 @@ services:
         sync: false
       - key: WORKOS_CLIENT_ID
         sync: false
+      - key: APP_SECRET
+        generateValue: true
       - key: WORKOS_REDIRECT_URI
         value: https://test.lynqr.app/api/v1/auth/callback
 

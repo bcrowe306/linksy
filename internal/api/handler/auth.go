@@ -1,11 +1,8 @@
 package handler
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
+	"context"
+	"errors"
 	"net/url"
 	"strings"
 	"time"
@@ -13,90 +10,149 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/bcrowe306/linksy/internal/api/middleware"
+	"github.com/bcrowe306/linksy/internal/auth"
 	"github.com/bcrowe306/linksy/internal/config"
 	"github.com/bcrowe306/linksy/internal/models"
 	"github.com/bcrowe306/linksy/internal/service"
 )
 
+const (
+	oauthStateCookie    = "lynqr_oauth_state"
+	oauthRedirectCookie = "lynqr_oauth_next"
+	minPasswordLength   = 8
+)
+
 type AuthHandler struct {
-	cfg        *config.Config
-	svc        *service.Service
-	httpClient *http.Client
+	cfg    *config.Config
+	svc    *service.Service
+	workos *auth.WorkOS
 }
 
 func NewAuthHandler(cfg *config.Config, svc *service.Service) *AuthHandler {
-	return &AuthHandler{
-		cfg: cfg,
-		svc: svc,
-		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
-		},
+	return &AuthHandler{cfg: cfg, svc: svc, workos: auth.NewWorkOS(cfg.WorkOSAPIKey, cfg.WorkOSClient)}
+}
+
+func (a *AuthHandler) ctx() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 15*time.Second)
+}
+
+func (a *AuthHandler) devLoginEnabled() bool {
+	return a.cfg.DevLogin && a.cfg.IsLocal()
+}
+
+// redirectURI derives the OAuth callback for the host the user is on, so
+// lynqr.app and test.lynqr.app each round-trip to themselves.
+func (a *AuthHandler) redirectURI(c fiber.Ctx) string {
+	host := c.Get("X-Forwarded-Host")
+	if host == "" {
+		host = c.Host()
+	}
+	host = strings.TrimSpace(strings.Split(host, ",")[0])
+	if host == "" || strings.HasPrefix(host, "localhost") || strings.HasPrefix(host, "127.0.0.1") {
+		if a.cfg.WorkOSRedirectURI != "" {
+			return a.cfg.WorkOSRedirectURI
+		}
+	}
+	// Anything that isn't loopback is served over TLS (Render/Cloudflare terminate it).
+	proto := "https"
+	if strings.HasPrefix(host, "localhost") || strings.HasPrefix(host, "127.0.0.1") {
+		proto = "http"
+	}
+	return proto + "://" + host + "/api/v1/auth/callback"
+}
+
+// safeNext only allows same-site relative redirect targets.
+func safeNext(next string) string {
+	if next == "" || !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") || strings.Contains(next, "\\") {
+		return "/"
+	}
+	return next
+}
+
+func (a *AuthHandler) setCookie(c fiber.Ctx, name, value string, ttl time.Duration) {
+	c.Cookie(&fiber.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		Expires:  time.Now().Add(ttl),
+		MaxAge:   int(ttl.Seconds()),
+		HTTPOnly: true,
+		Secure:   a.cfg.SecureCookies(),
+		SameSite: fiber.CookieSameSiteLaxMode,
+	})
+}
+
+func (a *AuthHandler) clearCookie(c fiber.Ctx, name string) {
+	c.Cookie(&fiber.Cookie{
+		Name: name, Value: "", Path: "/", Expires: time.Unix(0, 0), MaxAge: -1,
+		HTTPOnly: true, Secure: a.cfg.SecureCookies(), SameSite: fiber.CookieSameSiteLaxMode,
+	})
+}
+
+func userFromWorkOS(w auth.WorkOSUser) *models.User {
+	return &models.User{ID: w.ID, Email: w.Email, FirstName: w.FirstName, LastName: w.LastName, AvatarURL: w.ProfilePictureURL}
+}
+
+// establishSession issues a session cookie for an authenticated identity.
+func (a *AuthHandler) establishSession(c fiber.Ctx, u *models.User) error {
+	token, _, err := a.svc.StartSession(u, middleware.ClientIP(c), c.Get("User-Agent"))
+	if err != nil {
+		return err
+	}
+	a.setCookie(c, middleware.SessionCookie, token, service.SessionTTL)
+	return nil
+}
+
+func (a *AuthHandler) sessionJSON(c fiber.Ctx, u *models.User) error {
+	if err := a.establishSession(c, u); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"authenticated": true, "user": publicUser(u)})
+}
+
+func publicUser(u *models.User) fiber.Map {
+	return fiber.Map{
+		"id":         u.ID,
+		"email":      u.Email,
+		"first_name": u.FirstName,
+		"last_name":  u.LastName,
+		"name":       strings.TrimSpace(u.FirstName + " " + u.LastName),
+		"avatar_url": u.AvatarURL,
+		"created_at": u.CreatedAt,
 	}
 }
 
-func (a *AuthHandler) getRedirectURI(c fiber.Ctx) string {
-	host := c.Hostname()
-	if xfh := c.Get("X-Forwarded-Host"); xfh != "" {
-		host = strings.Split(xfh, ",")[0]
-		host = strings.TrimSpace(host)
+// authFailure converts WorkOS errors into client responses, surfacing the
+// email-verification step so the UI can prompt for the emailed code.
+func authFailure(c fiber.Ctx, err error, fallbackStatus int) error {
+	var we *auth.WorkOSError
+	if errors.As(err, &we) {
+		if we.IsCode("email_verification_required") {
+			return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
+				"verification_required": true,
+				"pending_token":         we.PendingAuthenticationToken,
+				"email":                 we.Email,
+				"message":               "We emailed you a verification code. Enter it to finish signing in.",
+			})
+		}
+		msg := we.Error()
+		if we.IsCode("invalid_credentials") || we.Status == fiber.StatusUnauthorized {
+			msg = "Invalid email or password"
+		}
+		return c.Status(fallbackStatus).JSON(fiber.Map{"error": msg, "code": we.Code})
 	}
-	if strings.Contains(host, ":") {
-		host = strings.Split(host, ":")[0]
+	if errors.Is(err, auth.ErrWorkOSDisabled) {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "Authentication service is not configured"})
 	}
-
-	if host == "lynqr.app" || host == "www.lynqr.app" {
-		return "https://lynqr.app/api/v1/auth/callback"
-	}
-	if host == "test.lynqr.app" {
-		return "https://test.lynqr.app/api/v1/auth/callback"
-	}
-	if a.cfg.WorkOSRedirectURI != "" {
-		return a.cfg.WorkOSRedirectURI
-	}
-	protocol := "https"
-	if c.Protocol() != "" {
-		protocol = c.Protocol()
-	}
-	return fmt.Sprintf("%s://%s/api/v1/auth/callback", protocol, host)
+	return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": err.Error()})
 }
 
-func (a *AuthHandler) getActiveWorkOSKey() string {
-	if a.cfg.WorkOSAPIKeyProd != "" {
-		return a.cfg.WorkOSAPIKeyProd
-	}
-	if a.cfg.WorkOSAPIKey != "" {
-		return a.cfg.WorkOSAPIKey
-	}
-	return a.cfg.WorkOSAPIKeyTest
-}
-
-// GetAuthConfig returns the current authentication state and available provider URLs
+// GetAuthConfig returns the available sign-in methods.
 func (a *AuthHandler) GetAuthConfig(c fiber.Ctx) error {
-	enabled := a.cfg.WorkOSClient != "" && a.cfg.WorkOSAPIKey != ""
-	loginURL := ""
-	redirectURI := a.getRedirectURI(c)
-
-	if enabled {
-		v := url.Values{}
-		v.Set("client_id", a.cfg.WorkOSClient)
-		v.Set("redirect_uri", redirectURI)
-		v.Set("response_type", "code")
-		v.Set("provider", "authkit")
-		loginURL = fmt.Sprintf("https://api.workos.com/user_management/authorize?%s", v.Encode())
-	}
-
 	return c.JSON(fiber.Map{
-		"enabled":      enabled,
-		"client_id":    a.cfg.WorkOSClient,
-		"redirect_uri": redirectURI,
-		"login_url":    loginURL,
-		"providers": []string{
-			"email_password",
-			"GoogleOAuth",
-			"MicrosoftOAuth",
-			"GitHubOAuth",
-			"authkit",
-		},
+		"enabled":   a.workos.Enabled(),
+		"dev_login": a.devLoginEnabled(),
+		"providers": []string{"email_password", "google", "microsoft", "github", "authkit"},
 	})
 }
 
@@ -105,45 +161,66 @@ func (a *AuthHandler) HandleLogin(c fiber.Ctx) error {
 	return a.HandleOAuthLogin(c)
 }
 
-// HandleOAuthLogin initiates an OAuth flow for a specific provider (Google, Microsoft, GitHub, AuthKit)
+// HandleOAuthLogin starts an OAuth / AuthKit flow with a CSRF state cookie.
 func (a *AuthHandler) HandleOAuthLogin(c fiber.Ctx) error {
-	if a.cfg.WorkOSClient == "" || a.cfg.WorkOSAPIKey == "" {
-		return c.Redirect().To("/")
+	if !a.workos.Enabled() {
+		return c.Redirect().To("/login?auth_error=" + url.QueryEscape("Single sign-on is not configured"))
 	}
 
-	providerParam := strings.ToLower(c.Params("provider", "authkit"))
-	screenHint := c.Query("screen_hint", "")
-	isDirect := c.Query("direct", "false") == "true"
-
-	workOSProvider := "authkit"
-	if isDirect {
-		switch providerParam {
-		case "google", "googleoauth":
-			workOSProvider = "GoogleOAuth"
-		case "microsoft", "microsoftoauth":
-			workOSProvider = "MicrosoftOAuth"
-		case "github", "githuboauth":
-			workOSProvider = "GitHubOAuth"
-		}
-	} else {
-		// Use AuthKit hosted flow by default to avoid 404s when specific OAuth credentials aren't yet configured
-		workOSProvider = "authkit"
+	provider := "authkit"
+	switch strings.ToLower(c.Params("provider", "authkit")) {
+	case "google", "googleoauth":
+		provider = "GoogleOAuth"
+	case "microsoft", "microsoftoauth":
+		provider = "MicrosoftOAuth"
+	case "github", "githuboauth":
+		provider = "GitHubOAuth"
 	}
 
-	v := url.Values{}
-	v.Set("client_id", a.cfg.WorkOSClient)
-	v.Set("redirect_uri", a.getRedirectURI(c))
-	v.Set("response_type", "code")
-	v.Set("provider", workOSProvider)
-	// Note: WorkOS AuthKit returns a 404 on /sign-up if public sign-ups are disabled
-	// in AuthKit dashboard settings. We safely ignore screen_hint="sign-up" so AuthKit
-	// opens the active hosted screen directly without 404ing.
-	if screenHint != "" && screenHint != "sign-up" {
-		v.Set("screen_hint", screenHint)
+	state, err := auth.NewToken("st_")
+	if err != nil {
+		return err
 	}
+	a.setCookie(c, oauthStateCookie, state, 10*time.Minute)
+	a.setCookie(c, oauthRedirectCookie, safeNext(c.Query("redirect")), 10*time.Minute)
 
-	targetURL := fmt.Sprintf("https://api.workos.com/user_management/authorize?%s", v.Encode())
-	return c.Redirect().To(targetURL)
+	hint := c.Query("screen_hint")
+	if hint != "sign-in" && hint != "sign-up" {
+		hint = ""
+	}
+	return c.Redirect().To(a.workos.AuthorizationURL(provider, a.redirectURI(c), state, hint))
+}
+
+// HandleCallback exchanges the authorization code and starts a session.
+func (a *AuthHandler) HandleCallback(c fiber.Ctx) error {
+	fail := func(msg string) error {
+		return c.Redirect().To("/login?auth_error=" + url.QueryEscape(msg))
+	}
+	if e := c.Query("error_description", c.Query("error")); e != "" {
+		return fail(e)
+	}
+	code := c.Query("code")
+	if code == "" {
+		return fail("Missing authorization code")
+	}
+	expected := c.Cookies(oauthStateCookie)
+	if expected == "" || c.Query("state") != expected {
+		return fail("Your sign-in link expired. Please try again.")
+	}
+	next := safeNext(c.Cookies(oauthRedirectCookie))
+	a.clearCookie(c, oauthStateCookie)
+	a.clearCookie(c, oauthRedirectCookie)
+
+	ctx, cancel := a.ctx()
+	defer cancel()
+	res, err := a.workos.AuthenticateWithCode(ctx, code, middleware.ClientIP(c), c.Get("User-Agent"))
+	if err != nil {
+		return fail(err.Error())
+	}
+	if err := a.establishSession(c, userFromWorkOS(res.User)); err != nil {
+		return fail("Could not start your session")
+	}
+	return c.Redirect().To(next)
 }
 
 type SignUpRequest struct {
@@ -153,102 +230,31 @@ type SignUpRequest struct {
 	Password  string `json:"password"`
 }
 
-// HandleSignUp creates a new user account with email & password via WorkOS
+// HandleSignUp creates a WorkOS user. If the environment requires email
+// verification, the response asks the client for the emailed code.
 func (a *AuthHandler) HandleSignUp(c fiber.Ctx) error {
-	if a.cfg.WorkOSClient == "" || a.cfg.WorkOSAPIKey == "" {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "Authentication service is not configured",
-		})
-	}
-
 	var req SignUpRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
-
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	if req.Email == "" || req.Password == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Email and password are required"})
 	}
-
-	if len(req.Password) < 8 {
+	if len(req.Password) < minPasswordLength {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Password must be at least 8 characters long"})
 	}
 
-	// 1. Create User in WorkOS User Management
-	workOSUserReq := map[string]interface{}{
-		"email":          req.Email,
-		"password":       req.Password,
-		"first_name":     strings.TrimSpace(req.FirstName),
-		"last_name":      strings.TrimSpace(req.LastName),
-		"email_verified": true,
+	ctx, cancel := a.ctx()
+	defer cancel()
+	if _, err := a.workos.CreateUser(ctx, req.Email, req.Password, strings.TrimSpace(req.FirstName), strings.TrimSpace(req.LastName)); err != nil {
+		return authFailure(c, err, fiber.StatusBadRequest)
 	}
-
-	jsonBytes, _ := json.Marshal(workOSUserReq)
-	createReq, _ := http.NewRequest("POST", "https://api.workos.com/user_management/users", bytes.NewBuffer(jsonBytes))
-	createReq.Header.Set("Authorization", "Bearer "+a.getActiveWorkOSKey())
-	createReq.Header.Set("Content-Type", "application/json")
-
-	createResp, err := a.httpClient.Do(createReq)
+	res, err := a.workos.AuthenticateWithPassword(ctx, req.Email, req.Password, middleware.ClientIP(c), c.Get("User-Agent"))
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to connect to WorkOS: " + err.Error()})
+		return authFailure(c, err, fiber.StatusUnauthorized)
 	}
-	defer createResp.Body.Close()
-
-	bodyBytes, _ := io.ReadAll(createResp.Body)
-	if createResp.StatusCode != http.StatusCreated && createResp.StatusCode != http.StatusOK {
-		var errObj map[string]interface{}
-		_ = json.Unmarshal(bodyBytes, &errObj)
-		errMsg := "Failed to create account"
-		if msg, ok := errObj["message"].(string); ok {
-			errMsg = msg
-		} else if desc, ok := errObj["error_description"].(string); ok {
-			errMsg = desc
-		}
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errMsg})
-	}
-
-	var createdUser WorkOSUser
-	_ = json.Unmarshal(bodyBytes, &createdUser)
-
-	if a.svc != nil && createdUser.ID != "" {
-		_ = a.svc.UpdateUserProfile(&models.User{
-			ID:        createdUser.ID,
-			Email:     createdUser.Email,
-			FirstName: createdUser.FirstName,
-			LastName:  createdUser.LastName,
-		})
-	}
-
-	// 2. Attempt WorkOS password authentication grant
-	authErr := a.authenticateWithPassword(c, req.Email, req.Password)
-	if authErr == nil {
-		return nil
-	}
-
-	// 3. Fallback: If headless grant is restricted by WorkOS tier, issue verified session directly
-	sessionToken := fmt.Sprintf("sess_%s_%d", createdUser.ID, time.Now().Unix())
-	c.Cookie(&fiber.Cookie{
-		Name:     "linksy_session",
-		Value:    sessionToken,
-		Expires:  time.Now().Add(7 * 24 * time.Hour),
-		HTTPOnly: false,
-		Secure:   true,
-		SameSite: "Lax",
-	})
-
-	name := strings.TrimSpace(fmt.Sprintf("%s %s", createdUser.FirstName, createdUser.LastName))
-	return c.JSON(fiber.Map{
-		"token": sessionToken,
-		"user": fiber.Map{
-			"id":         createdUser.ID,
-			"email":      createdUser.Email,
-			"first_name": createdUser.FirstName,
-			"last_name":  createdUser.LastName,
-			"name":       name,
-			"role":       "owner",
-		},
-	})
+	return a.sessionJSON(c, userFromWorkOS(res.User))
 }
 
 type PasswordLoginRequest struct {
@@ -256,702 +262,286 @@ type PasswordLoginRequest struct {
 	Password string `json:"password"`
 }
 
-// HandlePasswordLogin authenticates existing users with email and password via WorkOS
 func (a *AuthHandler) HandlePasswordLogin(c fiber.Ctx) error {
-	if a.cfg.WorkOSClient == "" || a.cfg.WorkOSAPIKey == "" {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "Authentication service is not configured",
-		})
-	}
-
 	var req PasswordLoginRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
-
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	if req.Email == "" || req.Password == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Email and password are required"})
 	}
 
-	if err := a.authenticateWithPassword(c, req.Email, req.Password); err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+	ctx, cancel := a.ctx()
+	defer cancel()
+	res, err := a.workos.AuthenticateWithPassword(ctx, req.Email, req.Password, middleware.ClientIP(c), c.Get("User-Agent"))
+	if err != nil {
+		return authFailure(c, err, fiber.StatusUnauthorized)
 	}
-	return nil
+	return a.sessionJSON(c, userFromWorkOS(res.User))
 }
 
-func (a *AuthHandler) authenticateWithPassword(c fiber.Ctx, email, password string) error {
-	type credentialPair struct {
-		clientID string
-		secret   string
+// HandleVerifyEmail completes sign-in with the code WorkOS emailed the user.
+func (a *AuthHandler) HandleVerifyEmail(c fiber.Ctx) error {
+	var req struct {
+		PendingToken string `json:"pending_token"`
+		Code         string `json:"code"`
 	}
-
-	pairs := []credentialPair{
-		{a.cfg.WorkOSClient, a.cfg.WorkOSAPIKey},
+	if err := c.Bind().Body(&req); err != nil || req.PendingToken == "" || strings.TrimSpace(req.Code) == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Verification code is required"})
 	}
-	if a.cfg.WorkOSClientIDProd != "" && a.cfg.WorkOSAPIKeyProd != "" {
-		pairs = append(pairs, credentialPair{a.cfg.WorkOSClientIDProd, a.cfg.WorkOSAPIKeyProd})
+	ctx, cancel := a.ctx()
+	defer cancel()
+	res, err := a.workos.AuthenticateWithEmailVerification(ctx, req.PendingToken, strings.TrimSpace(req.Code), middleware.ClientIP(c), c.Get("User-Agent"))
+	if err != nil {
+		return authFailure(c, err, fiber.StatusBadRequest)
 	}
-	if a.cfg.WorkOSClientIDStaging != "" && a.cfg.WorkOSAPIKeyTest != "" {
-		pairs = append(pairs, credentialPair{a.cfg.WorkOSClientIDStaging, a.cfg.WorkOSAPIKeyTest})
-	}
-
-	var authResp WorkOSAuthResponse
-	var lastErr string
-	success := false
-
-	for _, pair := range pairs {
-		if pair.clientID == "" || pair.secret == "" {
-			continue
-		}
-
-		authReq := map[string]interface{}{
-			"client_id":     pair.clientID,
-			"client_secret": pair.secret,
-			"grant_type":    "password",
-			"email":         email,
-			"password":      password,
-			"ip_address":    c.IP(),
-			"user_agent":    c.Get("User-Agent"),
-		}
-
-		jsonBytes, err := json.Marshal(authReq)
-		if err != nil {
-			continue
-		}
-
-		httpReq, err := http.NewRequest("POST", "https://api.workos.com/user_management/authenticate", bytes.NewBuffer(jsonBytes))
-		if err != nil {
-			continue
-		}
-		httpReq.Header.Set("Authorization", "Bearer "+pair.secret)
-		httpReq.Header.Set("Content-Type", "application/json")
-
-		resp, err := a.httpClient.Do(httpReq)
-		if err != nil {
-			lastErr = err.Error()
-			continue
-		}
-
-		respBytes, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-
-		if resp.StatusCode == http.StatusOK {
-			if err := json.Unmarshal(respBytes, &authResp); err == nil {
-				success = true
-				break
-			}
-		} else {
-			var errObj map[string]interface{}
-			_ = json.Unmarshal(respBytes, &errObj)
-			if desc, ok := errObj["error_description"].(string); ok && desc != "" {
-				lastErr = desc
-			} else if msg, ok := errObj["message"].(string); ok && msg != "" {
-				lastErr = msg
-			} else {
-				lastErr = fmt.Sprintf("Authentication failed with status %d", resp.StatusCode)
-			}
-		}
-	}
-
-	if !success {
-		if lastErr == "" {
-			lastErr = "Invalid email or password"
-		}
-		return fmt.Errorf("%s", lastErr)
-	}
-
-	// Sync user profile to database
-	if a.svc != nil && authResp.User.ID != "" {
-		_ = a.svc.UpdateUserProfile(&models.User{
-			ID:        authResp.User.ID,
-			Email:     authResp.User.Email,
-			FirstName: authResp.User.FirstName,
-			LastName:  authResp.User.LastName,
-		})
-	}
-
-	sessionToken := fmt.Sprintf("sess_%s_%d", authResp.User.ID, time.Now().Unix())
-	// Set session cookie
-	c.Cookie(&fiber.Cookie{
-		Name:     "linksy_session",
-		Value:    sessionToken,
-		Expires:  time.Now().Add(7 * 24 * time.Hour),
-		HTTPOnly: false,
-		Secure:   true,
-		SameSite: "Lax",
-	})
-
-	name := fmt.Sprintf("%s %s", authResp.User.FirstName, authResp.User.LastName)
-	return c.JSON(fiber.Map{
-		"token": sessionToken,
-		"user": fiber.Map{
-			"id":         authResp.User.ID,
-			"email":      authResp.User.Email,
-			"first_name": authResp.User.FirstName,
-			"last_name":  authResp.User.LastName,
-			"name":       strings.TrimSpace(name),
-			"role":       "owner",
-		},
-	})
+	return a.sessionJSON(c, userFromWorkOS(res.User))
 }
 
-type WorkOSAuthRequest struct {
-	ClientID     string `json:"client_id"`
-	ClientSecret string `json:"client_secret"`
-	GrantType    string `json:"grant_type"`
-	Code         string `json:"code"`
+// HandleDevLogin signs in without WorkOS for local development only.
+func (a *AuthHandler) HandleDevLogin(c fiber.Ctx) error {
+	if !a.devLoginEnabled() {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+	var req struct {
+		Email     string `json:"email"`
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
+	}
+	if err := c.Bind().Body(&req); err != nil || !strings.Contains(req.Email, "@") {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "A valid email is required"})
+	}
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	u := &models.User{ID: "user_dev_" + auth.HashToken(email)[:20], Email: email, FirstName: req.FirstName, LastName: req.LastName}
+	if existing, err := a.svc.GetUserProfile(u.ID); err == nil {
+		u = existing
+	}
+	return a.sessionJSON(c, u)
 }
 
-type WorkOSUser struct {
-	ID        string `json:"id"`
-	Email     string `json:"email"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-}
-
-type WorkOSAuthResponse struct {
-	User           WorkOSUser `json:"user"`
-	AccessToken    string     `json:"access_token"`
-	OrganizationID string     `json:"organization_id"`
-	Error          string     `json:"error,omitempty"`
-	ErrorDesc      string     `json:"error_description,omitempty"`
-}
-
-// HandleCallback processes the authorization code from WorkOS OAuth / AuthKit
-func (a *AuthHandler) HandleCallback(c fiber.Ctx) error {
-	code := c.Query("code")
-	if code == "" {
-		errDesc := c.Query("error_description", "Missing authorization code")
-		return c.Redirect().To(fmt.Sprintf("/login?auth_error=%s", url.QueryEscape(errDesc)))
-	}
-
-	type credentialPair struct {
-		clientID string
-		secret   string
-	}
-
-	pairs := []credentialPair{
-		{a.cfg.WorkOSClient, a.cfg.WorkOSAPIKey},
-	}
-	if a.cfg.WorkOSClientIDProd != "" && a.cfg.WorkOSAPIKeyProd != "" {
-		pairs = append(pairs, credentialPair{a.cfg.WorkOSClientIDProd, a.cfg.WorkOSAPIKeyProd})
-	}
-	if a.cfg.WorkOSClientIDStaging != "" && a.cfg.WorkOSAPIKeyTest != "" {
-		pairs = append(pairs, credentialPair{a.cfg.WorkOSClientIDStaging, a.cfg.WorkOSAPIKeyTest})
-	}
-
-	var authResp WorkOSAuthResponse
-	var lastErr string
-	success := false
-
-	for _, pair := range pairs {
-		if pair.clientID == "" || pair.secret == "" {
-			continue
-		}
-
-		reqBody := WorkOSAuthRequest{
-			ClientID:     pair.clientID,
-			ClientSecret: pair.secret,
-			GrantType:    "authorization_code",
-			Code:         code,
-		}
-
-		jsonBytes, err := json.Marshal(reqBody)
-		if err != nil {
-			continue
-		}
-
-		resp, err := a.httpClient.Post(
-			"https://api.workos.com/user_management/authenticate",
-			"application/json",
-			bytes.NewBuffer(jsonBytes),
-		)
-		if err != nil {
-			lastErr = err.Error()
-			continue
-		}
-
-		respBody, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-
-		if resp.StatusCode == http.StatusOK {
-			if err := json.Unmarshal(respBody, &authResp); err == nil {
-				success = true
-				break
-			}
-		} else {
-			var errResp WorkOSAuthResponse
-			_ = json.Unmarshal(respBody, &errResp)
-			if errResp.ErrorDesc != "" {
-				lastErr = errResp.ErrorDesc
-			} else {
-				lastErr = fmt.Sprintf("WorkOS error (%d)", resp.StatusCode)
-			}
-		}
-	}
-
-	if !success {
-		if lastErr == "" {
-			lastErr = "Authentication failed"
-		}
-		return c.Redirect().To(fmt.Sprintf("/login?auth_error=%s", url.QueryEscape(lastErr)))
-	}
-
-	// Set session cookie
-	c.Cookie(&fiber.Cookie{
-		Name:     "linksy_session",
-		Value:    authResp.AccessToken,
-		Expires:  time.Now().Add(7 * 24 * time.Hour),
-		HTTPOnly: false,
-		Secure:   true,
-		SameSite: "Lax",
-	})
-
-	name := fmt.Sprintf("%s %s", authResp.User.FirstName, authResp.User.LastName)
-	redirectURL := fmt.Sprintf(
-		"/?auth_success=true&user_id=%s&email=%s&name=%s&token=%s",
-		url.QueryEscape(authResp.User.ID),
-		url.QueryEscape(authResp.User.Email),
-		url.QueryEscape(name),
-		url.QueryEscape(authResp.AccessToken),
-	)
-
-	return c.Redirect().To(redirectURL)
-}
-
-// GetCurrentUser returns the currently authenticated user session
+// GetCurrentUser reports the session's user, active team, role and permissions.
 func (a *AuthHandler) GetCurrentUser(c fiber.Ctx) error {
-	authHeader := c.Get("Authorization")
-	cookie := c.Cookies("linksy_session")
-
-	token := ""
-	if authHeader != "" && len(authHeader) > 7 && authHeader[:7] == "Bearer " {
-		token = authHeader[7:]
-	} else if cookie != "" {
-		token = cookie
-	}
-
-	if token == "" {
-		return c.JSON(fiber.Map{
-			"authenticated": false,
-			"user": fiber.Map{
-				"id":    "usr_demo123",
-				"email": "demo@linksy.dev",
-				"name":  "Demo User",
-				"role":  "owner",
-			},
-		})
-	}
-
-	// If session starts with sess_ (direct server-issued session)
-	if strings.HasPrefix(token, "sess_") {
-		parts := strings.Split(token, "_")
-		userID := "usr_demo123"
-		if len(parts) >= 2 {
-			userID = parts[1]
+	ac, err := middleware.Authenticate(c, a.svc)
+	if err != nil {
+		resp := fiber.Map{"authenticated": false}
+		if errors.Is(err, service.ErrSuspended) || errors.Is(err, service.ErrNotMember) {
+			resp["error"] = err.Error()
 		}
-		return c.JSON(fiber.Map{
-			"authenticated": true,
-			"user": fiber.Map{
-				"id":    userID,
-				"email": "user@lynqr.app",
-				"name":  "Verified User",
-				"role":  "owner",
-			},
-		})
+		return c.JSON(resp)
 	}
-
-	// Query WorkOS for user details
-	req, _ := http.NewRequest("GET", "https://api.workos.com/user_management/users/me", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	resp, err := a.httpClient.Do(req)
-	if err == nil && resp.StatusCode == http.StatusOK {
-		var user WorkOSUser
-		_ = json.NewDecoder(resp.Body).Decode(&user)
-		resp.Body.Close()
-		return c.JSON(fiber.Map{
-			"authenticated": true,
-			"user": fiber.Map{
-				"id":    user.ID,
-				"email": user.Email,
-				"name":  strings.TrimSpace(fmt.Sprintf("%s %s", user.FirstName, user.LastName)),
-				"role":  "owner",
-			},
-		})
+	u, err := a.svc.GetUserProfile(ac.UserID)
+	if err != nil {
+		return c.JSON(fiber.Map{"authenticated": false})
 	}
-
+	teams, _ := a.svc.ListUserTeams(ac.UserID)
+	invites, _ := a.svc.ListMyInvitations(u.Email)
+	var active *models.TeamMembership
+	for i := range teams {
+		if teams[i].ID == ac.TeamID {
+			active = &teams[i]
+		}
+	}
 	return c.JSON(fiber.Map{
-		"authenticated": true,
-		"user": fiber.Map{
-			"id":    "usr_workos",
-			"email": "user@lynqr.app",
-			"name":  "Authenticated User",
-			"role":  "owner",
-		},
+		"authenticated":       true,
+		"user":                publicUser(u),
+		"team":                active,
+		"role":                ac.Role,
+		"permissions":         auth.Permissions(ac.Role),
+		"teams":               teams,
+		"pending_invitations": len(invites),
 	})
 }
 
-// HandleLogout clears session cookies
+// HandleLogout revokes the server-side session and clears the cookie.
 func (a *AuthHandler) HandleLogout(c fiber.Ctx) error {
-	c.Cookie(&fiber.Cookie{
-		Name:     "linksy_session",
-		Value:    "",
-		Expires:  time.Now().Add(-1 * time.Hour),
-		HTTPOnly: false,
-		Secure:   true,
-		SameSite: "Lax",
-	})
+	if ac, err := middleware.Authenticate(c, a.svc); err == nil && ac.Session != nil {
+		_ = a.svc.EndSession(ac.Session.ID, ac.UserID)
+	}
+	a.clearCookie(c, middleware.SessionCookie)
 	return c.JSON(fiber.Map{"success": true})
 }
 
+// ----------------- Password Management -----------------
 
-// ----------------- Profile Management -----------------
-
-// GetProfile returns the current authenticated user's profile
-func (a *AuthHandler) GetProfile(c fiber.Ctx) error {
-	auth := middleware.GetAuth(c)
-	if auth == nil || auth.UserID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
-	}
-
-	// 1. Try local database
-	if a.svc != nil {
-		user, err := a.svc.GetUserProfile(auth.UserID)
-		if err == nil && user != nil {
-			return c.JSON(fiber.Map{
-				"user": fiber.Map{
-					"id":         user.ID,
-					"email":      user.Email,
-					"first_name": user.FirstName,
-					"last_name":  user.LastName,
-					"name":       strings.TrimSpace(user.FirstName + " " + user.LastName),
-					"avatar_url": user.AvatarURL,
-					"role":       auth.Role,
-					"created_at": user.CreatedAt,
-				},
-			})
-		}
-	}
-
-	// 2. If user ID is from WorkOS, fetch directly from WorkOS User Management
-	if strings.HasPrefix(auth.UserID, "user_") {
-		workosKey := a.getActiveWorkOSKey()
-		if workosKey != "" {
-			req, err := http.NewRequest("GET", "https://api.workos.com/user_management/users/"+auth.UserID, nil)
-			if err == nil {
-				req.Header.Set("Authorization", "Bearer "+workosKey)
-				resp, err := a.httpClient.Do(req)
-				if err == nil && resp.StatusCode == http.StatusOK {
-					defer resp.Body.Close()
-					var wUser struct {
-						ID                string `json:"id"`
-						Email             string `json:"email"`
-						FirstName         string `json:"first_name"`
-						LastName          string `json:"last_name"`
-						ProfilePictureURL string `json:"profile_picture_url"`
-						CreatedAt         string `json:"created_at"`
-					}
-					if err := json.NewDecoder(resp.Body).Decode(&wUser); err == nil {
-						if a.svc != nil {
-							_ = a.svc.UpdateUserProfile(&models.User{
-								ID:        wUser.ID,
-								Email:     wUser.Email,
-								FirstName: wUser.FirstName,
-								LastName:  wUser.LastName,
-								AvatarURL: wUser.ProfilePictureURL,
-							})
-						}
-						return c.JSON(fiber.Map{
-							"user": fiber.Map{
-								"id":         wUser.ID,
-								"email":      wUser.Email,
-								"first_name": wUser.FirstName,
-								"last_name":  wUser.LastName,
-								"name":       strings.TrimSpace(wUser.FirstName + " " + wUser.LastName),
-								"avatar_url": wUser.ProfilePictureURL,
-								"role":       auth.Role,
-								"created_at": wUser.CreatedAt,
-							},
-						})
-					}
-				}
-			}
-		}
-	}
-
-	// 3. Fallback for demo or session user
-	return c.JSON(fiber.Map{
-		"user": fiber.Map{
-			"id":         auth.UserID,
-			"email":      "user@lynqr.app",
-			"first_name": "Verified",
-			"last_name":  "User",
-			"name":       "Verified User",
-			"avatar_url": "",
-			"role":       auth.Role,
-			"created_at": time.Now().UTC(),
-		},
-	})
-}
-
-// UpdateProfile updates the user name and avatar in DB and WorkOS
-func (a *AuthHandler) UpdateProfile(c fiber.Ctx) error {
-	auth := middleware.GetAuth(c)
-	if auth == nil || auth.UserID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
-	}
-
-	var req models.UpdateProfileRequest
-	if err := c.Bind().Body(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
-	}
-
-	req.FirstName = strings.TrimSpace(req.FirstName)
-	req.LastName = strings.TrimSpace(req.LastName)
-
-	if a.svc != nil {
-		existing, _ := a.svc.GetUserProfile(auth.UserID)
-		email := "user@lynqr.app"
-		if existing != nil && existing.Email != "" {
-			email = existing.Email
-		}
-		_ = a.svc.UpdateUserProfile(&models.User{
-			ID:        auth.UserID,
-			Email:     email,
-			FirstName: req.FirstName,
-			LastName:  req.LastName,
-			AvatarURL: req.AvatarURL,
-		})
-	}
-
-	if strings.HasPrefix(auth.UserID, "user_") {
-		workosKey := a.getActiveWorkOSKey()
-		if workosKey != "" {
-			payload := map[string]interface{}{
-				"first_name": req.FirstName,
-				"last_name":  req.LastName,
-			}
-			body, _ := json.Marshal(payload)
-			putReq, err := http.NewRequest("PUT", "https://api.workos.com/user_management/users/"+auth.UserID, bytes.NewBuffer(body))
-			if err == nil {
-				putReq.Header.Set("Authorization", "Bearer "+workosKey)
-				putReq.Header.Set("Content-Type", "application/json")
-				if resp, err := a.httpClient.Do(putReq); err == nil {
-					resp.Body.Close()
-				}
-			}
-		}
-	}
-
-	return c.JSON(fiber.Map{
-		"message": "Profile updated successfully",
-		"user": fiber.Map{
-			"id":         auth.UserID,
-			"first_name": req.FirstName,
-			"last_name":  req.LastName,
-			"name":       strings.TrimSpace(req.FirstName + " " + req.LastName),
-			"avatar_url": req.AvatarURL,
-		},
-	})
-}
-
-// HandlePasswordReset initiates a password reset via WorkOS API
+// HandlePasswordReset emails a reset link. It always returns the same response
+// so it can't be used to discover which emails have accounts.
 func (a *AuthHandler) HandlePasswordReset(c fiber.Ctx) error {
 	var req models.PasswordResetRequest
 	_ = c.Bind().Body(&req)
-
 	email := strings.TrimSpace(strings.ToLower(req.Email))
-	if email == "" {
-		auth := middleware.GetAuth(c)
-		if auth != nil && a.svc != nil {
-			if u, err := a.svc.GetUserProfile(auth.UserID); err == nil && u != nil {
-				email = u.Email
-			}
-		}
-	}
-
 	if email == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Email address is required for password reset"})
 	}
-
-	workosKey := a.getActiveWorkOSKey()
-	if workosKey == "" {
+	if !a.workos.Enabled() {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "Authentication provider not configured"})
 	}
-
-	payload := map[string]string{"email": email}
-	body, _ := json.Marshal(payload)
-
-	resetReq, err := http.NewRequest("POST", "https://api.workos.com/user_management/password_reset", bytes.NewBuffer(body))
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create reset request"})
-	}
-	resetReq.Header.Set("Authorization", "Bearer "+workosKey)
-	resetReq.Header.Set("Content-Type", "application/json")
-
-	resetResp, err := a.httpClient.Do(resetReq)
-	if err != nil {
-		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "Failed to reach WorkOS: " + err.Error()})
-	}
-	defer resetResp.Body.Close()
-
-	respBody, _ := io.ReadAll(resetResp.Body)
-	var resetData struct {
-		ID               string `json:"id"`
-		PasswordResetURL string `json:"password_reset_url"`
-		Error            string `json:"error,omitempty"`
-		Message          string `json:"message,omitempty"`
-	}
-	_ = json.Unmarshal(respBody, &resetData)
-
-	if resetResp.StatusCode >= 400 {
-		msg := resetData.Message
-		if msg == "" {
-			msg = "Failed to initiate password reset"
-		}
-		return c.Status(resetResp.StatusCode).JSON(fiber.Map{"error": msg})
-	}
-
-	sendReq, _ := http.NewRequest("POST", "https://api.workos.com/user_management/password_reset/send", bytes.NewBuffer(body))
-	sendReq.Header.Set("Authorization", "Bearer "+workosKey)
-	sendReq.Header.Set("Content-Type", "application/json")
-	if sendResp, err := a.httpClient.Do(sendReq); err == nil {
-		sendResp.Body.Close()
-	}
-
-	return c.JSON(fiber.Map{
-		"message":            "Password reset instructions have been generated and dispatched",
-		"email":              email,
-		"password_reset_url": resetData.PasswordResetURL,
-	})
+	ctx, cancel := a.ctx()
+	defer cancel()
+	_, _ = a.workos.CreatePasswordReset(ctx, email)
+	return c.JSON(fiber.Map{"message": "If an account exists for that email, a password reset link is on its way."})
 }
 
-// HandleChangePassword updates the authenticated user password directly via WorkOS
-func (a *AuthHandler) HandleChangePassword(c fiber.Ctx) error {
-	auth := middleware.GetAuth(c)
-	if auth == nil || auth.UserID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+// HandlePasswordResetConfirm sets a new password using the emailed reset token.
+func (a *AuthHandler) HandlePasswordResetConfirm(c fiber.Ctx) error {
+	var req struct {
+		Token       string `json:"token"`
+		NewPassword string `json:"new_password"`
 	}
+	if err := c.Bind().Body(&req); err != nil || req.Token == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Reset token is required"})
+	}
+	if len(req.NewPassword) < minPasswordLength {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Password must be at least 8 characters long"})
+	}
+	ctx, cancel := a.ctx()
+	defer cancel()
+	if _, err := a.workos.ConfirmPasswordReset(ctx, req.Token, req.NewPassword); err != nil {
+		return authFailure(c, err, fiber.StatusBadRequest)
+	}
+	return c.JSON(fiber.Map{"message": "Password updated. You can now sign in."})
+}
 
+// HandleChangePassword re-verifies the current password before setting a new one.
+func (a *AuthHandler) HandleChangePassword(c fiber.Ctx) error {
+	ac := middleware.GetAuth(c)
 	var req models.ChangePasswordRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
-
-	if len(req.NewPassword) < 8 {
+	if len(req.NewPassword) < minPasswordLength {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "New password must be at least 8 characters long"})
 	}
-
-	if !strings.HasPrefix(auth.UserID, "user_") {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Password can only be updated for provisioned user accounts",
-		})
+	if req.CurrentPassword == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Current password is required"})
 	}
-
-	workosKey := a.getActiveWorkOSKey()
-	if workosKey == "" {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "Authentication service not configured"})
-	}
-
-	payload := map[string]string{
-		"password": req.NewPassword,
-	}
-	body, _ := json.Marshal(payload)
-
-	putReq, err := http.NewRequest("PUT", "https://api.workos.com/user_management/users/"+auth.UserID, bytes.NewBuffer(body))
+	u, err := a.svc.GetUserProfile(ac.UserID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create password update request"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	putReq.Header.Set("Authorization", "Bearer "+workosKey)
-	putReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := a.httpClient.Do(putReq)
-	if err != nil {
-		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "Failed to reach WorkOS: " + err.Error()})
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		var errData map[string]interface{}
-		_ = json.NewDecoder(resp.Body).Decode(&errData)
-		msg := "Failed to update password"
-		if m, ok := errData["message"].(string); ok && m != "" {
-			msg = m
+	ctx, cancel := a.ctx()
+	defer cancel()
+	if _, err := a.workos.AuthenticateWithPassword(ctx, u.Email, req.CurrentPassword, middleware.ClientIP(c), c.Get("User-Agent")); err != nil {
+		var we *auth.WorkOSError
+		if errors.As(err, &we) && !we.IsCode("email_verification_required") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Current password is incorrect"})
 		}
-		return c.Status(resp.StatusCode).JSON(fiber.Map{"error": msg})
+		if !errors.As(err, &we) {
+			return authFailure(c, err, fiber.StatusBadGateway)
+		}
+	}
+	if err := a.workos.UpdateUser(ctx, ac.UserID, map[string]any{"password": req.NewPassword}); err != nil {
+		return authFailure(c, err, fiber.StatusBadRequest)
+	}
+	if ac.Session != nil {
+		_ = a.svc.EndOtherSessions(ac.UserID, ac.Session.ID)
+	}
+	a.svc.Audit(middleware.Actor(c), "user.password_change", "user", ac.UserID, nil)
+	return c.JSON(fiber.Map{"message": "Password updated successfully. Other sessions were signed out."})
+}
+
+// ----------------- Profile & Sessions -----------------
+
+func (a *AuthHandler) GetProfile(c fiber.Ctx) error {
+	ac := middleware.GetAuth(c)
+	u, err := a.svc.GetUserProfile(ac.UserID)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Profile not found"})
+	}
+	pu := publicUser(u)
+	pu["role"] = ac.Role
+	return c.JSON(fiber.Map{"user": pu})
+}
+
+func (a *AuthHandler) UpdateProfile(c fiber.Ctx) error {
+	ac := middleware.GetAuth(c)
+	var req models.UpdateProfileRequest
+	if err := c.Bind().Body(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	req.FirstName = strings.TrimSpace(req.FirstName)
+	req.LastName = strings.TrimSpace(req.LastName)
+	if len(req.FirstName) > 80 || len(req.LastName) > 80 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Names must be 80 characters or fewer"})
+	}
+	if req.AvatarURL != "" && !strings.HasPrefix(req.AvatarURL, "https://") && !strings.HasPrefix(req.AvatarURL, "data:image/") {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Avatar must be an https URL or an uploaded image"})
+	}
+	if len(req.AvatarURL) > 512*1024 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Avatar image is too large (max 384KB)"})
 	}
 
-	return c.JSON(fiber.Map{"message": "Password updated successfully"})
+	u, err := a.svc.GetUserProfile(ac.UserID)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Profile not found"})
+	}
+	u.FirstName, u.LastName, u.AvatarURL = req.FirstName, req.LastName, req.AvatarURL
+	if err := a.svc.UpdateUserProfile(u); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	if a.workos.Enabled() && !strings.HasPrefix(u.ID, "user_dev_") {
+		ctx, cancel := a.ctx()
+		defer cancel()
+		_ = a.workos.UpdateUser(ctx, u.ID, map[string]any{"first_name": u.FirstName, "last_name": u.LastName})
+	}
+	return c.JSON(fiber.Map{"message": "Profile updated successfully", "user": publicUser(u)})
+}
+
+func (a *AuthHandler) ListSessions(c fiber.Ctx) error {
+	ac := middleware.GetAuth(c)
+	sessions, err := a.svc.ListSessions(ac.UserID, ac.Session.ID)
+	if err != nil {
+		return fail(c, err)
+	}
+	return c.JSON(fiber.Map{"data": sessions})
+}
+
+func (a *AuthHandler) RevokeSession(c fiber.Ctx) error {
+	ac := middleware.GetAuth(c)
+	if err := a.svc.EndSession(c.Params("id"), ac.UserID); err != nil {
+		return fail(c, err)
+	}
+	return c.JSON(fiber.Map{"message": "Session revoked"})
+}
+
+func (a *AuthHandler) RevokeOtherSessions(c fiber.Ctx) error {
+	ac := middleware.GetAuth(c)
+	if err := a.svc.EndOtherSessions(ac.UserID, ac.Session.ID); err != nil {
+		return fail(c, err)
+	}
+	return c.JSON(fiber.Map{"message": "Signed out of all other sessions"})
 }
 
 // ----------------- API Keys -----------------
 
-// ListAPIKeys returns the list of API keys for the current user
 func (a *AuthHandler) ListAPIKeys(c fiber.Ctx) error {
-	auth := middleware.GetAuth(c)
-	if auth == nil || auth.UserID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
-	}
-
-	if a.svc == nil {
-		return c.JSON(fiber.Map{"api_keys": []models.APIKey{}})
-	}
-
-	keys, err := a.svc.ListAPIKeys(auth.UserID)
+	keys, err := a.svc.ListAPIKeys(middleware.Actor(c))
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return fail(c, err)
 	}
-	if keys == nil {
-		keys = []models.APIKey{}
-	}
-
 	return c.JSON(fiber.Map{"api_keys": keys})
 }
 
-// CreateAPIKey generates a new API key for the user
 func (a *AuthHandler) CreateAPIKey(c fiber.Ctx) error {
-	auth := middleware.GetAuth(c)
-	if auth == nil || auth.UserID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
-	}
-
 	var req models.CreateAPIKeyRequest
 	_ = c.Bind().Body(&req)
-
-	if strings.TrimSpace(req.Name) == "" {
-		req.Name = "Default API Key"
+	if req.ExpiresInDays < 0 || req.ExpiresInDays > 3650 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "expires_in_days must be between 0 and 3650"})
 	}
-
-	key, err := a.svc.CreateAPIKey(auth.UserID, auth.TeamID, req.Name, req.ExpiresInDays)
+	key, err := a.svc.CreateAPIKey(middleware.Actor(c), req.Name, req.ExpiresInDays)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create API key: " + err.Error()})
+		return fail(c, err)
 	}
-
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "API key generated successfully. Store this key safely as it will not be shown again.",
 		"api_key": key,
 	})
 }
 
-// RevokeAPIKey revokes an existing API key
 func (a *AuthHandler) RevokeAPIKey(c fiber.Ctx) error {
-	auth := middleware.GetAuth(c)
-	if auth == nil || auth.UserID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	if err := a.svc.DeleteAPIKey(middleware.Actor(c), c.Params("id")); err != nil {
+		return fail(c, err)
 	}
-
-	keyID := c.Params("id")
-	if keyID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Key ID is required"})
-	}
-
-	if err := a.svc.DeleteAPIKey(keyID, auth.UserID); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to revoke API key: " + err.Error()})
-	}
-
 	return c.JSON(fiber.Map{"message": "API key revoked successfully"})
 }

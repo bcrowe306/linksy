@@ -33,38 +33,32 @@ def get_or_create_credentials():
         SHARED_STATE["password"] = "LinksySecurePass!2026"
     return SHARED_STATE["email"], SHARED_STATE["password"]
 
-def authenticate_page(page: Page, base_url: str):
-    """Helper to ensure the page has an active authenticated session"""
-    rand_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
-    email = f"ui_reg_{int(time.time())}_{rand_suffix}@lynqr.app"
-    password = "LinksySecurePass!2026"
-    
-    # Check if already authenticated
-    page.goto(f"{base_url}/")
-    page.wait_for_load_state("networkidle")
-    profile_link = page.locator("header a[href='/profile']")
-    if profile_link.is_visible():
-        return
-        
-    # Attempt login
+def ui_login(page: Page, base_url: str, email: str, password: str):
     page.goto(f"{base_url}/login")
     page.wait_for_load_state("networkidle")
     page.fill("input[type='email']", email)
     page.fill("input[type='password']", password)
     page.click("button[type='submit']")
-    page.wait_for_timeout(2000)
-    
-    # If login fails (user not registered yet), sign up
-    if "/login" in page.url:
-        page.goto(f"{base_url}/signup")
-        page.wait_for_load_state("networkidle")
-        page.fill("input[placeholder='Jane']", "QA_User")
-        page.fill("input[placeholder='Doe']", "Tester")
-        page.fill("input[placeholder='jane@company.com']", email)
-        page.fill("input[placeholder='At least 8 characters']", password)
-        page.fill("input[placeholder='Re-enter password']", password)
-        page.click("button:has-text('Create Free Account')")
-        page.wait_for_url(lambda u: "/signup" not in u, timeout=12000)
+    page.wait_for_url(lambda u: "/login" not in u, timeout=15000)
+
+
+def ensure_fixture_user():
+    """Creates the shared pre-verified WorkOS user once per run."""
+    email, password = get_or_create_credentials()
+    if not SHARED_STATE["user_id"]:
+        created = WorkOSClient().create_user(email, password, "QA_User", "Tester")
+        SHARED_STATE["user_id"] = created.get("id")
+    return email, password
+
+
+def authenticate_page(page: Page, base_url: str):
+    """Ensure the page has an active authenticated session"""
+    page.goto(f"{base_url}/")
+    page.wait_for_load_state("networkidle")
+    if page.locator("header a[href='/profile']").is_visible():
+        return
+    email, password = ensure_fixture_user()
+    ui_login(page, base_url, email, password)
 
 # ==============================================================================
 # 1. CLOUDFLARE INFRASTRUCTURE API TESTS
@@ -197,52 +191,35 @@ def test_theme_system_toggle_and_persistence(page: Page, base_url: str):
 # 4. PLAYWRIGHT UI TESTS: USER REGISTRATION & AUTHENTICATION
 # ==============================================================================
 def test_signup_and_login_ui(page: Page, base_url: str):
-    """Test user registration and subsequent sign-in via the web interface"""
-    email, password = get_or_create_credentials()
-    
-    # 1. Registration Flow
+    """Sign-up form submits (and may request an emailed code); sign-in, sign-out and sign-in again work."""
+    probe_email = f"ui_probe_{int(time.time())}@lynqr.app"
     page.goto(f"{base_url}/signup")
     page.wait_for_load_state("networkidle")
-    
     page.fill("input[placeholder='Jane']", "QA_User")
     page.fill("input[placeholder='Doe']", "Tester")
-    page.fill("input[placeholder='jane@company.com']", email)
-    page.fill("input[placeholder='At least 8 characters']", password)
-    page.fill("input[placeholder='Re-enter password']", password)
-    
-    # Submit registration
+    page.fill("input[placeholder='jane@company.com']", probe_email)
+    page.fill("input[placeholder='At least 8 characters']", "LinksySecurePass!2026")
+    page.fill("input[placeholder='Re-enter password']", "LinksySecurePass!2026")
     page.click("button:has-text('Create Free Account')")
-    
-    # Expect redirect away from /signup
-    page.wait_for_url(lambda url: "/signup" not in url, timeout=15000)
-    expect(page.locator("header")).to_be_visible()
-    
-    # Extract session cookie
-    cookies = page.context.cookies()
-    session_cookie = next((c for c in cookies if c["name"] == "linksy_session"), None)
-    if session_cookie:
-        cookie_val = session_cookie["value"]
-        if "user_" in cookie_val:
-            parts = cookie_val.split("_")
-            if len(parts) >= 3 and parts[1] == "user":
-                SHARED_STATE["user_id"] = "user_" + parts[2]
-            
-    # 2. Log Out Flow
-    signout_btn = page.locator("header button[title='Sign Out']")
-    if signout_btn.is_visible():
-        signout_btn.click()
-        page.wait_for_timeout(1000)
-        
-    # 3. Log In Flow
-    page.goto(f"{base_url}/login")
-    page.wait_for_load_state("networkidle")
-    
-    page.fill("input[type='email']", email)
-    page.fill("input[type='password']", password)
-    page.click("button[type='submit']")
-    
-    # Expect successful navigation back to dashboard
-    page.wait_for_url(lambda url: "/login" not in url, timeout=15000)
+    page.wait_for_function(
+        "() => !location.pathname.startsWith('/signup') || document.querySelector('[data-testid=verify-email-form]')",
+        timeout=15000,
+    )
+    probe = WorkOSClient().find_user_by_email(probe_email)
+    if probe:
+        WorkOSClient().delete_user(probe["id"])
+    page.context.clear_cookies()
+
+    email, password = ensure_fixture_user()
+    ui_login(page, base_url, email, password)
+    expect(page.locator("header a[href='/profile']")).to_be_visible(timeout=8000)
+    session_cookie = next((c for c in page.context.cookies() if c["name"] == "lynqr_session"), None)
+    assert session_cookie and session_cookie["httpOnly"], "Session cookie must be HttpOnly"
+    assert page.evaluate("() => document.cookie.includes('lynqr_session')") is False
+
+    page.locator("header button[title='Sign Out']").click()
+    page.wait_for_url(lambda u: "/login" in u, timeout=10000)
+    ui_login(page, base_url, email, password)
     expect(page.locator("header a[href='/profile']")).to_be_visible(timeout=8000)
 
 # ==============================================================================

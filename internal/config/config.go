@@ -1,8 +1,10 @@
 package config
 
 import (
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -23,8 +25,26 @@ type Config struct {
 	WorkOSAPIKeyProd      string
 	WorkOSClientIDProd    string
 	WorkOSRedirectURI     string
-	WorkOSOrgID           string
 	LogLevel              string
+	// AppSecret salts analytics IP hashes. Required in production.
+	AppSecret string
+	// DevLogin enables a password-less local login. Only honoured when AppURL is localhost.
+	DevLogin bool
+}
+
+// SecureCookies reports whether cookies should carry the Secure attribute.
+func (c *Config) SecureCookies() bool {
+	return strings.HasPrefix(c.AppURL, "https://")
+}
+
+// IsLocal reports whether the app is running on a loopback development URL.
+func (c *Config) IsLocal() bool {
+	u, err := url.Parse(c.AppURL)
+	if err != nil {
+		return false
+	}
+	h := u.Hostname()
+	return h == "localhost" || h == "127.0.0.1"
 }
 
 func LoadConfig() *Config {
@@ -93,8 +113,9 @@ func LoadConfig() *Config {
 		WorkOSAPIKeyProd:      workosAPIKeyProd,
 		WorkOSClientIDProd:    workosClientIDProd,
 		WorkOSRedirectURI:     workosRedirectURI,
-		WorkOSOrgID:           getEnv("WORKOS_ORG_ID", "org_01M5R8PX1FRH54EN4ZW56E8HRE"),
 		LogLevel:              logLevel,
+		AppSecret:             getEnv("APP_SECRET", ""),
+		DevLogin:              getEnv("DEV_LOGIN", "") == "true",
 	}
 }
 

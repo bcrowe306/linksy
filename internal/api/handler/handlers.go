@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"strconv"
 	"strings"
@@ -14,6 +15,9 @@ import (
 	"github.com/bcrowe306/linksy/internal/models"
 	"github.com/bcrowe306/linksy/internal/service"
 )
+
+// MaxUploadBytes caps document uploads (CONVENTIONS §3.4).
+const MaxUploadBytes = 15 << 20
 
 type Handler struct {
 	svc    *service.Service
@@ -32,10 +36,29 @@ func queryInt(c fiber.Ctx, key string, defaultVal int) int {
 	if valStr == "" {
 		return defaultVal
 	}
-	if val, err := strconv.Atoi(valStr); err == nil {
-		return val
+	val, err := strconv.Atoi(valStr)
+	if err != nil {
+		return defaultVal
 	}
-	return defaultVal
+	return val
+}
+
+// fail maps service errors onto HTTP status codes with a JSON body.
+func fail(c fiber.Ctx, err error) error {
+	status := fiber.StatusBadRequest
+	switch {
+	case errors.Is(err, service.ErrUnauthorized):
+		status = fiber.StatusUnauthorized
+	case errors.Is(err, service.ErrForbidden), errors.Is(err, service.ErrOwnerProtected),
+		errors.Is(err, service.ErrSuspended), errors.Is(err, service.ErrNotMember),
+		errors.Is(err, service.ErrInvitationMismatch):
+		status = fiber.StatusForbidden
+	case service.IsNotFound(err), errors.Is(err, service.ErrInvitationInvalid):
+		status = fiber.StatusNotFound
+	case errors.Is(err, service.ErrConflict), errors.Is(err, service.ErrAlreadyMember), errors.Is(err, service.ErrSlugTaken):
+		status = fiber.StatusConflict
+	}
+	return c.Status(status).JSON(fiber.Map{"error": err.Error()})
 }
 
 // ----------------- Health -----------------
@@ -43,79 +66,59 @@ func queryInt(c fiber.Ctx, key string, defaultVal int) int {
 func (h *Handler) Health(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"status":  "healthy",
-		"service": "linksy",
+		"service": "lynqr",
 		"time":    time.Now().UTC(),
 	})
 }
 
-// ----------------- Short Link Redirection -----------------
+// ----------------- Public Redirection -----------------
+
+// visitorEvent captures request metadata for analytics before the handler returns.
+func visitorEvent(c fiber.Ctx, eventType, teamID string, linkID, qrID *string) *models.AnalyticsEvent {
+	return &models.AnalyticsEvent{
+		TeamID:    teamID,
+		LinkID:    linkID,
+		QRCodeID:  qrID,
+		EventType: eventType,
+		IP:        middleware.ClientIP(c),
+		UserAgent: c.Get("User-Agent"),
+		Referrer:  c.Get("Referer"),
+		Country:   strings.ToUpper(c.Get("CF-IPCountry")),
+		Region:    c.Get("CF-Region"),
+		City:      c.Get("CF-IPCity"),
+	}
+}
 
 func (h *Handler) HandleShortLinkRedirect(c fiber.Ctx) error {
 	slug := c.Params("slug")
-	if slug == "" {
-		return c.Status(fiber.StatusBadRequest).SendString("Invalid link slug")
-	}
-
 	link, err := h.svc.ResolveShortLink(slug)
 	if err != nil {
 		return h.renderBrandedError(c, "Link Not Found or Inactive", fmt.Sprintf("The short link \"/s/%s\" does not exist, has expired, or has been removed.", slug), fiber.StatusNotFound)
 	}
 
-	// Capture analytics context safely before returning
-	ip := c.IP()
-	ua := c.Get("User-Agent")
-	ref := c.Get("Referer")
-	country := c.Get("CF-IPCountry")
+	ev := visitorEvent(c, "click", link.TeamID, &link.ID, nil)
+	go h.svc.TrackEvent(ev)
 
-	go func() {
-		h.svc.TrackEvent(&models.AnalyticsEvent{
-			LinkID:    &link.ID,
-			EventType: "click",
-			IP:        ip,
-			UserAgent: ua,
-			Referrer:  ref,
-			Country:   country,
-		})
-	}()
-
+	c.Set("Cache-Control", "no-store")
 	return c.Redirect().Status(fiber.StatusFound).To(link.TargetURL)
 }
 
-// ----------------- QR Dynamic Scan Redirection -----------------
-
 func (h *Handler) HandleQRScanRedirect(c fiber.Ctx) error {
-	id := c.Params("id")
-	qrCode, err := h.svc.GetQRCode(id)
+	qrCode, err := h.svc.GetPublicQRCode(c.Params("id"))
 	if err != nil {
 		return h.renderBrandedError(c, "QR Code Not Found", "The QR code you scanned does not exist, is inactive, or has been removed.", fiber.StatusNotFound)
 	}
 
-	// Track QR scan
-	h.svc.RecordQRScan(id)
+	h.svc.RecordQRScan(qrCode.ID)
+	ev := visitorEvent(c, "scan", qrCode.TeamID, qrCode.LinkID, &qrCode.ID)
+	go h.svc.TrackEvent(ev)
 
-	ip := c.IP()
-	ua := c.Get("User-Agent")
-	ref := c.Get("Referer")
-	country := c.Get("CF-IPCountry")
-
-	go func() {
-		h.svc.TrackEvent(&models.AnalyticsEvent{
-			QRCodeID:  &qrCode.ID,
-			LinkID:    qrCode.LinkID,
-			EventType: "scan",
-			IP:        ip,
-			UserAgent: ua,
-			Referrer:  ref,
-			Country:   country,
-		})
-	}()
-
-	// If linked to dynamic short link or website, redirect!
+	c.Set("Cache-Control", "no-store")
 	if qrCode.LinkID != nil || qrCode.Type == models.QRTypeWebsite || qrCode.Type == models.QRTypeDocument {
 		return c.Redirect().Status(fiber.StatusFound).To(qrCode.Payload)
 	}
-
 	// For vCard, WiFi, plain text etc., deliver raw content
+	c.Set("Content-Type", "text/plain; charset=utf-8")
 	return c.SendString(qrCode.Payload)
 }
 
@@ -131,19 +134,15 @@ type CreateLinkRequest struct {
 }
 
 func (h *Handler) CreateLink(c fiber.Ctx) error {
-	auth := middleware.GetAuth(c)
 	var req CreateLinkRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
-
 	if req.CustomSlug == "" && req.Slug != "" {
 		req.CustomSlug = req.Slug
 	}
 
-	link, err := h.svc.CreateShortLink(service.CreateLinkInput{
-		TeamID:      auth.TeamID,
-		UserID:      auth.UserID,
+	link, err := h.svc.CreateShortLink(middleware.Actor(c), service.CreateLinkInput{
 		TargetURL:   req.TargetURL,
 		CustomSlug:  req.CustomSlug,
 		Title:       req.Title,
@@ -151,39 +150,25 @@ func (h *Handler) CreateLink(c fiber.Ctx) error {
 		ExpiresAt:   req.ExpiresAt,
 	})
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return fail(c, err)
 	}
-
 	return c.Status(fiber.StatusCreated).JSON(link)
 }
 
 func (h *Handler) ListLinks(c fiber.Ctx) error {
-	auth := middleware.GetAuth(c)
 	limit := queryInt(c, "limit", 50)
 	offset := queryInt(c, "offset", 0)
-
-	links, err := h.svc.ListLinks(auth.TeamID, limit, offset)
+	links, err := h.svc.ListLinks(middleware.Actor(c), limit, offset)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return fail(c, err)
 	}
-
-	return c.JSON(fiber.Map{
-		"data":   links,
-		"limit":  limit,
-		"offset": offset,
-	})
+	return c.JSON(fiber.Map{"data": links, "limit": limit, "offset": offset})
 }
 
 func (h *Handler) GetLink(c fiber.Ctx) error {
-	id := c.Params("id")
-	auth := middleware.GetAuth(c)
-	teamID := ""
-	if auth != nil {
-		teamID = auth.TeamID
-	}
-	link, err := h.svc.GetLink(id, teamID)
+	link, err := h.svc.GetLink(middleware.Actor(c), c.Params("id"))
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Link not found"})
+		return fail(c, err)
 	}
 	return c.JSON(link)
 }
@@ -197,38 +182,26 @@ type UpdateLinkRequest struct {
 }
 
 func (h *Handler) UpdateLink(c fiber.Ctx) error {
-	id := c.Params("id")
-	auth := middleware.GetAuth(c)
 	var req UpdateLinkRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
-
 	isActive := true
 	if req.IsActive != nil {
 		isActive = *req.IsActive
 	}
-
-	teamID := ""
-	if auth != nil {
-		teamID = auth.TeamID
-	}
-	updated, err := h.svc.UpdateShortLink(id, req.TargetURL, req.Title, req.Description, isActive, req.ExpiresAt, teamID)
+	updated, err := h.svc.UpdateShortLink(middleware.Actor(c), c.Params("id"), service.UpdateLinkInput{
+		TargetURL: req.TargetURL, Title: req.Title, Description: req.Description, IsActive: isActive, ExpiresAt: req.ExpiresAt,
+	})
 	if err != nil {
-		if errors.Is(err, service.ErrLinkNotFound) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Link not found"})
-		}
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return fail(c, err)
 	}
-
 	return c.JSON(updated)
 }
 
 func (h *Handler) DeleteLink(c fiber.Ctx) error {
-	id := c.Params("id")
-	auth := middleware.GetAuth(c)
-	if err := h.svc.DeleteLink(id, auth.TeamID); err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Link not found"})
+	if err := h.svc.DeleteLink(middleware.Actor(c), c.Params("id")); err != nil {
+		return fail(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -236,72 +209,57 @@ func (h *Handler) DeleteLink(c fiber.Ctx) error {
 // ----------------- QR Codes API -----------------
 
 type CreateQRRequest struct {
-	Type      models.QRType  `json:"type"`
-	Title     string         `json:"title"`
-	TargetURL string         `json:"target_url"`
-	Payload   string         `json:"payload"`
-	RawData   string         `json:"raw_data"`
-	Style     models.QRStyle `json:"style"`
-	IsDynamic bool           `json:"is_dynamic"`
+	Type       models.QRType  `json:"type"`
+	Title      string         `json:"title"`
+	TargetURL  string         `json:"target_url"`
+	Payload    string         `json:"payload"`
+	RawData    string         `json:"raw_data"`
+	Style      models.QRStyle `json:"style"`
+	IsDynamic  bool           `json:"is_dynamic"`
+	DocumentID string         `json:"document_id"`
 }
 
 func (h *Handler) CreateQR(c fiber.Ctx) error {
-	auth := middleware.GetAuth(c)
 	var req CreateQRRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
-
 	if req.TargetURL == "" && req.Payload != "" {
 		req.TargetURL = req.Payload
 	}
 	if req.RawData == "" && req.Payload != "" && req.Type != models.QRTypeWebsite {
 		req.RawData = req.Payload
 	}
-	if req.TargetURL == "" && req.RawData == "" {
-		req.TargetURL = "https://lynqr.app"
-	}
 
-	qrCode, err := h.svc.CreateQRCode(service.CreateQRInput{
-		TeamID:    auth.TeamID,
-		UserID:    auth.UserID,
-		Type:      req.Type,
-		Title:     req.Title,
-		TargetURL: req.TargetURL,
-		RawData:   req.RawData,
-		Style:     req.Style,
-		IsDynamic: req.IsDynamic,
+	qrCode, err := h.svc.CreateQRCode(middleware.Actor(c), service.CreateQRInput{
+		Type:       req.Type,
+		Title:      req.Title,
+		TargetURL:  req.TargetURL,
+		RawData:    req.RawData,
+		Style:      req.Style,
+		IsDynamic:  req.IsDynamic,
+		DocumentID: req.DocumentID,
 	})
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return fail(c, err)
 	}
-
 	return c.Status(fiber.StatusCreated).JSON(qrCode)
 }
 
 func (h *Handler) ListQR(c fiber.Ctx) error {
-	auth := middleware.GetAuth(c)
 	limit := queryInt(c, "limit", 50)
 	offset := queryInt(c, "offset", 0)
-
-	list, err := h.svc.ListQRCodes(auth.TeamID, limit, offset)
+	list, err := h.svc.ListQRCodes(middleware.Actor(c), limit, offset)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return fail(c, err)
 	}
-
-	return c.JSON(fiber.Map{
-		"data":   list,
-		"limit":  limit,
-		"offset": offset,
-	})
+	return c.JSON(fiber.Map{"data": list, "limit": limit, "offset": offset})
 }
 
 func (h *Handler) GetQR(c fiber.Ctx) error {
-	id := c.Params("id")
-	auth := middleware.GetAuth(c)
-	qrCode, err := h.svc.GetQRCode(id)
-	if err != nil || (auth != nil && auth.TeamID != "" && qrCode.TeamID != auth.TeamID) {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "QR code not found"})
+	qrCode, err := h.svc.GetQRCode(middleware.Actor(c), c.Params("id"))
+	if err != nil {
+		return fail(c, err)
 	}
 	return c.JSON(qrCode)
 }
@@ -315,89 +273,80 @@ type UpdateQRRequest struct {
 }
 
 func (h *Handler) UpdateQR(c fiber.Ctx) error {
-	id := c.Params("id")
-	auth := middleware.GetAuth(c)
 	var req UpdateQRRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
-
 	if req.TargetURL == "" && req.Payload != "" {
 		req.TargetURL = req.Payload
 	}
-
-	teamID := ""
-	if auth != nil {
-		teamID = auth.TeamID
-	}
-	updated, err := h.svc.UpdateQRCode(id, req.Title, req.TargetURL, req.RawData, req.Style, teamID)
+	updated, err := h.svc.UpdateQRCode(middleware.Actor(c), c.Params("id"), req.Title, req.TargetURL, req.RawData, req.Style)
 	if err != nil {
-		if errors.Is(err, service.ErrQRNotFound) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "QR code not found"})
-		}
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return fail(c, err)
 	}
-
 	return c.JSON(updated)
 }
 
 func (h *Handler) ExportQR(c fiber.Ctx) error {
 	id := c.Params("id")
-	format := c.Query("format", "png")
-	size := queryInt(c, "size", 512)
-	download := c.Query("download", "false") == "true"
-
-	data, mime, err := h.svc.ExportQRCode(id, format, size)
+	format := strings.ToLower(c.Query("format", "png"))
+	data, mime, err := h.svc.ExportQRCode(middleware.Actor(c), id, format, queryInt(c, "size", 512))
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return fail(c, err)
 	}
 
 	c.Set("Content-Type", mime)
-	if download {
-		filename := fmt.Sprintf("linksy-qr-%s.%s", id[:min(len(id), 8)], format)
-		c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	c.Set("Cache-Control", "private, no-cache")
+	if c.Query("download") == "true" {
+		c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"lynqr-qr-%s.%s\"", id[:min(len(id), 8)], format))
 	}
-
 	return c.Send(data)
 }
 
 func (h *Handler) DeleteQR(c fiber.Ctx) error {
-	id := c.Params("id")
-	auth := middleware.GetAuth(c)
-	if err := h.svc.DeleteQRCode(id, auth.TeamID); err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "QR code not found"})
+	if err := h.svc.DeleteQRCode(middleware.Actor(c), c.Params("id")); err != nil {
+		return fail(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
 // ----------------- Documents API -----------------
 
-func (h *Handler) UploadDocument(c fiber.Ctx) error {
-	auth := middleware.GetAuth(c)
+func (h *Handler) readUpload(c fiber.Ctx) (string, io.ReadCloser, error) {
 	file, err := c.FormFile("file")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Missing file in multipart form"})
+		return "", nil, errors.New("missing file in multipart form")
 	}
-
+	if file.Size > MaxUploadBytes {
+		return "", nil, errors.New("file exceeds the 15MB upload limit")
+	}
 	src, err := file.Open()
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to read uploaded file"})
+		return "", nil, errors.New("failed to read uploaded file")
+	}
+	return file.Filename, src, nil
+}
+
+func (h *Handler) UploadDocument(c fiber.Ctx) error {
+	a := middleware.Actor(c)
+	name, src, err := h.readUpload(c)
+	if err != nil {
+		return fail(c, err)
 	}
 	defer src.Close()
 
-	doc, downloadURL, err := h.svc.UploadDocument(auth.TeamID, auth.UserID, file.Filename, src)
+	doc, downloadURL, err := h.svc.UploadDocument(a, name, src)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return fail(c, err)
 	}
 
 	// Auto-create dynamic QR code for this document (Requirement 8)
-	qrCode, _ := h.svc.CreateQRCode(service.CreateQRInput{
-		TeamID:    auth.TeamID,
-		UserID:    auth.UserID,
-		Type:      models.QRTypeDocument,
-		Title:     "Doc: " + doc.Filename,
-		TargetURL: downloadURL,
-		IsDynamic: true,
+	qrCode, _ := h.svc.CreateQRCode(a, service.CreateQRInput{
+		Type:       models.QRTypeDocument,
+		Title:      "Doc: " + doc.Filename,
+		TargetURL:  downloadURL,
+		IsDynamic:  true,
+		DocumentID: doc.ID,
 	})
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
@@ -408,122 +357,106 @@ func (h *Handler) UploadDocument(c fiber.Ctx) error {
 }
 
 func (h *Handler) UpdateDocumentFile(c fiber.Ctx) error {
-	id := c.Params("id")
-	file, err := c.FormFile("file")
+	name, src, err := h.readUpload(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Missing file in multipart form"})
-	}
-
-	src, err := file.Open()
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to read uploaded file"})
+		return fail(c, err)
 	}
 	defer src.Close()
 
-	doc, downloadURL, err := h.svc.UpdateDocumentFile(id, file.Filename, src)
+	doc, downloadURL, err := h.svc.UpdateDocumentFile(middleware.Actor(c), c.Params("id"), name, src)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return fail(c, err)
 	}
-
-	return c.JSON(fiber.Map{
-		"document":     doc,
-		"download_url": downloadURL,
-	})
+	return c.JSON(fiber.Map{"document": doc, "download_url": downloadURL})
 }
 
+// DownloadDocumentFile serves a document by its random storage key (public by design:
+// it is the destination behind document QR codes).
 func (h *Handler) DownloadDocumentFile(c fiber.Ctx) error {
+	doc, rc, err := h.svc.OpenPublicDocument(c.Params("filename"))
+	if err != nil {
+		return h.renderBrandedError(c, "Document Not Found", "This document has been removed or replaced.", fiber.StatusNotFound)
+	}
+	// SendStream closes rc once the body has been written.
+
 	c.Set("Cache-Control", "no-cache, no-store, must-revalidate")
-	filename := c.Params("filename")
-	rc, err := h.svc.OpenDocumentFile(filename)
-	if err != nil {
-		return c.Status(fiber.StatusNotFound).SendString("Document not found")
+	// The SPA's CSP would break browser PDF viewers, so documents carry none.
+	// Active content (HTML, SVG, XML) is never rendered inline in our origin.
+	c.Response().Header.Del("Content-Security-Policy")
+	disposition, mime := "inline", doc.MimeType
+	if lower := strings.ToLower(mime); strings.Contains(lower, "html") || strings.Contains(lower, "xml") || strings.Contains(lower, "svg") || strings.Contains(lower, "javascript") {
+		disposition, mime = "attachment", "application/octet-stream"
 	}
-	defer rc.Close()
-
-	data, err := io.ReadAll(rc)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).SendString("Failed reading file stream")
-	}
-
-	return c.Send(data)
+	c.Set("Content-Type", mime)
+	c.Set("Content-Disposition", fmt.Sprintf("%s; filename=%q", disposition, strings.ReplaceAll(doc.Filename, "\"", "")))
+	return c.SendStream(rc)
 }
 
 func (h *Handler) ListDocuments(c fiber.Ctx) error {
-	auth := middleware.GetAuth(c)
-	docs, err := h.svc.ListDocuments(auth.TeamID)
+	docs, err := h.svc.ListDocuments(middleware.Actor(c))
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return fail(c, err)
 	}
 	return c.JSON(fiber.Map{"data": docs})
 }
 
-// ----------------- Analytics API -----------------
-
-func (h *Handler) GetAnalyticsSummary(c fiber.Ctx) error {
-	linkID := c.Query("link_id")
-	qrID := c.Query("qr_id")
-
-	var pLinkID, pQRID *string
-	if linkID != "" {
-		pLinkID = &linkID
-	}
-	if qrID != "" {
-		pQRID = &qrID
-	}
-
-	summary, err := h.svc.GetAnalyticsSummary(pLinkID, pQRID)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	return c.JSON(summary)
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-
 func (h *Handler) DeleteDocument(c fiber.Ctx) error {
-	id := c.Params("id")
-	auth := middleware.GetAuth(c)
-	deleteQR := c.Query("delete_qr", "false") == "true"
-
-	deletedQRs, err := h.svc.DeleteDocument(id, auth.TeamID, deleteQR)
+	deletedQRs, err := h.svc.DeleteDocument(middleware.Actor(c), c.Params("id"), c.Query("delete_qr") == "true")
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Document not found or delete failed"})
+		return fail(c, err)
 	}
-
-	return c.JSON(fiber.Map{
-		"message":          "Document deleted successfully",
-		"deleted_qr_count": deletedQRs,
-	})
+	return c.JSON(fiber.Map{"message": "Document deleted successfully", "deleted_qr_count": deletedQRs})
 }
 
 func (h *Handler) BulkDeleteDocuments(c fiber.Ctx) error {
-	auth := middleware.GetAuth(c)
 	var req models.BulkDeleteDocumentsRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
-
 	if len(req.DocumentIDs) == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No documents specified for deletion"})
 	}
-
-	deletedDocs, deletedQRs, err := h.svc.BulkDeleteDocuments(req.DocumentIDs, auth.TeamID, req.DeleteQR)
+	deletedDocs, deletedQRs, err := h.svc.BulkDeleteDocuments(middleware.Actor(c), req.DocumentIDs, req.DeleteQR)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return fail(c, err)
 	}
-
 	return c.JSON(fiber.Map{
 		"message":            "Documents deleted successfully",
 		"deleted_docs_count": deletedDocs,
 		"deleted_qr_count":   deletedQRs,
 	})
+}
+
+// ----------------- Analytics API -----------------
+
+func parseTimeParam(v string) (*time.Time, error) {
+	if v == "" {
+		return nil, nil
+	}
+	for _, layout := range []string{time.RFC3339, "2006-01-02"} {
+		if t, err := time.Parse(layout, v); err == nil {
+			return &t, nil
+		}
+	}
+	return nil, fmt.Errorf("invalid date %q: use RFC3339 or YYYY-MM-DD", v)
+}
+
+func (h *Handler) GetAnalyticsSummary(c fiber.Ctx) error {
+	from, err := parseTimeParam(c.Query("from"))
+	if err != nil {
+		return fail(c, err)
+	}
+	to, err := parseTimeParam(c.Query("to"))
+	if err != nil {
+		return fail(c, err)
+	}
+	summary, err := h.svc.GetAnalyticsSummary(middleware.Actor(c), service.AnalyticsQuery{
+		LinkID: c.Query("link_id"), QRID: c.Query("qr_id"), From: from, To: to,
+	})
+	if err != nil {
+		return fail(c, err)
+	}
+	return c.JSON(summary)
 }
 
 func (h *Handler) renderBrandedError(c fiber.Ctx, title, message string, statusCode int) error {
@@ -535,7 +468,7 @@ func (h *Handler) renderBrandedError(c fiber.Ctx, title, message string, statusC
 		})
 	}
 
-	html := fmt.Sprintf(`<!DOCTYPE html>
+	page := fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -677,7 +610,7 @@ func (h *Handler) renderBrandedError(c fiber.Ctx, title, message string, statusC
     <div class="footer">Protected by Lynqr Link Management & Dynamic QR Platform</div>
   </div>
 </body>
-</html>`, title, title, message)
+</html>`, html.EscapeString(title), html.EscapeString(title), html.EscapeString(message))
 
-	return c.Status(statusCode).Type("html").SendString(html)
+	return c.Status(statusCode).Type("html").SendString(page)
 }

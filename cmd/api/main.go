@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 
@@ -19,45 +20,56 @@ import (
 
 func main() {
 	cfg := config.LoadConfig()
-	log.Printf("[Linksy] Starting server in %s mode (DB: %s, Storage: %s)...", cfg.LogLevel, cfg.DBType, cfg.StorageType)
+	log.Printf("[Lynqr] Starting server in %s mode (DB: %s, Storage: %s)...", cfg.LogLevel, cfg.DBType, cfg.StorageType)
 
 	// Initialize Database
 	database, err := db.Connect(cfg.DBType, cfg.DBDSN)
 	if err != nil {
-		log.Fatalf("[Linksy] Database connection failed: %v", err)
+		log.Fatalf("[Lynqr] Database connection failed: %v", err)
 	}
 	defer database.Close()
-	log.Printf("[Linksy] Database connected successfully via %s", database.DriverName)
+	log.Printf("[Lynqr] Database connected successfully via %s", database.DriverName)
 
-	// Ensure default team / seed
 	repo := repository.New(database)
-	if err := repo.EnsureDefaultTeam("team_default", "Main Workspace", "usr_demo123"); err != nil {
-		log.Printf("[Linksy] Note ensuring default team: %v", err)
-	}
 
 	// Initialize Document Storage (Cloudflare R2 or Local)
 	var store storage.StorageProvider
 	if cfg.StorageType == "r2" {
-		log.Printf("[Linksy] Initializing Cloudflare R2 storage (Bucket: %s, Endpoint: %s)...", cfg.R2Bucket, cfg.R2Endpoint)
+		log.Printf("[Lynqr] Initializing Cloudflare R2 storage (Bucket: %s, Endpoint: %s)...", cfg.R2Bucket, cfg.R2Endpoint)
 		r2Store, err := storage.NewR2Storage(cfg.R2Endpoint, cfg.R2AccessKeyID, cfg.R2SecretAccessKey, cfg.R2Bucket, cfg.AppURL)
 		if err != nil {
-			log.Fatalf("[Linksy] Failed to initialize R2 storage: %v", err)
+			log.Fatalf("[Lynqr] Failed to initialize R2 storage: %v", err)
 		}
 		store = r2Store
 	} else {
 		localStore, err := storage.NewLocalStorage(cfg.StoragePath, cfg.AppURL)
 		if err != nil {
-			log.Fatalf("[Linksy] Failed to initialize storage: %v", err)
+			log.Fatalf("[Lynqr] Failed to initialize storage: %v", err)
 		}
 		store = localStore
 	}
 
 	// Initialize Services
 	svc := service.New(repo, store, cfg.AppURL)
+	if cfg.AppSecret == "" {
+		if !cfg.IsLocal() {
+			log.Fatalf("[Lynqr] APP_SECRET must be set outside local development")
+		}
+		cfg.AppSecret = "lynqr-local-dev-secret"
+	}
+	svc.SetIPSalt(cfg.AppSecret)
+
+	// Periodically purge expired sessions
+	go func() {
+		for range time.Tick(6 * time.Hour) {
+			_ = repo.DeleteExpiredSessions()
+		}
+	}()
 
 	// Initialize Fiber v3 App
 	app := fiber.New(fiber.Config{
-		AppName: "Linksy Dynamic QR & Link Manager",
+		AppName:   "Lynqr",
+		BodyLimit: 16 << 20, // documents are capped at 15MB in the upload handler
 	})
 
 	api.SetupRouter(app, svc, cfg)
@@ -68,13 +80,13 @@ func main() {
 
 	go func() {
 		<-sigChan
-		log.Println("[Linksy] Shutting down gracefully...")
+		log.Println("[Lynqr] Shutting down gracefully...")
 		_ = app.Shutdown()
 	}()
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
-	log.Printf("[Linksy] Server listening on %s (App URL: %s)", addr, cfg.AppURL)
+	log.Printf("[Lynqr] Server listening on %s (App URL: %s)", addr, cfg.AppURL)
 	if err := app.Listen(addr); err != nil {
-		log.Printf("[Linksy] Server stopped: %v", err)
+		log.Printf("[Lynqr] Server stopped: %v", err)
 	}
 }

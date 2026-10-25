@@ -8,11 +8,6 @@ export const useLynqrStore = defineStore('lynqr', () => {
   const documents = ref([])
   const analyticsSummary = ref(null)
   const loading = ref(false)
-  const currentTeam = ref({
-    id: 'team_default',
-    name: 'Main Workspace',
-    role: 'owner'
-  })
 
   async function fetchLinks() {
     try {
@@ -52,11 +47,18 @@ export const useLynqrStore = defineStore('lynqr', () => {
 
   async function fetchAnalytics(linkId = null, qrId = null) {
     try {
-      const res = await api.getAnalyticsSummary(linkId, qrId)
+      const res = await api.getAnalyticsSummary({ linkId, qrId })
       analyticsSummary.value = res
     } catch (err) {
       console.error(err)
     }
+  }
+
+  function reset() {
+    links.value = []
+    qrCodes.value = []
+    documents.value = []
+    analyticsSummary.value = null
   }
 
   async function refreshAll() {
@@ -69,7 +71,7 @@ export const useLynqrStore = defineStore('lynqr', () => {
     documents,
     analyticsSummary,
     loading,
-    currentTeam,
+    reset,
     fetchLinks,
     fetchQRCodes,
     fetchDocuments,

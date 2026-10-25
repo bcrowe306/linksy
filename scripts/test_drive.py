@@ -265,36 +265,57 @@ class LinksyTestHarness:
             self.failed += 1
             self.log("Unauthenticated Route Block", f"Expected 401, got {unauth_status}", "FAIL")
 
-        # 5. User Sign-Up
+        # 5. Self-service sign-up endpoint (a throwaway address; WorkOS may require an emailed code)
+        probe_email = self.dummy_email.replace("testdrive_", "signup_probe_")
         signup_payload = {
             "first_name": self.dummy_first_name,
             "last_name": self.dummy_last_name,
-            "email": self.dummy_email,
+            "email": probe_email,
             "password": self.dummy_password
         }
-        status, data = self.request("POST", "/api/v1/auth/signup", signup_payload, auth=False)
-        if status in (200, 201) and isinstance(data, dict) and data.get("user"):
+        probe = requests.Session()
+        resp = probe.post(f"{self.base_url}/api/v1/auth/signup", json=signup_payload, timeout=15)
+        body = resp.json() if resp.headers.get("Content-Type", "").startswith("application/json") else {}
+        if (resp.status_code == 200 and body.get("authenticated")) or (resp.status_code == 202 and body.get("verification_required")):
             self.passed += 1
-            self.token = data.get("token")
-            self.user = data.get("user")
-            self.log("User Sign-Up (/api/v1/auth/signup)", f"Account created for {self.dummy_email} (ID: {self.user.get('id')})", "PASS")
+            mode = "session issued" if resp.status_code == 200 else "email verification code requested"
+            self.log("User Sign-Up (/api/v1/auth/signup)", f"Account created for {probe_email} ({mode})", "PASS")
         else:
             self.failed += 1
-            self.log("User Sign-Up (/api/v1/auth/signup)", f"Failed ({status}): {data}", "FAIL")
+            self.log("User Sign-Up (/api/v1/auth/signup)", f"Failed ({resp.status_code}): {body}", "FAIL")
+        if "token" in body or "password_reset_url" in body:
+            self.failed += 1
+            self.log("Sign-Up Response Hygiene", "Response leaked a raw credential", "FAIL")
+        probe_user = self.workos.find_user_by_email(probe_email) if self.workos.is_configured() else None
+        if probe_user:
+            self.workos.delete_user(probe_user["id"])
 
-        # 6. Password Login
-        login_payload = {
-            "email": self.dummy_email,
-            "password": self.dummy_password
-        }
-        status, data = self.request("POST", "/api/v1/auth/login", login_payload, auth=False)
-        if status == 200 and isinstance(data, dict) and data.get("token"):
+        # 6. Password Login (fixture user is pre-verified via the WorkOS management API)
+        created = self.workos.create_user(self.dummy_email, self.dummy_password, self.dummy_first_name, self.dummy_last_name)
+        if created.get("id"):
+            self.user = created
+        status, data = self.request("POST", "/api/v1/auth/login", {"email": self.dummy_email, "password": self.dummy_password}, auth=False)
+        self.token = self.session.cookies.get("lynqr_session") or ""
+        if status == 200 and isinstance(data, dict) and data.get("authenticated") and self.token.startswith("lqs_"):
             self.passed += 1
-            self.token = data.get("token")
-            self.log("Password Login (/api/v1/auth/login)", "Authenticated successfully and received session token", "PASS")
+            self.user = data.get("user") or self.user
+            self.log("Password Login (/api/v1/auth/login)", "Authenticated; HttpOnly session cookie issued", "PASS")
         else:
             self.failed += 1
             self.log("Password Login (/api/v1/auth/login)", f"Failed ({status}): {data}", "FAIL")
+
+        # 6b. Forged credentials must be rejected (regression for unsigned legacy sessions)
+        uid = (self.user or {}).get("id", "user_x")
+        forged_ok = True
+        for forged in (uid, f"sess_{uid}_1700000000", "lqs_forged", "lk_live_forged"):
+            st, _ = self.request("GET", "/api/v1/links", headers={"Authorization": f"Bearer {forged}"}, auth=False)
+            forged_ok = forged_ok and st == 401
+        if forged_ok:
+            self.passed += 1
+            self.log("Forged Credential Rejection", "Raw user IDs, legacy sess_ tokens and bogus keys all return 401", "PASS")
+        else:
+            self.failed += 1
+            self.log("Forged Credential Rejection", "A forged credential was accepted", "FAIL")
 
         # 7. Authenticated Session Check (/api/v1/auth/me)
         status, data = self.request("GET", "/api/v1/auth/me")
@@ -331,15 +352,14 @@ class LinksyTestHarness:
 
         # 9. Password Reset & Direct Password Change
         status, data = self.request("POST", "/api/v1/auth/password-reset", {"email": self.dummy_email}, auth=False)
-        if status == 200 and isinstance(data, dict):
+        if status == 200 and isinstance(data, dict) and "password_reset_url" not in data:
             self.passed += 1
-            reset_url = data.get("password_reset_url", "Email Dispatched")
-            self.log("Password Reset (/api/v1/auth/password-reset)", f"Generated WorkOS reset link: {reset_url[:35]}...", "PASS")
+            self.log("Password Reset (/api/v1/auth/password-reset)", "Reset email requested; reset URL not exposed to caller", "PASS")
         else:
             self.failed += 1
             self.log("Password Reset (/api/v1/auth/password-reset)", f"Failed ({status}): {data}", "FAIL")
 
-        status, data = self.request("POST", "/api/v1/user/change-password", {"new_password": self.dummy_new_password})
+        status, data = self.request("POST", "/api/v1/user/change-password", {"current_password": self.dummy_password, "new_password": self.dummy_new_password})
         if status == 200:
             self.passed += 1
             self.log("Change Password (/api/v1/user/change-password)", "Updated account password via WorkOS", "PASS")
@@ -348,9 +368,9 @@ class LinksyTestHarness:
             self.log("Change Password (/api/v1/user/change-password)", f"Failed ({status}): {data}", "FAIL")
 
         status, data = self.request("POST", "/api/v1/auth/login", {"email": self.dummy_email, "password": self.dummy_new_password}, auth=False)
-        if status == 200 and isinstance(data, dict) and data.get("token"):
+        if status == 200 and isinstance(data, dict) and data.get("authenticated"):
             self.passed += 1
-            self.token = data.get("token")
+            self.token = self.session.cookies.get("lynqr_session") or ""
             self.log("Re-login with New Password", "Successfully re-authenticated with updated credentials", "PASS")
         else:
             self.failed += 1
