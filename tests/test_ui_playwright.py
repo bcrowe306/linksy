@@ -395,7 +395,7 @@ def test_workos_user_verification_and_cleanup():
 # 9. PLAYWRIGHT UI TESTS: DOCUMENTS SELECTION & BULK DELETION
 # ==============================================================================
 def test_documents_page_checkbox_selection_and_delete(page: Page, base_url: str):
-    \"\"\"Verify documents page table checkboxes on the right, top delete button, and confirmation modal\"\"\"
+    """Verify documents page table checkboxes on the right, top delete button, and confirmation modal"""
     authenticate_page(page, base_url)
     page.goto(f"{base_url}/documents")
     page.wait_for_load_state("networkidle")
@@ -430,7 +430,7 @@ def test_documents_page_checkbox_selection_and_delete(page: Page, base_url: str)
 # 10. PLAYWRIGHT UI TESTS: TEAM & USER MANAGEMENT
 # ==============================================================================
 def test_team_and_user_management_ui(page: Page, base_url: str):
-    \"\"\"Verify Team & Settings page, member list, role badges, and WorkOS invite modal\"\"\"
+    """Verify Team & Settings page, member list, role badges, and WorkOS invite modal"""
     authenticate_page(page, base_url)
     page.goto(f"{base_url}/settings")
     page.wait_for_load_state("networkidle")
@@ -453,7 +453,7 @@ def test_team_and_user_management_ui(page: Page, base_url: str):
 # 11. PLAYWRIGHT UI TESTS: BRANDED 404 ERROR PAGE
 # ==============================================================================
 def test_branded_error_page_ui(page: Page, base_url: str):
-    \"\"\"Verify visiting an invalid or expired link displays the Lynqr branded error page\"\"\"
+    """Verify visiting an invalid or expired link displays the Lynqr branded error page"""
     page.goto(f"{base_url}/s/non-existent-qa-slug-for-playwright")
     page.wait_for_load_state("networkidle")
 
