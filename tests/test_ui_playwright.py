@@ -395,6 +395,13 @@ def test_workos_user_verification_and_cleanup():
         deleted = workos.delete_user(user_id)
         assert deleted is True, f"Failed to delete test user {user_id} from WorkOS"
 
+    # 3. Comprehensive cleanup: delete all test users generated during test runs
+    all_users = workos.list_users(limit=100).get("data", [])
+    for u in all_users:
+        em = u.get("email", "").lower()
+        if em not in ("bcrowe306@gmail.com", "bcrowe@nltst.com"):
+            workos.delete_user(u.get("id"))
+
 
 # ==============================================================================
 # 9. PLAYWRIGHT UI TESTS: DOCUMENTS SELECTION & BULK DELETION
