@@ -14,7 +14,12 @@ const DistDir = "./web/dist"
 
 // Home serves the app to signed-in users and the public landing page to everyone else.
 func (h *Handler) Home(c fiber.Ctx) error {
-	c.Set("Cache-Control", "no-cache")
+	// The same URL serves two different files, so never let a browser
+	// revalidate one against the other (both share a build timestamp).
+	c.Set("Cache-Control", "no-store")
+	c.Set("Vary", "Cookie")
+	c.Request().Header.Del("If-Modified-Since")
+	c.Request().Header.Del("If-None-Match")
 	if token := c.Cookies(middleware.SessionCookie); token != "" {
 		if _, err := h.svc.ResolveSession(token); err == nil {
 			return c.SendFile(DistDir + "/index.html")
