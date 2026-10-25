@@ -170,3 +170,36 @@ type NameCount struct {
 	Name  string `json:"name"`
 	Count int64  `json:"count"`
 }
+
+type APIKey struct {
+	ID         string     `json:"id"`
+	UserID     string     `json:"user_id"`
+	TeamID     string     `json:"team_id,omitempty"`
+	Name       string     `json:"name"`
+	KeyHash    string     `json:"-"`
+	KeyPrefix  string     `json:"key_prefix"`
+	Key        string     `json:"key,omitempty"` // Only populated on creation
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+}
+
+type UpdateProfileRequest struct {
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	AvatarURL string `json:"avatar_url,omitempty"`
+}
+
+type PasswordResetRequest struct {
+	Email string `json:"email,omitempty"`
+}
+
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password,omitempty"`
+	NewPassword     string `json:"new_password"`
+}
+
+type CreateAPIKeyRequest struct {
+	Name          string `json:"name"`
+	ExpiresInDays int    `json:"expires_in_days,omitempty"`
+}

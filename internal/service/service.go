@@ -2,6 +2,8 @@ package service
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -454,4 +456,93 @@ func (s *Service) TrackEvent(e *models.AnalyticsEvent) {
 
 func (s *Service) GetAnalyticsSummary(linkID, qrID *string) (*models.AnalyticsSummary, error) {
 	return s.repo.GetAnalyticsSummary(linkID, qrID)
+}
+
+// ----------------- API Keys -----------------
+
+func (s *Service) CreateAPIKey(userID, teamID, name string, expiresInDays int) (*models.APIKey, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = "Default API Key"
+	}
+
+	rawBytes := make([]byte, 24)
+	if _, err := rand.Read(rawBytes); err != nil {
+		return nil, fmt.Errorf("failed to generate random key: %w", err)
+	}
+	rawHex := hex.EncodeToString(rawBytes)
+	fullKey := "lk_live_" + rawHex
+
+	hasher := sha256.New()
+	hasher.Write([]byte(fullKey))
+	keyHash := hex.EncodeToString(hasher.Sum(nil))
+
+	keyPrefix := fullKey[:12] + "..."
+
+	var expiresAt *time.Time
+	if expiresInDays > 0 {
+		exp := time.Now().UTC().Add(time.Duration(expiresInDays) * 24 * time.Hour)
+		expiresAt = &exp
+	}
+
+	apiKey := &models.APIKey{
+		ID:        "key_" + uuid.New().String(),
+		UserID:    userID,
+		TeamID:    teamID,
+		Name:      name,
+		KeyHash:   keyHash,
+		KeyPrefix: keyPrefix,
+		Key:       fullKey,
+		ExpiresAt: expiresAt,
+		CreatedAt: time.Now().UTC(),
+	}
+
+	if err := s.repo.CreateAPIKey(apiKey, keyHash); err != nil {
+		return nil, fmt.Errorf("failed to store API key: %w", err)
+	}
+
+	return apiKey, nil
+}
+
+func (s *Service) ListAPIKeys(userID string) ([]models.APIKey, error) {
+	return s.repo.ListAPIKeys(userID)
+}
+
+func (s *Service) DeleteAPIKey(id, userID string) error {
+	return s.repo.DeleteAPIKey(id, userID)
+}
+
+func (s *Service) ValidateAPIKey(rawKey string) (*models.APIKey, error) {
+	if !strings.HasPrefix(rawKey, "lk_live_") {
+		return nil, errors.New("invalid API key format")
+	}
+
+	hasher := sha256.New()
+	hasher.Write([]byte(rawKey))
+	hash := hex.EncodeToString(hasher.Sum(nil))
+
+	key, err := s.repo.GetAPIKeyByHash(hash)
+	if err != nil {
+		return nil, errors.New("API key not found")
+	}
+
+	if key.ExpiresAt != nil && key.ExpiresAt.Before(time.Now().UTC()) {
+		return nil, errors.New("API key has expired")
+	}
+
+	go func(id string) {
+		_ = s.repo.UpdateAPIKeyLastUsed(id)
+	}(key.ID)
+
+	return key, nil
+}
+
+// ----------------- User Profile -----------------
+
+func (s *Service) GetUserProfile(userID string) (*models.User, error) {
+	return s.repo.GetUserByID(userID)
+}
+
+func (s *Service) UpdateUserProfile(user *models.User) error {
+	return s.repo.CreateOrUpdateUser(user)
 }

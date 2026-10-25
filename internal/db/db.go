@@ -138,6 +138,19 @@ func (db *DB) Migrate() error {
 			`CREATE INDEX IF NOT EXISTS idx_analytics_link_id ON analytics_events(link_id);`,
 			`CREATE INDEX IF NOT EXISTS idx_analytics_qr_id ON analytics_events(qr_code_id);`,
 			`CREATE INDEX IF NOT EXISTS idx_analytics_created_at ON analytics_events(created_at);`,
+			`CREATE TABLE IF NOT EXISTS api_keys (
+				id VARCHAR(64) PRIMARY KEY,
+				user_id VARCHAR(64) NOT NULL,
+				team_id VARCHAR(64),
+				name VARCHAR(255) NOT NULL,
+				key_hash VARCHAR(128) NOT NULL,
+				key_prefix VARCHAR(32) NOT NULL,
+				last_used_at TIMESTAMPTZ,
+				expires_at TIMESTAMPTZ,
+				created_at TIMESTAMPTZ NOT NULL
+			);`,
+			`CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id);`,
+			`CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);`,
 		}
 	} else {
 		// SQLite compatible schema
@@ -225,6 +238,19 @@ func (db *DB) Migrate() error {
 			`CREATE INDEX IF NOT EXISTS idx_analytics_link_id ON analytics_events(link_id);`,
 			`CREATE INDEX IF NOT EXISTS idx_analytics_qr_id ON analytics_events(qr_code_id);`,
 			`CREATE INDEX IF NOT EXISTS idx_analytics_created_at ON analytics_events(created_at);`,
+			`CREATE TABLE IF NOT EXISTS api_keys (
+				id TEXT PRIMARY KEY,
+				user_id TEXT NOT NULL,
+				team_id TEXT,
+				name TEXT NOT NULL,
+				key_hash TEXT NOT NULL,
+				key_prefix TEXT NOT NULL,
+				last_used_at DATETIME,
+				expires_at DATETIME,
+				created_at DATETIME NOT NULL
+			);`,
+			`CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id);`,
+			`CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);`,
 		}
 	}
 

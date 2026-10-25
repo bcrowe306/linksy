@@ -74,6 +74,7 @@ import {
   BarChart3,
   Code2,
   Settings,
+  UserCircle,
   BookOpen,
   HelpCircle
 } from 'lucide-vue-next'
@@ -90,6 +91,7 @@ const navItems = computed(() => [
   { path: '/documents', label: 'Documents', icon: FileText, badge: store.documents.length || null },
   { path: '/analytics', label: 'Analytics', icon: BarChart3 },
   { path: '/api-docs', label: 'API Reference', icon: Code2 },
+  { path: '/profile', label: 'Account Profile', icon: UserCircle },
   { path: '/settings', label: 'Team & Settings', icon: Settings },
 ])
 </script>

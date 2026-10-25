@@ -39,7 +39,7 @@
         <span>Create New</span>
       </button>
 
-      <!-- Authentication Navigation -->
+      <!-- Authentication Navigation / User Profile -->
       <div v-if="!authStore.isAuthenticated" class="pl-2 border-l border-gray-800 flex items-center gap-2">
         <router-link
           to="/login"
@@ -56,13 +56,21 @@
       </div>
 
       <div v-else class="flex items-center gap-2.5 pl-3 border-l border-gray-800">
-        <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-linksy-600 to-indigo-400 flex items-center justify-center font-bold text-xs text-white">
-          {{ authStore.initials }}
-        </div>
-        <div class="hidden md:flex flex-col text-left">
-          <span class="text-xs font-semibold text-gray-200">{{ authStore.user.name }}</span>
-          <span class="text-[10px] text-linksy-400 font-mono">{{ authStore.user.email }}</span>
-        </div>
+        <!-- Clickable Avatar to Profile -->
+        <router-link
+          to="/profile"
+          class="flex items-center gap-2.5 p-1 -m-1 rounded-xl hover:bg-gray-800/80 transition-colors group cursor-pointer"
+          title="Account Profile & Settings"
+        >
+          <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-linksy-600 to-indigo-400 flex items-center justify-center font-bold text-xs text-white shadow-sm group-hover:scale-105 transition-transform">
+            {{ authStore.initials }}
+          </div>
+          <div class="hidden md:flex flex-col text-left">
+            <span class="text-xs font-semibold text-gray-200 group-hover:text-linksy-400 transition-colors">{{ authStore.user.name }}</span>
+            <span class="text-[10px] text-gray-400 font-mono">{{ authStore.user.email }}</span>
+          </div>
+        </router-link>
+
         <button
           @click="authStore.logout"
           title="Sign Out"

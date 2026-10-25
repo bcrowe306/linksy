@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -481,4 +482,157 @@ func (r *Repository) EnsureDefaultTeam(teamID, teamName, userID string) error {
 	_, _ = r.db.Exec(insertMember, uuid.New().String(), teamID, userID, string(models.RoleOwner), now)
 
 	return nil
+}
+
+// ----------------- Users & Profile -----------------
+
+func (r *Repository) CreateOrUpdateUser(u *models.User) error {
+	now := time.Now().UTC()
+	if u.CreatedAt.IsZero() {
+		u.CreatedAt = now
+	}
+	u.UpdatedAt = now
+
+	// Check if exists
+	var count int
+	checkQuery := `SELECT COUNT(*) FROM users WHERE id = $1`
+	if r.db.DriverName == "sqlite" {
+		checkQuery = `SELECT COUNT(*) FROM users WHERE id = ?`
+	}
+	_ = r.db.QueryRow(checkQuery, u.ID).Scan(&count)
+
+	if count > 0 {
+		updateQuery := `UPDATE users SET first_name = $1, last_name = $2, avatar_url = $3, updated_at = $4 WHERE id = $5`
+		if r.db.DriverName == "sqlite" {
+			updateQuery = `UPDATE users SET first_name = ?, last_name = ?, avatar_url = ?, updated_at = ? WHERE id = ?`
+		}
+		_, err := r.db.Exec(updateQuery, u.FirstName, u.LastName, u.AvatarURL, u.UpdatedAt, u.ID)
+		return err
+	}
+
+	insertQuery := `INSERT INTO users (id, email, first_name, last_name, avatar_url, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`
+	if r.db.DriverName == "sqlite" {
+		insertQuery = `INSERT INTO users (id, email, first_name, last_name, avatar_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	}
+	_, err := r.db.Exec(insertQuery, u.ID, u.Email, u.FirstName, u.LastName, u.AvatarURL, u.CreatedAt, u.UpdatedAt)
+	return err
+}
+
+func (r *Repository) GetUserByID(id string) (*models.User, error) {
+	query := `SELECT id, email, first_name, last_name, avatar_url, created_at, updated_at FROM users WHERE id = $1`
+	if r.db.DriverName == "sqlite" {
+		query = `SELECT id, email, first_name, last_name, avatar_url, created_at, updated_at FROM users WHERE id = ?`
+	}
+	var u models.User
+	var avatar sql.NullString
+	err := r.db.QueryRow(query, id).Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &avatar, &u.CreatedAt, &u.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if avatar.Valid {
+		u.AvatarURL = avatar.String
+	}
+	return &u, nil
+}
+
+func (r *Repository) GetUserByEmail(email string) (*models.User, error) {
+	query := `SELECT id, email, first_name, last_name, avatar_url, created_at, updated_at FROM users WHERE email = $1`
+	if r.db.DriverName == "sqlite" {
+		query = `SELECT id, email, first_name, last_name, avatar_url, created_at, updated_at FROM users WHERE email = ?`
+	}
+	var u models.User
+	var avatar sql.NullString
+	err := r.db.QueryRow(query, email).Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &avatar, &u.CreatedAt, &u.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if avatar.Valid {
+		u.AvatarURL = avatar.String
+	}
+	return &u, nil
+}
+
+// ----------------- API Keys -----------------
+
+func (r *Repository) CreateAPIKey(k *models.APIKey, hash string) error {
+	if k.ID == "" {
+		k.ID = "key_" + uuid.New().String()
+	}
+	now := time.Now().UTC()
+	k.CreatedAt = now
+
+	query := `INSERT INTO api_keys (id, user_id, team_id, name, key_hash, key_prefix, expires_at, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+	if r.db.DriverName == "sqlite" {
+		query = `INSERT INTO api_keys (id, user_id, team_id, name, key_hash, key_prefix, expires_at, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	}
+	_, err := r.db.Exec(query, k.ID, k.UserID, k.TeamID, k.Name, hash, k.KeyPrefix, k.ExpiresAt, k.CreatedAt)
+	return err
+}
+
+func (r *Repository) ListAPIKeys(userID string) ([]models.APIKey, error) {
+	query := `SELECT id, user_id, team_id, name, key_prefix, last_used_at, expires_at, created_at
+		FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC`
+	if r.db.DriverName == "sqlite" {
+		query = `SELECT id, user_id, team_id, name, key_prefix, last_used_at, expires_at, created_at
+			FROM api_keys WHERE user_id = ? ORDER BY created_at DESC`
+	}
+	rows, err := r.db.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var keys []models.APIKey
+	for rows.Next() {
+		var k models.APIKey
+		var teamID sql.NullString
+		if err := rows.Scan(&k.ID, &k.UserID, &teamID, &k.Name, &k.KeyPrefix, &k.LastUsedAt, &k.ExpiresAt, &k.CreatedAt); err != nil {
+			return nil, err
+		}
+		if teamID.Valid {
+			k.TeamID = teamID.String
+		}
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
+func (r *Repository) DeleteAPIKey(id, userID string) error {
+	query := `DELETE FROM api_keys WHERE id = $1 AND user_id = $2`
+	if r.db.DriverName == "sqlite" {
+		query = `DELETE FROM api_keys WHERE id = ? AND user_id = ?`
+	}
+	_, err := r.db.Exec(query, id, userID)
+	return err
+}
+
+func (r *Repository) GetAPIKeyByHash(hash string) (*models.APIKey, error) {
+	query := `SELECT id, user_id, team_id, name, key_prefix, last_used_at, expires_at, created_at
+		FROM api_keys WHERE key_hash = $1`
+	if r.db.DriverName == "sqlite" {
+		query = `SELECT id, user_id, team_id, name, key_prefix, last_used_at, expires_at, created_at
+			FROM api_keys WHERE key_hash = ?`
+	}
+	var k models.APIKey
+	var teamID sql.NullString
+	err := r.db.QueryRow(query, hash).Scan(&k.ID, &k.UserID, &teamID, &k.Name, &k.KeyPrefix, &k.LastUsedAt, &k.ExpiresAt, &k.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if teamID.Valid {
+		k.TeamID = teamID.String
+	}
+	return &k, nil
+}
+
+func (r *Repository) UpdateAPIKeyLastUsed(id string) error {
+	now := time.Now().UTC()
+	query := `UPDATE api_keys SET last_used_at = $1 WHERE id = $2`
+	if r.db.DriverName == "sqlite" {
+		query = `UPDATE api_keys SET last_used_at = ? WHERE id = ?`
+	}
+	_, err := r.db.Exec(query, now, id)
+	return err
 }

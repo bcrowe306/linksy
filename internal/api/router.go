@@ -16,7 +16,7 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	middleware.SetupCommon(app)
 
 	h := handler.New(svc, cfg.AppURL)
-	authH := handler.NewAuthHandler(cfg)
+	authH := handler.NewAuthHandler(cfg, svc)
 
 	// Public health check
 	app.Get("/health", h.Health)
@@ -36,6 +36,10 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	app.Get("/api/v1/auth/me", authH.GetCurrentUser)
 	app.Post("/api/v1/auth/logout", authH.HandleLogout)
 
+	// Password reset (accessible publicly with email or authenticated)
+	app.Post("/api/v1/auth/password-reset", authH.HandlePasswordReset)
+	app.Post("/api/v1/auth/change-password", authH.HandleChangePassword)
+
 	// High throughput public redirectors
 	app.Get("/s/:slug", middleware.RedirectRateLimiter(), h.HandleShortLinkRedirect)
 	app.Get("/qr/r/:id", middleware.RedirectRateLimiter(), h.HandleQRScanRedirect)
@@ -43,8 +47,18 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	// Static Document file downloads
 	app.Get("/api/v1/documents/files/:filename", h.DownloadDocumentFile)
 
-	// Protected / Authenticated API v1 routes
-	api := app.Group("/api/v1", middleware.AuthMiddleware())
+	// Protected / Authenticated API v1 routes (authenticates session tokens, cookies, & lk_live_ API keys)
+	api := app.Group("/api/v1", middleware.AuthMiddleware(svc))
+
+	// User Profile & Account Management
+	api.Get("/user/profile", authH.GetProfile)
+	api.Put("/user/profile", authH.UpdateProfile)
+	api.Post("/user/change-password", authH.HandleChangePassword)
+
+	// API Keys Management
+	api.Get("/api-keys", authH.ListAPIKeys)
+	api.Post("/api-keys", authH.CreateAPIKey)
+	api.Delete("/api-keys/:id", authH.RevokeAPIKey)
 
 	// Short Links
 	api.Post("/links", h.CreateLink)

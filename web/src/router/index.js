@@ -9,11 +9,13 @@ import DocsView from '../views/DocsView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import SignupView from '../views/SignupView.vue'
 import LoginView from '../views/LoginView.vue'
+import ProfileView from '../views/ProfileView.vue'
 
 const routes = [
   { path: '/', name: 'dashboard', component: DashboardView },
   { path: '/signup', name: 'signup', component: SignupView },
   { path: '/login', name: 'login', component: LoginView },
+  { path: '/profile', name: 'profile', component: ProfileView },
   { path: '/links', name: 'links', component: LinksView },
   { path: '/qr-codes', name: 'qr-codes', component: QRCodesView },
   { path: '/qr-studio', name: 'qr-studio', component: QREditorView },

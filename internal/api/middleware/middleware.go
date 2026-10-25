@@ -17,6 +17,11 @@ type AuthContext struct {
 	UserID string
 	TeamID string
 	Role   models.UserRole
+	APIKey *models.APIKey
+}
+
+type KeyValidator interface {
+	ValidateAPIKey(rawKey string) (*models.APIKey, error)
 }
 
 func SetupCommon(app *fiber.App) {
@@ -41,23 +46,54 @@ func RedirectRateLimiter() fiber.Handler {
 }
 
 // AuthMiddleware handles WorkOS / API token authorization
-func AuthMiddleware() fiber.Handler {
+func AuthMiddleware(validators ...KeyValidator) fiber.Handler {
+	var validator KeyValidator
+	if len(validators) > 0 {
+		validator = validators[0]
+	}
+
 	return func(c fiber.Ctx) error {
 		authHeader := c.Get("Authorization")
+		cookieToken := c.Cookies("linksy_session")
 		teamHeader := c.Get("X-Team-ID")
 
 		userID := "usr_demo123"
 		teamID := "team_default"
 		role := models.RoleOwner
+		var apiKey *models.APIKey
 
 		if teamHeader != "" {
 			teamID = teamHeader
 		}
 
+		token := ""
 		if strings.HasPrefix(authHeader, "Bearer ") {
-			token := strings.TrimPrefix(authHeader, "Bearer ")
-			// If real WorkOS token or custom API key, populate here
-			if token != "" {
+			token = strings.TrimPrefix(authHeader, "Bearer ")
+		} else if cookieToken != "" {
+			token = cookieToken
+		}
+
+		if token != "" {
+			// 1. Check if token is a Linksy API Key (lk_live_...)
+			if strings.HasPrefix(token, "lk_live_") && validator != nil {
+				if key, err := validator.ValidateAPIKey(token); err == nil && key != nil {
+					userID = key.UserID
+					if key.TeamID != "" {
+						teamID = key.TeamID
+					}
+					apiKey = key
+				}
+			} else if strings.HasPrefix(token, "sess_") {
+				// Format: sess_user_01M5R..._<timestamp>
+				parts := strings.Split(token, "_")
+				if len(parts) >= 3 && parts[1] == "user" {
+					userID = "user_" + parts[2]
+				} else if len(parts) >= 2 {
+					userID = parts[1]
+				}
+			} else if strings.HasPrefix(token, "workos_sess_") {
+				userID = strings.TrimPrefix(token, "workos_sess_")
+			} else {
 				userID = "usr_" + token[:min(len(token), 10)]
 			}
 		}
@@ -66,6 +102,7 @@ func AuthMiddleware() fiber.Handler {
 			UserID: userID,
 			TeamID: teamID,
 			Role:   role,
+			APIKey: apiKey,
 		})
 
 		return c.Next()
