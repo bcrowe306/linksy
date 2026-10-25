@@ -65,6 +65,13 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 - [x] Tests: every shape/eye/frame combination must decode; SVG injection; payload escaping per type; e2e for scans, app routing, vCard hosting, document replacement, static types, preview, export options
 - [ ] CI + merge + live test-drive
 
+## 8. Stripe billing (plan)
+- Per-workspace subscription: 7-day trial without a card, then $5/mo billed annually ($60) or $8.99 monthly; owner-only billing page; Stripe Checkout + Customer Portal; webhook-driven status
+- Lapsed or expired trial → read-only workspace, and links/QR codes show a "subscription inactive" page
+- **Checkout codes** via Stripe Coupons + Promotion Codes: code field on the billing page with a live server-side preview ("50% off for 3 months"), applied to the Checkout session (plus Stripe's own code field); 100%-off codes create card-free comp accounts (`payment_method_collection: if_required`); `?code=` deep links from pricing; redemption stored on the workspace and in the audit log
+- Optional: Lynqr-side trial-extension codes (Stripe codes can't lengthen trials)
+- Restricted key needs read access to Coupons, Promotion Codes, Customers, Checkout Sessions, Subscriptions, Billing Portal and Prices
+
 ## 9. SEO & marketing site (plan)
 - Server-rendered (Go `html/template`) public pages, served to visitors without a session so crawlers get real HTML: landing `/`, `/pricing`, `/features`, `/about`, legal (`/terms`, `/privacy`)
 - Free public QR generator (no login, static codes, rate-limited) plus one landing page per type (`/qr-code-generator/wifi`, `/vcard`, `/pdf`, `/app-store`, …) targeting high-volume searches, with signup CTAs for dynamic codes and analytics
