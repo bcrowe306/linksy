@@ -39,7 +39,8 @@
           <span class="absolute left-3 top-3 badge-neutral bg-surface/90 backdrop-blur">
             <component :is="typeMeta[qr.type]?.icon || QrCode" class="w-3 h-3" /> {{ typeMeta[qr.type]?.label || qr.type }}
           </span>
-          <span v-if="qr.is_dynamic" class="absolute right-3 top-3 badge-brand bg-surface/90 backdrop-blur">Dynamic</span>
+          <span v-if="qr.moderation_reason" class="absolute right-3 top-3 badge-danger bg-surface/90 backdrop-blur" :title="`Disabled by Lynqr: ${qr.moderation_reason}. Contact support@lynqr.app.`">Disabled by Lynqr</span>
+          <span v-else-if="qr.is_dynamic" class="absolute right-3 top-3 badge-brand bg-surface/90 backdrop-blur">Dynamic</span>
         </router-link>
 
         <div class="flex flex-1 flex-col gap-3 p-4">

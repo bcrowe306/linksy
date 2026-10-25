@@ -15,6 +15,7 @@ import (
 	"github.com/bcrowe306/linksy/internal/billing"
 	"github.com/bcrowe306/linksy/internal/config"
 	"github.com/bcrowe306/linksy/internal/db"
+	"github.com/bcrowe306/linksy/internal/email"
 	"github.com/bcrowe306/linksy/internal/repository"
 	"github.com/bcrowe306/linksy/internal/service"
 	"github.com/bcrowe306/linksy/internal/storage"
@@ -60,6 +61,17 @@ func main() {
 		cfg.AppSecret = "lynqr-local-dev-secret"
 	}
 	svc.SetIPSalt(cfg.AppSecret)
+	svc.SetAdminEmails(cfg.AdminEmails)
+	switch {
+	case cfg.ResendKey != "":
+		svc.SetMailer(email.NewResend(cfg.ResendKey, cfg.EmailFrom))
+		log.Printf("[Lynqr] Email enabled via Resend (from %s)", cfg.EmailFrom)
+	case cfg.IsLocal():
+		svc.SetMailer(email.Log{})
+		log.Printf("[Lynqr] Email is printed to the log (no RESEND_API_KEY)")
+	default:
+		log.Printf("[Lynqr] Email disabled: set RESEND_API_KEY to send email")
+	}
 
 	// Billing: provision the Stripe catalog, then enable enforcement. Until that
 	// succeeds every workspace keeps full access, so a Stripe outage never locks users out.

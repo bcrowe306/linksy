@@ -121,7 +121,16 @@ Original plan:
 - Optional: Lynqr-side trial-extension codes (Stripe codes can't lengthen trials)
 - Restricted key needs: Coupons + Promotion Codes (write, for the admin console), Customers, Checkout Sessions, Subscriptions, Billing Portal, Prices
 
-## 8b. Platform admin console (plan, decided 2026-10-25)
+## 8b. Platform admin console
+Done (`feat/admin`):
+- [x] Migration 0006: platform-admin and suspension flags, admin session elevation, platform audit log, blocklist, abuse reports, trial codes
+- [x] `ADMIN_EMAILS` bootstrap; `/admin` re-authentication by password (WorkOS) or a 6-digit email code (Resend), unlocking for 1 hour per session; API keys never reach admin routes
+- [x] Overview metrics (users, workspaces, plans, list-price MRR, trial conversion, daily signups, content and engagement)
+- [x] Workspaces: search, detail, extend trial, comp, suspend (members read-only, codes show a disabled page); Users: search, suspend (sessions ended, sign-in and API keys blocked), grant or revoke staff
+- [x] Codes: Stripe checkout codes (create, deactivate, copy deep link) and Lynqr trial codes (redeemed from the Billing tab)
+- [x] Moderation: public `/report` form, report queue, asset search, disable or restore links and QR codes, domain blocklist enforced at create, update and redirect time
+- [x] Append-only platform audit log for every admin action; Stripe API version pinned to 2025-08-27.basil
+Original plan:
 - Platform-admin flag on users (separate from workspace roles); first admins bootstrapped from the `ADMIN_EMAILS` env var (verified accounts only); admins can grant or revoke others in the console
 - Same WorkOS login; entering `/admin` requires password re-auth within 15 minutes → short-lived admin session; all `/api/v1/admin/*` routes gated server-side; `noindex`
 - **Checkout codes:** create, list and deactivate Stripe coupons + promotion codes (percent/amount, duration, max redemptions, expiry, plan restriction), view redemptions; Lynqr trial-extension codes
@@ -131,6 +140,7 @@ Original plan:
 - **Platform audit log:** every admin action with actor, target, before/after and IP; append-only
 
 ## 9. SEO & marketing site (plan)
+- **Landing page first (requested 2026-10-25):** a public home page at `/` for visitors without a session that shows off the features (short links, QR studio, analytics, teams) and leads to sign-up; signed-in users still land in the app
 - Server-rendered (Go `html/template`) public pages, served to visitors without a session so crawlers get real HTML: landing `/`, `/pricing`, `/features`, `/about`, legal (`/terms`, `/privacy`)
 - Free public QR generator (no login, static codes, rate-limited) plus one landing page per type (`/qr-code-generator/wifi`, `/vcard`, `/pdf`, `/app-store`, …) targeting high-volume searches, with signup CTAs for dynamic codes and analytics
 - Guides/blog section (`/guides/...`) from embedded Markdown, shared with in-app help (item 7)

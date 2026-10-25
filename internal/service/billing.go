@@ -47,8 +47,9 @@ type lapseCache struct {
 }
 
 type lapseEntry struct {
-	lapsed bool
-	until  time.Time
+	lapsed    bool
+	suspended bool
+	until     time.Time
 }
 
 // EnableBilling turns on subscriptions and enforcement. Without it (local dev,
@@ -59,30 +60,11 @@ func (s *Service) EnableBilling(p BillingProvider, prices billing.Prices, webhoo
 
 func (s *Service) BillingEnabled() bool { return s.billing != nil }
 
-// TeamLapsed reports whether a workspace has lost access. Cached for 30s.
+// TeamLapsed reports whether a workspace has lost access: its plan lapsed or
+// Lynqr suspended it. Cached for 30s (see TeamAccess).
 func (s *Service) TeamLapsed(teamID string) bool {
-	if s.billing == nil || teamID == "" {
-		return false
-	}
-	now := time.Now()
-	s.lapses.mu.Lock()
-	if e, ok := s.lapses.m[teamID]; ok && now.Before(e.until) {
-		s.lapses.mu.Unlock()
-		return e.lapsed
-	}
-	s.lapses.mu.Unlock()
-
-	lapsed := false
-	if t, err := s.repo.GetTeam(teamID); err == nil {
-		lapsed = t.Billing.Lapsed(now)
-	}
-	s.lapses.mu.Lock()
-	if s.lapses.m == nil {
-		s.lapses.m = map[string]lapseEntry{}
-	}
-	s.lapses.m[teamID] = lapseEntry{lapsed: lapsed, until: now.Add(30 * time.Second)}
-	s.lapses.mu.Unlock()
-	return lapsed
+	readOnly, _ := s.TeamAccess(teamID)
+	return readOnly
 }
 
 func (s *Service) forgetLapse(teamID string) {
@@ -111,6 +93,7 @@ type BillingSummary struct {
 	Enabled           bool       `json:"enabled"`
 	State             string     `json:"state"`
 	ReadOnly          bool       `json:"read_only"`
+	Suspended         bool       `json:"suspended"`
 	TrialEndsAt       *time.Time `json:"trial_ends_at,omitempty"`
 	TrialDaysLeft     int        `json:"trial_days_left"`
 	Interval          string     `json:"interval,omitempty"`
@@ -140,7 +123,8 @@ func (s *Service) Billing(a Actor) (*BillingSummary, error) {
 		DiscountLabel: b.DiscountLabel, HasCustomer: b.StripeCustomerID != "", CanManage: auth.Can(a.Role, auth.PermManageBilling),
 		MonthlyCents: billing.MonthlyCents, AnnualCents: billing.AnnualCents,
 	}
-	sum.ReadOnly = s.billing != nil && b.Lapsed(now)
+	sum.Suspended = t.SuspendedReason != ""
+	sum.ReadOnly = (s.billing != nil && b.Lapsed(now)) || sum.Suspended
 	if b.TrialEndsAt != nil && now.Before(*b.TrialEndsAt) {
 		sum.TrialDaysLeft = int(b.TrialEndsAt.Sub(now).Hours()/24) + 1
 	}
@@ -149,6 +133,9 @@ func (s *Service) Billing(a Actor) (*BillingSummary, error) {
 
 // PromoPreview describes a code's effect on a plan before checkout.
 type PromoPreview struct {
+	// Kind is "discount" (Stripe checkout code) or "trial" (adds trial days).
+	Kind          string `json:"kind"`
+	TrialDays     int    `json:"trial_days,omitempty"`
 	Code          string `json:"code"`
 	Description   string `json:"description"`
 	Interval      string `json:"interval"`
@@ -172,6 +159,9 @@ func (s *Service) PreviewPromo(a Actor, code, interval string) (*PromoPreview, e
 	} else {
 		interval = "month"
 	}
+	if p, ok := s.trialCodePreview(code); ok {
+		return p, nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	pc, err := s.billing.provider.FindPromotionCode(ctx, code)
@@ -189,7 +179,7 @@ func (s *Service) PreviewPromo(a Actor, code, interval string) (*PromoPreview, e
 		return nil, fmt.Errorf("that code needs a minimum purchase of $%.2f; try the annual plan", float64(pc.Restrictions.MinimumAmount)/100)
 	}
 	disc := pc.Coupon.Discounted(cents)
-	return &PromoPreview{Code: pc.Code, Description: pc.Coupon.Describe(), Interval: interval, OriginalCents: cents,
+	return &PromoPreview{Kind: "discount", Code: pc.Code, Description: pc.Coupon.Describe(), Interval: interval, OriginalCents: cents,
 		DiscountCents: disc, Free: disc == 0, FirstTimeOnly: pc.Restrictions.FirstTimeTransaction}, nil
 }
 

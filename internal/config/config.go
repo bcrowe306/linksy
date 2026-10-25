@@ -33,6 +33,11 @@ type Config struct {
 	StripeWebhookSecret string
 	// DevLogin enables a password-less local login. Only honoured when AppURL is localhost.
 	DevLogin bool
+	// AdminEmails are promoted to platform admin when they sign in (comma-separated ADMIN_EMAILS).
+	AdminEmails []string
+	// Email delivery (Resend). Without a key, email is logged in local development only.
+	ResendKey string
+	EmailFrom string
 }
 
 // SecureCookies reports whether cookies should carry the Secure attribute.
@@ -121,6 +126,9 @@ func LoadConfig() *Config {
 		DevLogin:              getEnv("DEV_LOGIN", "") == "true",
 		StripeKey:             getEnv("STRIPE_SECRET_KEY", getEnv("STRIP_SECRET_KEY", "")),
 		StripeWebhookSecret:   getEnv("STRIPE_WEBHOOK_SECRET", ""),
+		AdminEmails:           strings.Split(getEnv("ADMIN_EMAILS", ""), ","),
+		ResendKey:             getEnv("RESEND_API_KEY", ""),
+		EmailFrom:             getEnv("EMAIL_FROM", "Lynqr <noreply@lynqr.app>"),
 	}
 }
 

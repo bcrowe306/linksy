@@ -105,6 +105,9 @@ func (a *AuthHandler) establishSession(c fiber.Ctx, u *models.User) error {
 
 func (a *AuthHandler) sessionJSON(c fiber.Ctx, u *models.User) error {
 	if err := a.establishSession(c, u); err != nil {
+		if errors.Is(err, service.ErrAccountSuspended) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error(), "code": "account_suspended"})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"authenticated": true, "user": publicUser(u)})
@@ -119,6 +122,8 @@ func publicUser(u *models.User) fiber.Map {
 		"name":       strings.TrimSpace(u.FirstName + " " + u.LastName),
 		"avatar_url": u.AvatarURL,
 		"created_at": u.CreatedAt,
+		// Only ever describes the signed-in user themselves.
+		"is_platform_admin": u.IsPlatformAdmin,
 	}
 }
 
@@ -218,6 +223,9 @@ func (a *AuthHandler) HandleCallback(c fiber.Ctx) error {
 		return fail(err.Error())
 	}
 	if err := a.establishSession(c, userFromWorkOS(res.User)); err != nil {
+		if errors.Is(err, service.ErrAccountSuspended) {
+			return fail(err.Error())
+		}
 		return fail("Could not start your session")
 	}
 	return c.Redirect().To(next)

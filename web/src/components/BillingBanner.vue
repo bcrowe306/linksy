@@ -17,9 +17,12 @@ const auth = useAuthStore()
 
 const banner = computed(() => {
   const b = auth.billing
-  if (!b?.enabled) return null
+  if (!b?.enabled && !b?.suspended) return null
   const cta = b.can_manage ? 'Choose a plan' : ''
   const ask = b.can_manage ? '' : ' Ask the workspace owner to subscribe.'
+  if (b.suspended) {
+    return { icon: Lock, tone: 'border-rose-500/30 bg-rose-500/10', text: 'Lynqr has suspended this workspace. It is read-only and its links and QR codes are disabled. Contact support@lynqr.app.', cta: '' }
+  }
   if (b.read_only) {
     return {
       icon: Lock,

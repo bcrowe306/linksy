@@ -51,12 +51,12 @@
           <div class="rounded-xl border border-line p-5">
             <p class="text-xs font-medium uppercase tracking-wide text-fg-subtle">Pro · {{ interval === 'year' ? 'billed annually' : 'billed monthly' }}</p>
             <p class="mt-2 flex items-baseline gap-2">
-              <span v-if="promo && !promo.free && promo.discounted_cents !== promo.original_cents" class="text-lg text-fg-subtle line-through">{{ money(perMonth(promo.original_cents)) }}</span>
-              <span class="text-3xl font-semibold tabular-nums text-fg" data-testid="plan-price">{{ promo?.free ? '$0' : money(perMonth(promo ? promo.discounted_cents : priceCents)) }}</span>
+              <span v-if="discount && !discount.free && discount.discounted_cents !== discount.original_cents" class="text-lg text-fg-subtle line-through">{{ money(perMonth(discount.original_cents)) }}</span>
+              <span class="text-3xl font-semibold tabular-nums text-fg" data-testid="plan-price">{{ discount?.free ? '$0' : money(perMonth(discount ? discount.discounted_cents : priceCents)) }}</span>
               <span class="text-sm text-fg-muted">/ month</span>
             </p>
             <p class="mt-1 text-xs text-fg-muted">
-              <template v-if="interval === 'year'">{{ money(promo && !promo.free ? promo.discounted_cents : priceCents) }} billed once a year</template>
+              <template v-if="interval === 'year'">{{ money(discount && !discount.free ? discount.discounted_cents : priceCents) }} billed once a year</template>
               <template v-else>Cancel any time</template>
             </p>
             <ul class="mt-4 space-y-1.5 text-sm text-fg">
@@ -75,10 +75,13 @@
               <p v-else-if="promo" class="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400" data-testid="promo-ok">
                 <BadgePercent class="h-3.5 w-3.5" />{{ promo.code }}: {{ promo.description }}<template v-if="promo.free"> · no card needed</template>
               </p>
+              <button v-if="promo?.kind === 'trial'" type="button" class="btn-secondary btn-sm mt-2" :disabled="busy" data-testid="redeem-trial" @click="redeem">
+                <CalendarPlus class="h-3.5 w-3.5" /> Add {{ promo.trial_days }} days to my trial
+              </button>
             </div>
             <div class="mt-auto space-y-2">
               <button class="btn-primary w-full justify-center" :disabled="busy || !b.can_manage" data-testid="subscribe">
-                {{ promo?.free ? 'Activate for free' : 'Subscribe' }}
+                {{ discount?.free ? 'Activate for free' : 'Subscribe' }}
               </button>
               <p class="text-center text-xs text-fg-muted">
                 <template v-if="!b.can_manage">Only the workspace owner can change the plan.</template>
@@ -96,7 +99,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { BadgePercent, Check, ExternalLink } from 'lucide-vue-next'
+import { BadgePercent, Check, ExternalLink, CalendarPlus } from 'lucide-vue-next'
 import { api } from '../../api/client'
 import { useAuthStore } from '../../stores/auth'
 import { useToast } from '../../composables/useToast'
@@ -127,6 +130,7 @@ const perMonth = (cents) => (interval.value === 'year' ? cents / 12 : cents)
 const money = (cents) => `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`
 const date = (d) => new Date(d).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
 
+const discount = computed(() => (promo.value?.kind === 'discount' ? promo.value : null))
 const showPlans = computed(() => ['trial', 'expired', 'canceled'].includes(b.value?.state))
 
 const status = computed(() => {
@@ -182,10 +186,26 @@ watch(code, (c) => {
   promoError.value = ''
 })
 
+async function redeem() {
+  busy.value = true
+  try {
+    b.value = await api.redeemTrialCode(promo.value.code)
+    toast.success(`Added ${promo.value.trial_days} days to your trial`)
+    code.value = ''
+    promo.value = null
+    await auth.refresh()
+  } catch (err) {
+    toast.error(err.message)
+  } finally {
+    busy.value = false
+  }
+}
+
 async function subscribe() {
   busy.value = true
   try {
-    const { url } = await api.startCheckout(interval.value, code.value.trim())
+    // Trial codes are redeemed separately, never sent to Stripe.
+    const { url } = await api.startCheckout(interval.value, discount.value ? code.value.trim() : '')
     window.location.href = url
   } catch (err) {
     toast.error(err.message)

@@ -38,6 +38,9 @@ type User struct {
 	AvatarURL string    `json:"avatar_url"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	// Platform-level flags (not workspace roles).
+	IsPlatformAdmin bool   `json:"is_platform_admin,omitempty"`
+	SuspendedReason string `json:"-"`
 }
 
 type Team struct {
@@ -48,6 +51,8 @@ type Team struct {
 	CreatedAt time.Time   `json:"created_at"`
 	UpdatedAt time.Time   `json:"updated_at"`
 	Billing   TeamBilling `json:"-"`
+	// Set when Lynqr suspends the workspace (e.g. for abuse).
+	SuspendedReason string `json:"-"`
 }
 
 // TeamBilling is the workspace's subscription state (synced from Stripe).
@@ -173,8 +178,10 @@ type Link struct {
 	UTMContent   string     `json:"utm_content"`
 	FallbackURL  string     `json:"fallback_url"` // Where paused/expired links send visitors (optional)
 	ClickCount   int64      `json:"click_count"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	// Set when Lynqr disables the link for abuse; owners can't override it.
+	ModerationReason string    `json:"moderation_reason,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 type QRStyle struct {
@@ -217,24 +224,26 @@ type QRStyle struct {
 }
 
 type QRCode struct {
-	ID         string    `json:"id"`
-	TeamID     string    `json:"team_id"`
-	UserID     string    `json:"user_id"`
-	LinkID     *string   `json:"link_id,omitempty"`     // Linked short link for dynamic redirection
-	DocumentID *string   `json:"document_id,omitempty"` // Hosted document served by this QR
-	Code       string    `json:"code,omitempty"`        // Short scan code for dynamic codes (/q/{code})
-	IsDynamic  bool      `json:"is_dynamic"`            // Encodes a Lynqr redirect, so content can change after printing
-	OwnsLink   bool      `json:"owns_link"`             // Destination link was created for (and is deleted with) this code
-	TargetURL  string    `json:"target_url,omitempty"`  // Current destination (dynamic website codes); computed
-	ScanURL    string    `json:"scan_url,omitempty"`    // Public URL encoded in dynamic codes; computed
-	Type       QRType    `json:"type"`
-	Title      string    `json:"title"`
-	Payload    string    `json:"payload"`  // Encoded destination URL or raw payload
-	RawData    string    `json:"raw_data"` // JSON formatted raw type-specific data
-	Style      QRStyle   `json:"style"`
-	ScanCount  int64     `json:"scan_count"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	ID         string  `json:"id"`
+	TeamID     string  `json:"team_id"`
+	UserID     string  `json:"user_id"`
+	LinkID     *string `json:"link_id,omitempty"`     // Linked short link for dynamic redirection
+	DocumentID *string `json:"document_id,omitempty"` // Hosted document served by this QR
+	Code       string  `json:"code,omitempty"`        // Short scan code for dynamic codes (/q/{code})
+	IsDynamic  bool    `json:"is_dynamic"`            // Encodes a Lynqr redirect, so content can change after printing
+	OwnsLink   bool    `json:"owns_link"`             // Destination link was created for (and is deleted with) this code
+	TargetURL  string  `json:"target_url,omitempty"`  // Current destination (dynamic website codes); computed
+	ScanURL    string  `json:"scan_url,omitempty"`    // Public URL encoded in dynamic codes; computed
+	Type       QRType  `json:"type"`
+	Title      string  `json:"title"`
+	Payload    string  `json:"payload"`  // Encoded destination URL or raw payload
+	RawData    string  `json:"raw_data"` // JSON formatted raw type-specific data
+	Style      QRStyle `json:"style"`
+	ScanCount  int64   `json:"scan_count"`
+	// Set when Lynqr disables the code for abuse; owners can't override it.
+	ModerationReason string    `json:"moderation_reason,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 type AnalyticsEvent struct {

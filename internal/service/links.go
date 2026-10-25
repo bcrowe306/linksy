@@ -88,12 +88,12 @@ func hashLinkPassword(pw string) (string, error) {
 	return string(h), err
 }
 
-func validateFallback(u string) (string, error) {
+func (s *Service) validateFallback(u string) (string, error) {
 	u = strings.TrimSpace(u)
 	if u == "" {
 		return "", nil
 	}
-	if err := ValidateTargetURL(u); err != nil {
+	if err := s.checkTarget(u); err != nil {
 		return "", fmt.Errorf("fallback URL: %w", err)
 	}
 	return u, nil
@@ -116,14 +116,14 @@ func (s *Service) CreateShortLink(a Actor, input CreateLinkInput) (*models.Link,
 	if err := a.require(auth.PermEditAssets); err != nil {
 		return nil, err
 	}
-	if err := ValidateTargetURL(input.TargetURL); err != nil {
+	if err := s.checkTarget(input.TargetURL); err != nil {
 		return nil, err
 	}
 	utm, err := input.UTM.clean()
 	if err != nil {
 		return nil, err
 	}
-	fallback, err := validateFallback(input.FallbackURL)
+	fallback, err := s.validateFallback(input.FallbackURL)
 	if err != nil {
 		return nil, err
 	}
@@ -182,6 +182,8 @@ const (
 	LinkOK LinkState = iota
 	LinkPaused
 	LinkExpired
+	// LinkDisabled: disabled by Lynqr moderation or its destination is blocked.
+	LinkDisabled
 )
 
 // LookupLink finds a link by slug for the public redirector and reports its state.
@@ -189,6 +191,9 @@ func (s *Service) LookupLink(slug string) (*models.Link, LinkState, error) {
 	link, err := s.repo.GetLinkBySlug(slug)
 	if err != nil {
 		return nil, LinkOK, ErrLinkNotFound
+	}
+	if link.ModerationReason != "" || s.URLBlocked(link.TargetURL) {
+		return link, LinkDisabled, nil
 	}
 	if !link.IsActive {
 		return link, LinkPaused, nil
@@ -264,7 +269,7 @@ func (s *Service) UpdateShortLink(a Actor, id string, in UpdateLinkInput) (*mode
 	}
 
 	if in.TargetURL != "" && in.TargetURL != link.TargetURL {
-		if err := ValidateTargetURL(in.TargetURL); err != nil {
+		if err := s.checkTarget(in.TargetURL); err != nil {
 			return nil, err
 		}
 		link.TargetURL = strings.TrimSpace(in.TargetURL)
@@ -300,7 +305,7 @@ func (s *Service) UpdateShortLink(a Actor, id string, in UpdateLinkInput) (*mode
 		applyUTM(link, utm)
 	}
 	if in.FallbackURL != nil {
-		if link.FallbackURL, err = validateFallback(*in.FallbackURL); err != nil {
+		if link.FallbackURL, err = s.validateFallback(*in.FallbackURL); err != nil {
 			return nil, err
 		}
 	}

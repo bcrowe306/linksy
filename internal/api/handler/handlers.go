@@ -51,7 +51,14 @@ func fail(c fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, service.ErrUnauthorized):
 		status = fiber.StatusUnauthorized
-	case errors.Is(err, service.ErrForbidden), errors.Is(err, service.ErrOwnerProtected),
+	case errors.Is(err, service.ErrWorkspaceSuspended):
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error(), "code": "workspace_suspended"})
+	case errors.Is(err, service.ErrDomainBlocked):
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error(), "code": "domain_blocked"})
+	case errors.Is(err, service.ErrAdminReauth):
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error(), "code": "admin_reauth"})
+	case errors.Is(err, service.ErrForbidden), errors.Is(err, service.ErrOwnerProtected), errors.Is(err, service.ErrNotPlatformAdmin),
+		errors.Is(err, service.ErrSelfAdminAction), errors.Is(err, service.ErrAccountSuspended),
 		errors.Is(err, service.ErrSuspended), errors.Is(err, service.ErrNotMember),
 		errors.Is(err, service.ErrInvitationMismatch):
 		status = fiber.StatusForbidden
@@ -62,7 +69,7 @@ func fail(c fiber.Ctx, err error) error {
 		status = fiber.StatusConflict
 	case errors.Is(err, service.ErrPaymentRequired):
 		return c.Status(fiber.StatusPaymentRequired).JSON(fiber.Map{"error": err.Error(), "code": "subscription_required"})
-	case errors.Is(err, service.ErrBillingDisabled):
+	case errors.Is(err, service.ErrBillingDisabled), errors.Is(err, service.ErrEmailDisabled):
 		status = fiber.StatusServiceUnavailable
 	}
 	return c.Status(status).JSON(fiber.Map{"error": err.Error()})
@@ -109,8 +116,11 @@ func (h *Handler) HandleShortLinkRedirect(c fiber.Ctx) error {
 	}
 	c.Set("Cache-Control", "no-store")
 	c.Set("X-Robots-Tag", "noindex, nofollow")
-	if h.svc.TeamLapsed(link.TeamID) {
-		return h.renderInactiveWorkspace(c)
+	if blocked, err := h.gate(c, link.TeamID); blocked {
+		return err
+	}
+	if state == service.LinkDisabled {
+		return h.renderDisabled(c)
 	}
 	if state != service.LinkOK {
 		if link.FallbackURL != "" {
@@ -178,8 +188,11 @@ func (h *Handler) HandleLegacyQRScan(c fiber.Ctx) error {
 func (h *Handler) serveScan(c fiber.Ctx, t *service.ScanTarget) error {
 	q := t.QR
 	c.Set("Cache-Control", "no-store")
-	if h.svc.TeamLapsed(q.TeamID) {
-		return h.renderInactiveWorkspace(c)
+	if blocked, err := h.gate(c, q.TeamID); blocked {
+		return err
+	}
+	if t.Disabled {
+		return h.renderDisabled(c)
 	}
 	if t.Inactive {
 		return h.renderBrandedError(c, "This QR Code Is Inactive", "The owner of this QR code has paused it or its destination has expired.", fiber.StatusGone)
@@ -207,8 +220,10 @@ func (h *Handler) serveScan(c fiber.Ctx, t *service.ScanTarget) error {
 // HandleDocumentLink serves /d/{id}, a stable link to a document's current version.
 func (h *Handler) HandleDocumentLink(c fiber.Ctx) error {
 	target, teamID, err := h.svc.DocumentRedirect(c.Params("id"))
-	if err == nil && h.svc.TeamLapsed(teamID) {
-		return h.renderInactiveWorkspace(c)
+	if err == nil {
+		if blocked, err := h.gate(c, teamID); blocked {
+			return err
+		}
 	}
 	if err != nil {
 		return h.renderBrandedError(c, "Document Not Found", "This document has been removed.", fiber.StatusNotFound)
@@ -534,9 +549,9 @@ func (h *Handler) DownloadDocumentFile(c fiber.Ctx) error {
 	if err != nil {
 		return h.renderBrandedError(c, "Document Not Found", "This document has been removed or replaced.", fiber.StatusNotFound)
 	}
-	if h.svc.TeamLapsed(doc.TeamID) {
+	if blocked, err := h.gate(c, doc.TeamID); blocked {
 		rc.Close()
-		return h.renderInactiveWorkspace(c)
+		return err
 	}
 	// SendStream closes rc once the body has been written.
 
@@ -768,7 +783,7 @@ func (h *Handler) renderBrandedError(c fiber.Ctx, title, message string, statusC
       <span>Return to Lynqr Home</span>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
     </a>
-    <div class="footer">Protected by Lynqr Link Management & Dynamic QR Platform</div>
+    <div class="footer">Lynqr short links &amp; QR codes · <a href="/report" style="color:#9ca3af">Report abuse</a></div>
   </div>
 </body>
 </html>`, html.EscapeString(title), html.EscapeString(title), html.EscapeString(message))

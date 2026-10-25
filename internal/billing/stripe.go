@@ -34,6 +34,9 @@ const (
 // Prices are the two plan prices.
 type Prices struct{ Monthly, Annual string }
 
+// APIVersion is the Stripe API version this client is written against.
+const APIVersion = "2025-08-27.basil"
+
 // Client is a minimal Stripe API client.
 type Client struct {
 	Key  string
@@ -73,6 +76,9 @@ func (c *Client) do(ctx context.Context, method, path string, form url.Values, o
 		return err
 	}
 	req.SetBasicAuth(c.Key, "")
+	// Pinned so response shapes (e.g. promotion_code.coupon) don't change with
+	// the account's default API version.
+	req.Header.Set("Stripe-Version", APIVersion)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
@@ -496,4 +502,64 @@ func SignForTest(payload []byte, secret string, ts time.Time) string {
 	fmt.Fprintf(mac, "%d.", ts.Unix())
 	mac.Write(payload)
 	return fmt.Sprintf("t=%d,v1=%s", ts.Unix(), hex.EncodeToString(mac.Sum(nil)))
+}
+
+// NewCode describes a checkout code to create (a coupon plus its promotion code).
+type NewCode struct {
+	Code             string
+	PercentOff       float64 // either PercentOff or AmountOffCents
+	AmountOffCents   int64
+	Duration         string // once | repeating | forever
+	DurationInMonths int
+	MaxRedemptions   int64
+	ExpiresAt        time.Time
+	FirstTimeOnly    bool
+	CreatedBy        string
+}
+
+// CreateCode creates a coupon and a customer-facing promotion code for it.
+func (c *Client) CreateCode(ctx context.Context, n NewCode) (*PromotionCode, error) {
+	cf := url.Values{"duration": {n.Duration}, "name": {n.Code}, "metadata[lynqr_created_by]": {n.CreatedBy}}
+	if n.PercentOff > 0 {
+		cf.Set("percent_off", strconv.FormatFloat(n.PercentOff, 'f', -1, 64))
+	} else {
+		cf.Set("amount_off", strconv.FormatInt(n.AmountOffCents, 10))
+		cf.Set("currency", "usd")
+	}
+	if n.Duration == "repeating" {
+		cf.Set("duration_in_months", strconv.Itoa(n.DurationInMonths))
+	}
+	var coupon Coupon
+	if err := c.do(ctx, http.MethodPost, "/coupons", cf, &coupon); err != nil {
+		return nil, err
+	}
+	pf := url.Values{"coupon": {coupon.ID}, "code": {n.Code}, "metadata[lynqr_created_by]": {n.CreatedBy}}
+	if n.MaxRedemptions > 0 {
+		pf.Set("max_redemptions", strconv.FormatInt(n.MaxRedemptions, 10))
+	}
+	if !n.ExpiresAt.IsZero() {
+		pf.Set("expires_at", strconv.FormatInt(n.ExpiresAt.Unix(), 10))
+	}
+	if n.FirstTimeOnly {
+		pf.Set("restrictions[first_time_transaction]", "true")
+	}
+	var pc PromotionCode
+	if err := c.do(ctx, http.MethodPost, "/promotion_codes", pf, &pc); err != nil {
+		// Don't leave an orphaned coupon behind (e.g. the code was taken).
+		_ = c.do(ctx, http.MethodDelete, "/coupons/"+coupon.ID, nil, nil)
+		return nil, err
+	}
+	return &pc, nil
+}
+
+// ListCodes returns the most recent promotion codes (active and inactive).
+func (c *Client) ListCodes(ctx context.Context) ([]PromotionCode, error) {
+	var res listResp[PromotionCode]
+	err := c.do(ctx, http.MethodGet, "/promotion_codes", url.Values{"limit": {"100"}}, &res)
+	return res.Data, err
+}
+
+// SetCodeActive activates or deactivates a promotion code.
+func (c *Client) SetCodeActive(ctx context.Context, id string, active bool) error {
+	return c.do(ctx, http.MethodPost, "/promotion_codes/"+url.PathEscape(id), url.Values{"active": {strconv.FormatBool(active)}}, nil)
 }
