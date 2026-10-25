@@ -48,8 +48,10 @@ type Actor struct {
 	TeamID string
 	Role   models.UserRole
 	IP     string
-	// ReadOnly is set when the workspace's subscription has lapsed.
+	// ReadOnly is set when the workspace's subscription has lapsed or Lynqr suspended it.
 	ReadOnly bool
+	// Suspended is set when Lynqr suspended the workspace.
+	Suspended bool
 }
 
 func (a Actor) require(p auth.Permission) error {
@@ -60,19 +62,24 @@ func (a Actor) require(p auth.Permission) error {
 		return ErrForbidden
 	}
 	if a.ReadOnly && writePermissions[p] {
+		if a.Suspended {
+			return ErrWorkspaceSuspended
+		}
 		return ErrPaymentRequired
 	}
 	return nil
 }
 
 type Service struct {
-	repo    *repository.Repository
-	storage storage.StorageProvider
-	appURL  string
-	ipSalt  string
-	live    *liveHub
-	billing *billingConfig
-	lapses  lapseCache
+	repo      *repository.Repository
+	storage   storage.StorageProvider
+	appURL    string
+	ipSalt    string
+	live      *liveHub
+	billing   *billingConfig
+	lapses    lapseCache
+	admin     adminConfig
+	blocklist blocklistCache
 }
 
 func New(repo *repository.Repository, storage storage.StorageProvider, appURL string) *Service {
@@ -240,10 +247,10 @@ func (s *Service) allocateQRCode() (string, error) {
 }
 
 // validateQRContent checks type-specific content before anything is saved.
-func validateQRContent(t models.QRType, target, raw string, dynamic bool) error {
+func (s *Service) validateQRContent(t models.QRType, target, raw string, dynamic bool) error {
 	switch t {
 	case models.QRTypeWebsite:
-		return ValidateTargetURL(target)
+		return s.checkTarget(target)
 	case models.QRTypeDocument:
 		return nil
 	case models.QRTypeApp:
@@ -256,7 +263,7 @@ func validateQRContent(t models.QRType, target, raw string, dynamic bool) error 
 		}
 		for _, u := range []string{a.AppStoreURL, a.PlayStoreURL, a.WebURL} {
 			if u != "" {
-				if err := ValidateTargetURL(u); err != nil {
+				if err := s.checkTarget(u); err != nil {
 					return err
 				}
 			}
@@ -325,7 +332,7 @@ func (s *Service) CreateQRCode(a Actor, input CreateQRInput) (*models.QRCode, er
 		existingLink, dynamic = l, true
 		input.TargetURL = l.TargetURL
 	}
-	if err := validateQRContent(input.Type, input.TargetURL, input.RawData, dynamic); err != nil {
+	if err := s.validateQRContent(input.Type, input.TargetURL, input.RawData, dynamic); err != nil {
 		return nil, err
 	}
 
@@ -432,14 +439,14 @@ func (s *Service) UpdateQRCode(a Actor, id string, in UpdateQRInput) (*models.QR
 			q.DocumentID = &in.DocumentID
 		}
 	case q.IsDynamic:
-		if err := validateQRContent(q.Type, target, q.RawData, true); err != nil {
+		if err := s.validateQRContent(q.Type, target, q.RawData, true); err != nil {
 			return nil, err
 		}
 	default:
 		if target == "" && q.Type == models.QRTypeWebsite {
 			target = q.Payload
 		}
-		if err := validateQRContent(q.Type, target, q.RawData, false); err != nil {
+		if err := s.validateQRContent(q.Type, target, q.RawData, false); err != nil {
 			return nil, err
 		}
 		payload, err := qr.BuildPayload(q.Type, q.RawData, target)
@@ -625,6 +632,7 @@ type ScanTarget struct {
 	VCard    string // vCard body to serve (dynamic contact cards)
 	App      *qr.AppData
 	Inactive bool // destination paused/expired/removed
+	Disabled bool // disabled by Lynqr moderation or a blocked destination
 }
 
 // ResolveScan looks up a dynamic code and its current destination.
@@ -646,6 +654,14 @@ func (s *Service) ResolveLegacyScan(id string, userAgent string) (*ScanTarget, e
 }
 
 func (s *Service) resolveTarget(q *models.QRCode, userAgent string) *ScanTarget {
+	t := s.resolveDestination(q, userAgent)
+	if q.ModerationReason != "" || (t.Redirect != "" && s.URLBlocked(t.Redirect)) {
+		return &ScanTarget{QR: q, Disabled: true}
+	}
+	return t
+}
+
+func (s *Service) resolveDestination(q *models.QRCode, userAgent string) *ScanTarget {
 	t := &ScanTarget{QR: q}
 	switch q.Type {
 	case models.QRTypeWebsite:
@@ -656,6 +672,10 @@ func (s *Service) resolveTarget(q *models.QRCode, userAgent string) *ScanTarget 
 		link, err := s.repo.GetLinkByID(*q.LinkID)
 		if err != nil {
 			t.Inactive = true
+			break
+		}
+		if link.ModerationReason != "" {
+			t.Disabled = true
 			break
 		}
 		if !link.IsActive || (link.ExpiresAt != nil && link.ExpiresAt.Before(time.Now().UTC())) {
@@ -935,6 +955,9 @@ func (s *Service) ValidateAPIKey(rawKey string) (*models.APIKey, error) {
 	key, err := s.repo.GetAPIKeyByHash(auth.HashToken(rawKey))
 	if err != nil {
 		return nil, errors.New("API key not found")
+	}
+	if u, err := s.repo.GetUserByID(key.UserID); err != nil || u.SuspendedReason != "" {
+		return nil, ErrAccountSuspended
 	}
 	if key.ExpiresAt != nil && key.ExpiresAt.Before(time.Now().UTC()) {
 		return nil, errors.New("API key has expired")

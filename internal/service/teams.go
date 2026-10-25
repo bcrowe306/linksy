@@ -41,6 +41,9 @@ func (s *Service) StartSession(u *models.User, ip, userAgent string) (string, *m
 	if err := s.repo.UpsertUser(u); err != nil {
 		return "", nil, fmt.Errorf("failed to record user: %w", err)
 	}
+	if err := s.onSignIn(u); err != nil {
+		return "", nil, err
+	}
 
 	teamID, err := s.defaultTeam(u)
 	if err != nil {

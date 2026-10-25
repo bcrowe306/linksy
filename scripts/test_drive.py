@@ -108,6 +108,15 @@ class LinksyTestHarness:
     # --------------------------------------------------------------------------
     # 1. Cloudflare Infrastructure Verification
     # --------------------------------------------------------------------------
+    def check(self, step, ok, detail):
+        if ok:
+            self.passed += 1
+            self.log(step, detail, "PASS")
+        else:
+            self.failed += 1
+            self.log(step, detail, "FAIL")
+        return ok
+
     def test_cloudflare(self):
         print("\n--- [1] Cloudflare Infrastructure Verification ---")
         if not self.cf.is_configured():
@@ -717,7 +726,23 @@ class LinksyTestHarness:
             self.failed += 1
             self.log("Analytics Summary (/api/v1/analytics/summary)", f"Failed ({status}): {data}", "FAIL")
 
-        # 15. User Logout & Session Cleared
+        # 15. Billing (live Stripe: stops at the hosted Checkout page; nothing is charged)
+        status, b = self.request("GET", "/api/v1/billing")
+        if self.check("Billing Status (/api/v1/billing)", status == 200 and isinstance(b, dict) and b.get("enabled") and b.get("state"),
+                      f"{status}: state={b.get('state') if isinstance(b, dict) else b}, monthly={b.get('monthly_cents') if isinstance(b, dict) else ''}"):
+            self.check("Billing Prices", b.get("monthly_cents") == 899 and b.get("annual_cents") == 6000,
+                       f"monthly={b.get('monthly_cents')} annual={b.get('annual_cents')}")
+            status, d = self.request("POST", "/api/v1/billing/promo", data={"code": "NOT-A-REAL-CODE-42", "interval": "month"})
+            self.check("Checkout Code Rejection", status == 400 and isinstance(d, dict) and d.get("code") == "invalid_code", f"{status}: {d}")
+            if b.get("state") == "trial":
+                status, d = self.request("POST", "/api/v1/billing/checkout", data={"interval": "year"})
+                url = d.get("url", "") if isinstance(d, dict) else ""
+                self.check("Stripe Checkout Session", status == 200 and url.startswith("https://checkout.stripe.com/"), f"{status}: {url[:48]}")
+        status, d = self.request("POST", "/api/webhooks/stripe", data={"id": "evt_forged", "type": "customer.subscription.updated"},
+                                 headers={"Stripe-Signature": "t=1,v1=deadbeef"}, auth=False)
+        self.check("Stripe Webhook Signature Enforcement", status == 400, f"forged event rejected with {status}")
+
+        # 16. User Logout & Session Cleared
         status, data = self.request("POST", "/api/v1/auth/logout")
         if status == 200 and isinstance(data, dict) and data.get("success") is True:
             self.passed += 1

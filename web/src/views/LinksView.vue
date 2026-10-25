@@ -235,6 +235,9 @@ const visible = computed(() => {
 })
 
 const StatusBadge = (props) => {
+  if (props.link.moderation_reason) {
+    return h('span', { class: 'badge-danger', title: `Disabled by Lynqr: ${props.link.moderation_reason}. Contact support@lynqr.app.` }, 'Disabled by Lynqr')
+  }
   const s = stateOf(props.link)
   const cls = { active: 'badge-success', paused: 'badge-warning', expired: 'badge-danger' }[s]
   return h('span', { class: cls }, [h('span', { class: 'h-1.5 w-1.5 rounded-full bg-current' }), s[0].toUpperCase() + s.slice(1)])

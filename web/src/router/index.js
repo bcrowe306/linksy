@@ -14,6 +14,9 @@ import InviteView from '../views/InviteView.vue'
 import ResetPasswordView from '../views/ResetPasswordView.vue'
 import { useAuthStore } from '../stores/auth'
 
+// The admin console is loaded on demand (staff only).
+const admin = (name) => () => import(`../views/admin/${name}.vue`)
+
 const routes = [
   { path: '/', name: 'dashboard', component: DashboardView, meta: { requiresAuth: true } },
   { path: '/signup', name: 'signup', component: SignupView, meta: { guestOnly: true, bare: true } },
@@ -29,6 +32,19 @@ const routes = [
   { path: '/analytics', name: 'analytics', component: AnalyticsView, meta: { requiresAuth: true } },
   { path: '/api-docs', name: 'docs', component: DocsView }, // Public interactive documentation
   { path: '/settings', name: 'settings', component: SettingsView, meta: { requiresAuth: true } },
+  {
+    path: '/admin',
+    component: admin('AdminView'),
+    meta: { requiresAuth: true, noindex: true },
+    children: [
+      { path: '', name: 'admin', component: admin('AdminOverview') },
+      { path: 'workspaces', name: 'admin-workspaces', component: admin('AdminWorkspaces') },
+      { path: 'users', name: 'admin-users', component: admin('AdminUsers') },
+      { path: 'codes', name: 'admin-codes', component: admin('AdminCodes') },
+      { path: 'moderation', name: 'admin-moderation', component: admin('AdminModeration') },
+      { path: 'audit', name: 'admin-audit', component: admin('AdminAudit') }
+    ]
+  },
   { path: '/team', redirect: '/settings' },
   { path: '/users', redirect: '/settings' },
 ]

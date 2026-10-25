@@ -67,15 +67,17 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   LayoutDashboard, Link2, QrCode, Wand2, FileText, BarChart3, Code2, Settings, UserCircle, LifeBuoy, X,
-  PanelLeftClose, PanelLeftOpen
+  PanelLeftClose, PanelLeftOpen, ShieldCheck
 } from 'lucide-vue-next'
 import { useLynqrStore } from '../stores/lynqr'
+import { useAuthStore } from '../stores/auth'
 import LynqrLogo from './ui/LynqrLogo.vue'
 import Tip from './ui/Tip.vue'
 
 defineProps({ collapsed: Boolean, mobileOpen: Boolean })
 defineEmits(['open-help', 'toggle-collapse', 'close-mobile'])
 const store = useLynqrStore()
+const auth = useAuthStore()
 const route = useRoute()
 
 const groups = computed(() => [
@@ -97,7 +99,10 @@ const groups = computed(() => [
       { id: 'profile', path: '/profile', label: 'Profile', icon: UserCircle },
       { id: 'api-docs', path: '/api-docs', label: 'API Reference', icon: Code2 }
     ]
-  }
+  },
+  ...(auth.user?.is_platform_admin
+    ? [{ label: 'Lynqr staff', items: [{ id: 'admin', path: '/admin', label: 'Admin console', icon: ShieldCheck }] }]
+    : [])
 ])
 
 function isActive(item) {

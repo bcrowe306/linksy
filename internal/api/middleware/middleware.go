@@ -29,8 +29,9 @@ type AuthContext struct {
 	// ViaCookie is true when the credential came from the browser cookie
 	// (and therefore needs CSRF protection on unsafe methods).
 	ViaCookie bool
-	// ReadOnly is set when the workspace's subscription has lapsed.
-	ReadOnly bool
+	// ReadOnly is set when the workspace's subscription has lapsed or Lynqr suspended it.
+	ReadOnly  bool
+	Suspended bool
 }
 
 // DefaultCSP is applied to every response; the API docs page relaxes it.
@@ -186,7 +187,8 @@ func Authenticate(c fiber.Ctx, svc *service.Service) (*AuthContext, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &AuthContext{UserID: key.UserID, TeamID: teamID, Role: role, APIKey: key, ReadOnly: svc.TeamLapsed(teamID)}, nil
+		ro, susp := svc.TeamAccess(teamID)
+		return &AuthContext{UserID: key.UserID, TeamID: teamID, Role: role, APIKey: key, ReadOnly: ro, Suspended: susp}, nil
 	}
 
 	sess, err := svc.ResolveSession(token)
@@ -197,7 +199,8 @@ func Authenticate(c fiber.Ctx, svc *service.Service) (*AuthContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &AuthContext{UserID: sess.UserID, TeamID: teamID, Role: role, Session: sess, ViaCookie: viaCookie, ReadOnly: svc.TeamLapsed(teamID)}, nil
+	ro, susp := svc.TeamAccess(teamID)
+	return &AuthContext{UserID: sess.UserID, TeamID: teamID, Role: role, Session: sess, ViaCookie: viaCookie, ReadOnly: ro, Suspended: susp}, nil
 }
 
 // SameOrigin enforces that unsafe cookie-authenticated requests originate
@@ -239,7 +242,7 @@ func GetAuth(c fiber.Ctx) *AuthContext {
 // Actor converts the request's auth context into a service Actor.
 func Actor(c fiber.Ctx) service.Actor {
 	a := GetAuth(c)
-	return service.Actor{UserID: a.UserID, TeamID: a.TeamID, Role: a.Role, IP: ClientIP(c), ReadOnly: a.ReadOnly}
+	return service.Actor{UserID: a.UserID, TeamID: a.TeamID, Role: a.Role, IP: ClientIP(c), ReadOnly: a.ReadOnly, Suspended: a.Suspended}
 }
 
 // RequirePermission rejects requests whose role lacks the permission.
@@ -256,6 +259,9 @@ func RequirePermission(p auth.Permission) fiber.Handler {
 			})
 		}
 		if a.ReadOnly && !containsPerm(service.EffectivePermissions(a.Role, true), p) {
+			if a.Suspended {
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": service.ErrWorkspaceSuspended.Error(), "code": "workspace_suspended"})
+			}
 			return c.Status(fiber.StatusPaymentRequired).JSON(fiber.Map{
 				"error": service.ErrPaymentRequired.Error(),
 				"code":  "subscription_required",
@@ -282,4 +288,33 @@ func containsPerm(list []auth.Permission, p auth.Permission) bool {
 		}
 	}
 	return false
+}
+
+// RequirePlatformAdmin gates /api/v1/admin/*: a signed-in browser session
+// belonging to a platform admin who re-authenticated recently.
+func RequirePlatformAdmin(svc *service.Service) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		a := GetAuth(c)
+		if a.Session == nil {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": service.ErrNotPlatformAdmin.Error(), "code": "not_admin"})
+		}
+		admin, err := svc.RequireAdmin(a.Session.ID, a.UserID, ClientIP(c))
+		if err != nil {
+			code := "not_admin"
+			if errors.Is(err, service.ErrAdminReauth) {
+				code = "admin_reauth"
+			}
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error(), "code": code})
+		}
+		c.Set("X-Robots-Tag", "noindex, nofollow")
+		c.Set("Cache-Control", "no-store")
+		c.Locals("admin", admin)
+		return c.Next()
+	}
+}
+
+// Admin returns the platform admin acting on this request.
+func Admin(c fiber.Ctx) service.AdminActor {
+	a, _ := c.Locals("admin").(service.AdminActor)
+	return a
 }

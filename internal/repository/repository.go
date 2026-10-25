@@ -66,10 +66,11 @@ func now() time.Time { return time.Now().UTC() }
 // ----------------- Users -----------------
 
 const userCols = `id, email, first_name, last_name, avatar_url, created_at, updated_at`
+const userSelectCols = userCols + `, is_platform_admin, suspended_reason`
 
 func scanUser(row interface{ Scan(...any) error }) (*models.User, error) {
 	var u models.User
-	if err := row.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt); err != nil {
+	if err := row.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt, &u.IsPlatformAdmin, &u.SuspendedReason); err != nil {
 		return nil, notFound(err)
 	}
 	return &u, nil
@@ -96,11 +97,11 @@ func (r *Repository) UpsertUser(u *models.User) error {
 }
 
 func (r *Repository) GetUserByID(id string) (*models.User, error) {
-	return scanUser(r.queryRow(`SELECT `+userCols+` FROM users WHERE id = ?`, id))
+	return scanUser(r.queryRow(`SELECT `+userSelectCols+` FROM users WHERE id = ?`, id))
 }
 
 func (r *Repository) GetUserByEmail(email string) (*models.User, error) {
-	return scanUser(r.queryRow(`SELECT `+userCols+` FROM users WHERE email = ?`, strings.ToLower(email)))
+	return scanUser(r.queryRow(`SELECT `+userSelectCols+` FROM users WHERE email = ?`, strings.ToLower(email)))
 }
 
 func (r *Repository) GetUserPreferences(userID string) (string, error) {
@@ -143,14 +144,14 @@ func (r *Repository) CreateTeam(t *models.Team) error {
 }
 
 const teamCols = `id, name, slug, owner_id, created_at, updated_at, trial_ends_at, stripe_customer_id, stripe_subscription_id,
-	subscription_status, billing_interval, current_period_end, cancel_at_period_end, discount_code, discount_label, comped`
+	subscription_status, billing_interval, current_period_end, cancel_at_period_end, discount_code, discount_label, comped, suspended_reason`
 
 func scanTeam(row interface{ Scan(...any) error }) (*models.Team, error) {
 	var t models.Team
 	b := &t.Billing
 	if err := row.Scan(&t.ID, &t.Name, &t.Slug, &t.OwnerID, &t.CreatedAt, &t.UpdatedAt, &b.TrialEndsAt, &b.StripeCustomerID,
 		&b.StripeSubscriptionID, &b.SubscriptionStatus, &b.Interval, &b.CurrentPeriodEnd, &b.CancelAtPeriodEnd,
-		&b.DiscountCode, &b.DiscountLabel, &b.Comped); err != nil {
+		&b.DiscountCode, &b.DiscountLabel, &b.Comped, &t.SuspendedReason); err != nil {
 		return nil, notFound(err)
 	}
 	return &t, nil
@@ -469,12 +470,14 @@ func (r *Repository) SetInvitationState(id, teamID, state string) error {
 const linkCols = `id, team_id, user_id, slug, target_url, title, description, is_active, expires_at, password_hash,
 	utm_source, utm_medium, utm_campaign, utm_term, utm_content, fallback_url, click_count, created_at, updated_at`
 
+const linkSelectCols = linkCols + `, moderation_reason`
+
 func scanLink(row interface{ Scan(...any) error }) (*models.Link, error) {
 	var l models.Link
 	if err := row.Scan(&l.ID, &l.TeamID, &l.UserID, &l.Slug, &l.TargetURL, &l.Title, &l.Description,
 		&l.IsActive, &l.ExpiresAt, &l.PasswordHash,
 		&l.UTMSource, &l.UTMMedium, &l.UTMCampaign, &l.UTMTerm, &l.UTMContent, &l.FallbackURL,
-		&l.ClickCount, &l.CreatedAt, &l.UpdatedAt); err != nil {
+		&l.ClickCount, &l.CreatedAt, &l.UpdatedAt, &l.ModerationReason); err != nil {
 		return nil, notFound(err)
 	}
 	l.HasPassword = l.PasswordHash != ""
@@ -502,20 +505,20 @@ func (r *Repository) SlugExists(slug string) bool {
 
 // GetLinkBySlug is used by the public redirector and is intentionally not team-scoped.
 func (r *Repository) GetLinkBySlug(slug string) (*models.Link, error) {
-	return scanLink(r.queryRow(`SELECT `+linkCols+` FROM links WHERE slug = ?`, slug))
+	return scanLink(r.queryRow(`SELECT `+linkSelectCols+` FROM links WHERE slug = ?`, slug))
 }
 
 // GetLinkByID is used by internal flows (QR redirection) and is not team-scoped.
 func (r *Repository) GetLinkByID(id string) (*models.Link, error) {
-	return scanLink(r.queryRow(`SELECT `+linkCols+` FROM links WHERE id = ?`, id))
+	return scanLink(r.queryRow(`SELECT `+linkSelectCols+` FROM links WHERE id = ?`, id))
 }
 
 func (r *Repository) GetLink(id, teamID string) (*models.Link, error) {
-	return scanLink(r.queryRow(`SELECT `+linkCols+` FROM links WHERE id = ? AND team_id = ?`, id, teamID))
+	return scanLink(r.queryRow(`SELECT `+linkSelectCols+` FROM links WHERE id = ? AND team_id = ?`, id, teamID))
 }
 
 func (r *Repository) ListLinks(teamID string, limit, offset int) ([]models.Link, error) {
-	rows, err := r.query(`SELECT `+linkCols+` FROM links WHERE team_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`, teamID, limit, offset)
+	rows, err := r.query(`SELECT `+linkSelectCols+` FROM links WHERE team_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`, teamID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -557,14 +560,14 @@ func (r *Repository) DeleteLink(id, teamID string) error {
 
 // ----------------- QR Codes -----------------
 
-const qrCols = `id, team_id, user_id, link_id, document_id, COALESCE(code, ''), is_dynamic, owns_link, type, title, payload, raw_data, style, scan_count, created_at, updated_at`
+const qrCols = `id, team_id, user_id, link_id, document_id, COALESCE(code, ''), is_dynamic, owns_link, type, title, payload, raw_data, style, scan_count, created_at, updated_at, moderation_reason`
 const qrInsertCols = `id, team_id, user_id, link_id, document_id, code, is_dynamic, owns_link, type, title, payload, raw_data, style, scan_count, created_at, updated_at`
 
 func scanQR(row interface{ Scan(...any) error }) (*models.QRCode, error) {
 	var q models.QRCode
 	var styleJSON string
 	if err := row.Scan(&q.ID, &q.TeamID, &q.UserID, &q.LinkID, &q.DocumentID, &q.Code, &q.IsDynamic, &q.OwnsLink, &q.Type, &q.Title, &q.Payload, &q.RawData,
-		&styleJSON, &q.ScanCount, &q.CreatedAt, &q.UpdatedAt); err != nil {
+		&styleJSON, &q.ScanCount, &q.CreatedAt, &q.UpdatedAt, &q.ModerationReason); err != nil {
 		return nil, notFound(err)
 	}
 	_ = json.Unmarshal([]byte(styleJSON), &q.Style)

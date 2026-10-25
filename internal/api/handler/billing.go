@@ -31,10 +31,7 @@ func (h *Handler) PreviewPromo(c fiber.Ctx) error {
 	}
 	p, err := h.svc.PreviewPromo(middleware.Actor(c), req.Code, req.Interval)
 	if err != nil {
-		if errors.Is(err, billing.ErrInvalidCode) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error(), "code": "invalid_code"})
-		}
-		return fail(c, err)
+		return billingCodeFail(c, err)
 	}
 	return c.JSON(p)
 }
@@ -46,10 +43,7 @@ func (h *Handler) StartCheckout(c fiber.Ctx) error {
 	}
 	url, err := h.svc.StartCheckout(middleware.Actor(c), req.Interval, req.Code)
 	if err != nil {
-		if errors.Is(err, billing.ErrInvalidCode) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error(), "code": "invalid_code"})
-		}
-		return fail(c, err)
+		return billingCodeFail(c, err)
 	}
 	return c.JSON(fiber.Map{"url": url})
 }
@@ -76,4 +70,12 @@ func (h *Handler) StripeWebhook(c fiber.Ctx) error {
 	// 500 makes Stripe retry later (e.g. transient Stripe or database errors).
 	log.Printf("[billing] webhook processing failed: %v", err)
 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "processing failed"})
+}
+
+// billingCodeFail reports unknown codes distinctly so the UI can say so.
+func billingCodeFail(c fiber.Ctx, err error) error {
+	if errors.Is(err, billing.ErrInvalidCode) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error(), "code": "invalid_code"})
+	}
+	return fail(c, err)
 }
