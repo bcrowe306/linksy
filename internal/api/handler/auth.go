@@ -34,6 +34,32 @@ func NewAuthHandler(cfg *config.Config, svc *service.Service) *AuthHandler {
 	}
 }
 
+func (a *AuthHandler) getRedirectURI(c fiber.Ctx) string {
+	host := c.Hostname()
+	if xfh := c.Get("X-Forwarded-Host"); xfh != "" {
+		host = strings.Split(xfh, ",")[0]
+		host = strings.TrimSpace(host)
+	}
+	if strings.Contains(host, ":") {
+		host = strings.Split(host, ":")[0]
+	}
+
+	if host == "lynqr.app" || host == "www.lynqr.app" {
+		return "https://lynqr.app/api/v1/auth/callback"
+	}
+	if host == "test.lynqr.app" {
+		return "https://test.lynqr.app/api/v1/auth/callback"
+	}
+	if a.cfg.WorkOSRedirectURI != "" {
+		return a.cfg.WorkOSRedirectURI
+	}
+	protocol := "https"
+	if c.Protocol() != "" {
+		protocol = c.Protocol()
+	}
+	return fmt.Sprintf("%s://%s/api/v1/auth/callback", protocol, host)
+}
+
 func (a *AuthHandler) getActiveWorkOSKey() string {
 	if a.cfg.WorkOSAPIKeyProd != "" {
 		return a.cfg.WorkOSAPIKeyProd
@@ -48,11 +74,12 @@ func (a *AuthHandler) getActiveWorkOSKey() string {
 func (a *AuthHandler) GetAuthConfig(c fiber.Ctx) error {
 	enabled := a.cfg.WorkOSClient != "" && a.cfg.WorkOSAPIKey != ""
 	loginURL := ""
+	redirectURI := a.getRedirectURI(c)
 
 	if enabled {
 		v := url.Values{}
 		v.Set("client_id", a.cfg.WorkOSClient)
-		v.Set("redirect_uri", a.cfg.WorkOSRedirectURI)
+		v.Set("redirect_uri", redirectURI)
 		v.Set("response_type", "code")
 		v.Set("provider", "authkit")
 		loginURL = fmt.Sprintf("https://api.workos.com/user_management/authorize?%s", v.Encode())
@@ -61,7 +88,7 @@ func (a *AuthHandler) GetAuthConfig(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"enabled":      enabled,
 		"client_id":    a.cfg.WorkOSClient,
-		"redirect_uri": a.cfg.WorkOSRedirectURI,
+		"redirect_uri": redirectURI,
 		"login_url":    loginURL,
 		"providers": []string{
 			"email_password",
@@ -105,7 +132,7 @@ func (a *AuthHandler) HandleOAuthLogin(c fiber.Ctx) error {
 
 	v := url.Values{}
 	v.Set("client_id", a.cfg.WorkOSClient)
-	v.Set("redirect_uri", a.cfg.WorkOSRedirectURI)
+	v.Set("redirect_uri", a.getRedirectURI(c))
 	v.Set("response_type", "code")
 	v.Set("provider", workOSProvider)
 	// Note: WorkOS AuthKit returns a 404 on /sign-up if public sign-ups are disabled

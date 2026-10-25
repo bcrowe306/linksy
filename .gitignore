@@ -21,6 +21,12 @@ yarn-debug.log*
 yarn-error.log*
 .vite/
 
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
 # Environment and secrets files
 .env
 .env.*
