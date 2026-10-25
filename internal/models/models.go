@@ -89,17 +89,18 @@ type Session struct {
 }
 
 type AuditEvent struct {
-	ID         string    `json:"id"`
-	TeamID     string    `json:"team_id"`
-	ActorID    string    `json:"actor_id"`
-	ActorName  string    `json:"actor_name,omitempty"`
-	ActorEmail string    `json:"actor_email,omitempty"`
-	Action     string    `json:"action"`
-	TargetType string    `json:"target_type"`
-	TargetID   string    `json:"target_id"`
-	Metadata   string    `json:"metadata"`
-	IP         string    `json:"ip"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID          string    `json:"id"`
+	TeamID      string    `json:"team_id"`
+	ActorID     string    `json:"actor_id"`
+	ActorName   string    `json:"actor_name,omitempty"`
+	ActorEmail  string    `json:"actor_email,omitempty"`
+	Action      string    `json:"action"`
+	TargetType  string    `json:"target_type"`
+	TargetID    string    `json:"target_id"`
+	TargetLabel string    `json:"target_label,omitempty"` // e.g. the affected member's email
+	Metadata    string    `json:"metadata"`
+	IP          string    `json:"ip"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type Link struct {
@@ -250,6 +251,16 @@ type APIKey struct {
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
 	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
 	CreatedAt  time.Time  `json:"created_at"`
+}
+
+// Preferences controls which notifications a user receives.
+type Preferences struct {
+	SecurityAlerts  bool   `json:"security_alerts"`  // new sign-ins, password changes
+	TeamActivity    bool   `json:"team_activity"`    // invitations, role changes
+	WeeklyReport    bool   `json:"weekly_report"`    // weekly analytics digest
+	UsageAlerts     bool   `json:"usage_alerts"`     // trial/billing and limits
+	ProductUpdates  bool   `json:"product_updates"`  // occasional product news
+	DefaultTimezone string `json:"default_timezone"` // IANA zone for reports, "" = browser
 }
 
 type UpdateProfileRequest struct {

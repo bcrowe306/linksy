@@ -66,6 +66,8 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	api.Get("/user/profile", authH.GetProfile)
 	api.Put("/user/profile", sessionOnly, authH.UpdateProfile)
 	api.Post("/user/change-password", sessionOnly, authH.HandleChangePassword)
+	api.Get("/user/preferences", sessionOnly, authH.GetPreferences)
+	api.Put("/user/preferences", sessionOnly, authH.UpdatePreferences)
 	api.Get("/user/sessions", sessionOnly, authH.ListSessions)
 	api.Delete("/user/sessions/:id", sessionOnly, authH.RevokeSession)
 	api.Post("/user/sessions/revoke-others", sessionOnly, authH.RevokeOtherSessions)

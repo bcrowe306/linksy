@@ -75,6 +75,8 @@ export const api = {
   updateProfile: (data) => put('/api/v1/user/profile', data),
   changePassword: (currentPassword, newPassword) =>
     post('/api/v1/user/change-password', { current_password: currentPassword, new_password: newPassword }),
+  getPreferences: () => get('/api/v1/user/preferences'),
+  updatePreferences: (prefs) => put('/api/v1/user/preferences', prefs),
   getSessions: () => get('/api/v1/user/sessions'),
   revokeSession: (id) => del(`/api/v1/user/sessions/${id}`),
   revokeOtherSessions: () => post('/api/v1/user/sessions/revoke-others'),

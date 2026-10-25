@@ -1,722 +1,389 @@
 <template>
-  <div class="space-y-8 pb-12">
-    <!-- Profile Header Banner -->
-    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative overflow-hidden">
-      <div class="flex items-center gap-5 z-10">
-        <!-- Large Avatar -->
-        <div class="relative group">
-          <div v-if="profile.avatar_url" class="w-20 h-20 rounded-2xl overflow-hidden border-2 border-lynqr-500/40 shadow-xl shadow-lynqr-500/10">
-            <img :src="profile.avatar_url" alt="Avatar" class="w-full h-full object-cover" />
-          </div>
-          <div v-else class="w-20 h-20 rounded-2xl bg-gradient-to-tr from-lynqr-600 to-indigo-500 flex items-center justify-center font-bold text-2xl text-white border-2 border-lynqr-500/30 shadow-xl shadow-lynqr-500/10">
-            {{ userInitials }}
-          </div>
-          <div class="absolute -bottom-1 -right-1 w-6 h-6 rounded-lg bg-emerald-500 border-2 border-gray-900 flex items-center justify-center" title="Active Account">
-            <Check class="w-3.5 h-3.5 text-gray-50 stroke-[3]" />
-          </div>
-        </div>
+  <div>
+    <PageHeader title="Your account" subtitle="Profile, sign-in security, API keys and notifications." />
 
-        <div>
-          <div class="flex items-center gap-3 mb-1">
-            <h1 class="text-2xl font-extrabold text-gray-50 tracking-tight">{{ profile.name || 'Account User' }}</h1>
-            <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-lynqr-500/15 text-lynqr-400 border border-lynqr-500/20 capitalize font-mono">
-              {{ profile.role || 'Owner' }}
-            </span>
-          </div>
-          <p class="text-sm text-gray-400 flex items-center gap-2">
-            <span>{{ profile.email }}</span>
-            <span class="inline-block w-1 h-1 rounded-full bg-gray-600"></span>
-            <span class="text-xs text-gray-500">ID: {{ profile.id }}</span>
-          </p>
-        </div>
-      </div>
-
-      <!-- Quick Actions -->
-      <div class="flex items-center gap-3 z-10">
-        <button
-          @click="authStore.logout"
-          class="px-4 py-2 border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 rounded-xl text-xs font-semibold flex items-center gap-2 transition-colors"
-        >
-          <LogOut class="w-3.5 h-3.5" />
-          <span>Sign Out</span>
-        </button>
-      </div>
-
-      <!-- Background Glow Effect -->
-      <div class="absolute -right-16 -top-16 w-64 h-64 bg-lynqr-500/10 rounded-full blur-3xl pointer-events-none"></div>
-    </div>
-
-    <!-- Navigation Tabs -->
-    <div class="border-b border-gray-800 flex items-center gap-2 overflow-x-auto">
-      <button
-        v-for="tab in tabs"
-        :key="tab.id"
-        @click="activeTab = tab.id"
-        class="px-4 py-3 text-sm font-semibold border-b-2 flex items-center gap-2 transition-all whitespace-nowrap"
-        :class="[
-          activeTab === tab.id
-            ? 'border-lynqr-500 text-lynqr-400 font-bold'
-            : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-700'
-        ]"
+    <nav class="mb-6 flex gap-1 overflow-x-auto border-b border-line" aria-label="Account sections">
+      <router-link
+        v-for="t in tabs"
+        :key="t.id"
+        :to="{ query: { tab: t.id } }"
+        class="-mb-px flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition"
+        :class="tab === t.id ? 'border-brand-500 text-fg' : 'border-transparent text-fg-muted hover:text-fg'"
+        :data-testid="`profile-tab-${t.id}`"
       >
-        <component :is="tab.icon" class="w-4 h-4" />
-        <span>{{ tab.label }}</span>
-        <span v-if="tab.badge" class="ml-1.5 px-2 py-0.5 rounded-full text-[10px] bg-gray-800 text-gray-300">
-          {{ tab.badge }}
-        </span>
-      </button>
-    </div>
+        <component :is="t.icon" class="h-4 w-4" />{{ t.label }}
+        <span v-if="t.badge" class="badge-brand">{{ t.badge }}</span>
+      </router-link>
+    </nav>
 
-    <!-- Feedback Alerts -->
-    <div v-if="feedbackMessage" class="p-4 rounded-xl flex items-center gap-3 text-sm" :class="feedbackIsError ? 'bg-rose-500/10 border border-rose-500/30 text-rose-400' : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'">
-      <AlertCircle v-if="feedbackIsError" class="w-5 h-5 shrink-0" />
-      <CheckCircle2 v-else class="w-5 h-5 shrink-0" />
-      <span>{{ feedbackMessage }}</span>
-      <button @click="feedbackMessage = ''" class="ml-auto text-xs opacity-70 hover:opacity-100">Dismiss</button>
-    </div>
-
-    <!-- TAB 1: General Profile -->
-    <div v-if="activeTab === 'profile'" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <div class="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-2xl p-6 sm:p-8 space-y-6">
-        <div>
-          <h2 class="text-lg font-bold text-gray-50 mb-1">Personal Details</h2>
-          <p class="text-xs text-gray-400">Update your public name and display avatar across Lynqr reports.</p>
+    <!-- Profile -->
+    <section v-if="tab === 'profile'" class="card max-w-2xl p-5 sm:p-6">
+      <form class="space-y-5" @submit.prevent="saveProfile">
+        <div class="flex items-center gap-4">
+          <img v-if="form.avatar_url" :src="form.avatar_url" alt="" class="h-16 w-16 rounded-full object-cover" />
+          <span v-else class="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-violet-500 text-lg font-bold text-white">{{ auth.initials }}</span>
+          <div class="flex gap-2">
+            <label class="btn-secondary btn-sm cursor-pointer">
+              <Upload class="h-3.5 w-3.5" /> Upload photo
+              <input type="file" accept="image/png,image/jpeg,image/webp" class="sr-only" @change="onAvatar" />
+            </label>
+            <button v-if="form.avatar_url" type="button" class="btn-ghost btn-sm" @click="form.avatar_url = ''">Remove</button>
+          </div>
         </div>
-
-        <form @submit.prevent="saveProfile" class="space-y-4">
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs font-medium text-gray-300 mb-1">First Name</label>
-              <input
-                v-model="editForm.first_name"
-                type="text"
-                placeholder="Jane"
-                class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
-              />
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-300 mb-1">Last Name</label>
-              <input
-                v-model="editForm.last_name"
-                type="text"
-                placeholder="Doe"
-                class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
-              />
-            </div>
-          </div>
-
+        <div class="grid gap-4 sm:grid-cols-2">
           <div>
-            <label class="block text-xs font-medium text-gray-300 mb-1">Email Address</label>
-            <div class="relative">
-              <input
-                :value="profile.email"
-                disabled
-                class="w-full bg-gray-800/50 border border-gray-700/60 rounded-xl px-3.5 py-2.5 text-sm text-gray-400 cursor-not-allowed"
-              />
-              <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                Verified
-              </span>
-            </div>
-            <p class="mt-1 text-[11px] text-gray-500">Email addresses are verified through WorkOS Authentication.</p>
+            <label class="label" for="p-first">First name</label>
+            <input id="p-first" v-model="form.first_name" maxlength="80" placeholder="Jane" class="input" data-testid="profile-first-name" />
           </div>
-
           <div>
-            <label class="block text-xs font-medium text-gray-300 mb-1">Avatar Image URL</label>
-            <input
-              v-model="editForm.avatar_url"
-              type="url"
-              placeholder="https://example.com/photo.jpg"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
-            />
+            <label class="label" for="p-last">Last name</label>
+            <input id="p-last" v-model="form.last_name" maxlength="80" placeholder="Doe" class="input" />
           </div>
+        </div>
+        <div>
+          <label class="label">Email <Tip text="Your sign-in email is managed by your identity provider." /></label>
+          <input :value="auth.user?.email" disabled class="input" />
+        </div>
+        <div class="flex justify-end">
+          <button class="btn-primary" :disabled="saving" data-testid="save-profile"><Loader2 v-if="saving" class="h-4 w-4 animate-spin" /> Save changes</button>
+        </div>
+      </form>
+    </section>
 
-          <div class="pt-2">
-            <button
-              type="submit"
-              :disabled="isSavingProfile"
-              class="px-5 py-2.5 bg-lynqr-600 hover:bg-lynqr-500 text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-lg shadow-lynqr-600/20 transition-all disabled:opacity-50"
-            >
-              <Loader2 v-if="isSavingProfile" class="w-4 h-4 animate-spin" />
-              <span>Save Changes</span>
-            </button>
+    <!-- Security -->
+    <div v-else-if="tab === 'security'" class="max-w-3xl space-y-6">
+      <section class="card p-5 sm:p-6">
+        <h2 class="text-sm font-semibold text-fg">Change password</h2>
+        <p class="mb-4 text-xs text-fg-muted">Changing your password signs you out everywhere else.</p>
+        <form class="grid gap-4 sm:grid-cols-3" @submit.prevent="changePassword">
+          <input v-model="pw.current" type="password" required autocomplete="current-password" placeholder="Current password" class="input" aria-label="Current password" />
+          <input v-model="pw.next" type="password" required minlength="8" autocomplete="new-password" placeholder="New password" class="input" aria-label="New password" />
+          <input v-model="pw.confirm" type="password" required autocomplete="new-password" placeholder="Confirm new password" class="input" aria-label="Confirm new password" />
+          <div class="sm:col-span-3 flex items-center justify-between">
+            <router-link :to="{ path: '/reset-password', query: { email: auth.user?.email } }" class="text-xs text-brand-500 hover:underline">Forgot your password? Send a reset link</router-link>
+            <button class="btn-primary" :disabled="saving">Update password</button>
           </div>
         </form>
-      </div>
+      </section>
 
-      <!-- Side Profile Info Card -->
-      <div class="space-y-6">
-        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-4">
-          <h3 class="text-sm font-bold text-gray-50 flex items-center gap-2">
-            <ShieldCheck class="w-4 h-4 text-lynqr-400" />
-            <span>Workspace & Role</span>
-          </h3>
-          <div class="p-3.5 rounded-xl bg-gray-800/60 border border-gray-700/50 space-y-2">
-            <div class="flex items-center justify-between text-xs">
-              <span class="text-gray-400">Team</span>
-              <span class="font-semibold text-gray-200">Main Workspace</span>
-            </div>
-            <div class="flex items-center justify-between text-xs">
-              <span class="text-gray-400">Role</span>
-              <span class="font-mono text-lynqr-400 uppercase text-[11px] font-bold">{{ profile.role || 'owner' }}</span>
-            </div>
-            <div class="flex items-center justify-between text-xs">
-              <span class="text-gray-400">Environment</span>
-              <span class="text-gray-200 font-mono text-[11px]">Production</span>
-            </div>
+      <section class="card overflow-hidden">
+        <header class="flex items-center justify-between border-b border-line px-5 py-4">
+          <div>
+            <h2 class="text-sm font-semibold text-fg">Active sessions</h2>
+            <p class="text-xs text-fg-muted">Devices currently signed in to your account.</p>
           </div>
-        </div>
-      </div>
+          <button v-if="sessions.length > 1" class="btn-danger-ghost btn-sm" @click="revokeOthers">Sign out other sessions</button>
+        </header>
+        <ul class="divide-y divide-line" data-testid="session-list">
+          <li v-for="s in sessions" :key="s.id" class="flex items-center gap-3 px-5 py-3">
+            <component :is="deviceIcon(s.user_agent)" class="h-5 w-5 text-fg-subtle" />
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm text-fg">{{ describeUA(s.user_agent) }} <span v-if="s.current" class="badge-success ml-1">This device</span></p>
+              <p class="text-xs text-fg-subtle">{{ s.ip || 'Unknown IP' }} · active {{ new Date(s.last_seen_at).toLocaleString() }}</p>
+            </div>
+            <button v-if="!s.current" class="btn-ghost btn-sm" @click="revokeSession(s)">Sign out</button>
+          </li>
+        </ul>
+      </section>
     </div>
 
-    <!-- TAB 2: Authentication & Password Reset -->
-    <div v-if="activeTab === 'security'" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      <!-- Self-Service Password Reset via WorkOS -->
-      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 sm:p-8 space-y-5">
+    <!-- API keys -->
+    <div v-else-if="tab === 'api-keys'" class="space-y-6">
+      <section class="card overflow-hidden">
+        <header class="flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 class="text-sm font-semibold text-fg">API keys for {{ auth.team?.name }}</h2>
+            <p class="text-xs text-fg-muted">Keys act as you, with your current role in this workspace. Send them as <code class="font-mono">Authorization: Bearer lk_live_…</code></p>
+          </div>
+          <button class="btn-primary btn-sm" data-testid="new-api-key" @click="keyModal = true"><Plus class="h-3.5 w-3.5" /> New API key</button>
+        </header>
+        <EmptyState v-if="!apiKeys.length" :icon="KeyRound" title="No API keys" description="Create a key to use the REST API from scripts, CI or your backend." />
+        <table v-else class="table-base" data-testid="api-key-table">
+          <thead><tr><th>Name</th><th>Key</th><th class="hidden md:table-cell">Created</th><th class="hidden md:table-cell">Last used</th><th class="hidden sm:table-cell">Expires</th><th class="w-px" /></tr></thead>
+          <tbody>
+            <tr v-for="k in apiKeys" :key="k.id">
+              <td class="font-medium text-fg">{{ k.name }}</td>
+              <td class="font-mono text-xs text-fg-muted">{{ k.key_prefix }}</td>
+              <td class="hidden md:table-cell text-fg-muted">{{ new Date(k.created_at).toLocaleDateString() }}</td>
+              <td class="hidden md:table-cell text-fg-muted">{{ k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'Never' }}</td>
+              <td class="hidden sm:table-cell text-fg-muted">{{ k.expires_at ? new Date(k.expires_at).toLocaleDateString() : 'Never' }}</td>
+              <td><button class="btn-danger-ghost btn-sm" :aria-label="`Revoke ${k.name}`" data-testid="revoke-key" @click="revokeKey(k)">Revoke</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+      <router-link to="/api-docs" class="inline-flex items-center gap-1.5 text-sm text-brand-500 hover:underline"><BookOpen class="h-4 w-4" /> Read the API reference</router-link>
+    </div>
+
+    <!-- Workspaces -->
+    <div v-else-if="tab === 'workspaces'" class="max-w-3xl space-y-6">
+      <section v-if="myInvites.length" class="card overflow-hidden border-brand-500/30">
+        <header class="border-b border-line px-5 py-4"><h2 class="text-sm font-semibold text-fg">Invitations for you</h2></header>
+        <ul class="divide-y divide-line" data-testid="my-invitations">
+          <li v-for="inv in myInvites" :key="inv.id" class="flex flex-col gap-3 px-5 py-3 sm:flex-row sm:items-center">
+            <div class="flex-1">
+              <p class="text-sm font-medium text-fg">{{ inv.team_name }}</p>
+              <p class="text-xs text-fg-subtle">Join as <span class="capitalize">{{ inv.role }}</span> · expires {{ new Date(inv.expires_at).toLocaleDateString() }}</p>
+            </div>
+            <div class="flex gap-2">
+              <button class="btn-secondary btn-sm" @click="respond(inv, false)">Decline</button>
+              <button class="btn-primary btn-sm" @click="respond(inv, true)">Accept</button>
+            </div>
+          </li>
+        </ul>
+      </section>
+      <section class="card overflow-hidden">
+        <header class="border-b border-line px-5 py-4"><h2 class="text-sm font-semibold text-fg">Your workspaces</h2></header>
+        <ul class="divide-y divide-line">
+          <li v-for="t in auth.teams" :key="t.id" class="flex items-center gap-3 px-5 py-3">
+            <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-subtle text-sm font-bold text-fg">{{ t.name.charAt(0).toUpperCase() }}</span>
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-medium text-fg">{{ t.name }} <span v-if="t.id === auth.team?.id" class="badge-success ml-1">Current</span></p>
+              <p class="text-xs text-fg-subtle"><span class="capitalize">{{ t.role }}</span> · {{ t.member_count }} member{{ t.member_count === 1 ? '' : 's' }}<span v-if="t.status !== 'active'" class="text-rose-500"> · suspended</span></p>
+            </div>
+            <button v-if="t.id !== auth.team?.id && t.status === 'active'" class="btn-secondary btn-sm" @click="auth.switchTeam(t.id)">Switch</button>
+          </li>
+        </ul>
+      </section>
+    </div>
+
+    <!-- Notifications -->
+    <section v-else-if="tab === 'notifications'" class="card max-w-2xl p-5 sm:p-6">
+      <h2 class="text-sm font-semibold text-fg">Email notifications</h2>
+      <p class="mb-4 text-xs text-fg-muted">Choose what Lynqr emails you about. Security emails can't be turned off for your protection.</p>
+      <ul class="divide-y divide-line">
+        <li v-for="n in notificationOptions" :key="n.key" class="flex items-center justify-between gap-4 py-3">
+          <div>
+            <p class="text-sm font-medium text-fg">{{ n.label }}</p>
+            <p class="text-xs text-fg-muted">{{ n.description }}</p>
+          </div>
+          <Toggle :model-value="prefs[n.key]" :disabled="n.locked" :data-testid="`pref-${n.key}`" @update:model-value="setPref(n.key, $event)" />
+        </li>
+      </ul>
+      <div class="mt-4">
+        <label class="label" for="tz">Report time zone</label>
+        <select id="tz" :value="prefs.default_timezone" class="input sm:w-72" @change="setPref('default_timezone', $event.target.value)">
+          <option value="">Use my browser's time zone ({{ browserTZ }})</option>
+          <option v-for="z in timezones" :key="z" :value="z">{{ z }}</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- Create API key -->
+    <AppModal :open="keyModal" title="Create API key" @close="closeKeyModal">
+      <div v-if="newKey" class="space-y-3">
+        <div class="flex items-start gap-3 rounded-xl bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+          <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0" /> Copy this key now. For your security it won't be shown again.
+        </div>
+        <div class="flex items-center gap-2 rounded-xl border border-line bg-subtle/60 p-2">
+          <code class="flex-1 break-all px-1 font-mono text-xs text-fg" data-testid="new-api-key-value">{{ newKey }}</code>
+          <CopyButton :value="newKey" label="Copy API key" />
+        </div>
+      </div>
+      <form v-else id="key-form" class="space-y-4" @submit.prevent="createKey">
         <div>
-          <h2 class="text-lg font-bold text-gray-50 mb-1 flex items-center gap-2">
-            <Mail class="w-5 h-5 text-lynqr-400" />
-            <span>Password Reset (Email)</span>
-          </h2>
-          <p class="text-xs text-gray-400 leading-relaxed">
-            Trigger a secure WorkOS one-time password reset link sent directly to your registered email address.
-          </p>
+          <label class="label" for="key-name">Name</label>
+          <input id="key-name" v-model="keyName" required maxlength="80" placeholder="e.g. Production backend" class="input" data-testid="api-key-name" />
         </div>
-
-        <div class="p-4 rounded-xl bg-gray-800/60 border border-gray-700/60 space-y-3">
-          <div class="text-xs text-gray-300">
-            Recipient: <span class="font-semibold text-gray-50 font-mono">{{ profile.email }}</span>
-          </div>
-          <button
-            @click="sendPasswordResetEmail"
-            :disabled="isSendingReset"
-            class="w-full py-2.5 px-4 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-xl text-sm font-semibold text-gray-50 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-          >
-            <Loader2 v-if="isSendingReset" class="w-4 h-4 animate-spin" />
-            <Send v-else class="w-4 h-4 text-lynqr-400" />
-            <span>Send Reset Instructions Email</span>
-          </button>
-        </div>
-
-        <!-- Generated Reset URL Display if returned -->
-        <div v-if="passwordResetUrl" class="p-4 rounded-xl bg-lynqr-950/60 border border-lynqr-500/30 space-y-2">
-          <div class="text-xs font-semibold text-lynqr-400 flex items-center gap-1.5">
-            <ExternalLink class="w-3.5 h-3.5" />
-            <span>Direct One-Time Reset Link</span>
-          </div>
-          <p class="text-[11px] text-gray-400">You can also use this secure reset link directly:</p>
-          <div class="flex items-center gap-2">
-            <input
-              type="text"
-              readonly
-              :value="passwordResetUrl"
-              class="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-300 font-mono select-all"
-            />
-            <a
-              :href="passwordResetUrl"
-              target="_blank"
-              class="px-3 py-1.5 bg-lynqr-600 hover:bg-lynqr-500 text-white rounded-lg text-xs font-semibold whitespace-nowrap"
-            >
-              Open Link
-            </a>
-          </div>
-        </div>
-      </div>
-
-      <!-- Direct Password Update Form -->
-      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 sm:p-8 space-y-5">
         <div>
-          <h2 class="text-lg font-bold text-gray-50 mb-1 flex items-center gap-2">
-            <KeyRound class="w-5 h-5 text-indigo-400" />
-            <span>Set New Password</span>
-          </h2>
-          <p class="text-xs text-gray-400 leading-relaxed">
-            Directly update your account password across all Lynqr client sessions.
-          </p>
+          <label class="label" for="key-exp">Expires</label>
+          <select id="key-exp" v-model.number="keyExpiry" class="input">
+            <option :value="30">In 30 days</option><option :value="90">In 90 days</option><option :value="365">In 1 year</option><option :value="0">Never</option>
+          </select>
         </div>
-
-        <form @submit.prevent="changePassword" class="space-y-4">
-          <div>
-            <label class="block text-xs font-medium text-gray-300 mb-1">Current Password</label>
-            <input
-              v-model="currentPassword"
-              type="password"
-              required
-              autocomplete="current-password"
-              placeholder="Your current password"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
-            />
-          </div>
-
-          <div>
-            <label class="block text-xs font-medium text-gray-300 mb-1">New Password</label>
-            <input
-              v-model="newPassword"
-              type="password"
-              required
-              placeholder="At least 8 characters (Letters, numbers, symbols)"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
-            />
-          </div>
-
-          <div>
-            <label class="block text-xs font-medium text-gray-300 mb-1">Confirm New Password</label>
-            <input
-              v-model="confirmPassword"
-              type="password"
-              required
-              placeholder="Re-enter new password"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
-            />
-          </div>
-
-          <div class="pt-2">
-            <button
-              type="submit"
-              :disabled="isUpdatingPassword"
-              class="w-full py-2.5 px-4 bg-gradient-to-r from-lynqr-600 to-indigo-600 hover:from-lynqr-500 hover:to-indigo-500 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-lynqr-600/20 transition-all disabled:opacity-50"
-            >
-              <Loader2 v-if="isUpdatingPassword" class="w-4 h-4 animate-spin" />
-              <span>Update Password</span>
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- TAB 3: API Keys Management -->
-    <div v-if="activeTab === 'api-keys'" class="space-y-6">
-      <!-- Section Header -->
-      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h2 class="text-lg font-bold text-gray-50 mb-1 flex items-center gap-2">
-            <Terminal class="w-5 h-5 text-lynqr-400" />
-            <span>Developer API Keys</span>
-          </h2>
-          <p class="text-xs text-gray-400">
-            Authenticate programmatic requests to Lynqr REST APIs via <code class="text-lynqr-400 bg-gray-800 px-1.5 py-0.5 rounded font-mono">Authorization: Bearer lk_live_...</code>
-          </p>
-        </div>
-
-        <button
-          @click="showCreateKeyModal = true"
-          class="px-4 py-2.5 bg-lynqr-600 hover:bg-lynqr-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-lynqr-600/20 transition-all active:scale-95"
-        >
-          <Plus class="w-4 h-4 stroke-[2.5]" />
-          <span>Generate New API Key</span>
-        </button>
-      </div>
-
-      <!-- API Keys Table / List -->
-      <div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
-        <div v-if="isLoadingKeys" class="p-12 text-center text-gray-500 flex flex-col items-center justify-center gap-3">
-          <Loader2 class="w-6 h-6 animate-spin text-lynqr-400" />
-          <span class="text-xs">Loading API keys...</span>
-        </div>
-
-        <div v-else-if="apiKeys.length === 0" class="p-12 text-center text-gray-500 space-y-3">
-          <div class="w-12 h-12 rounded-2xl bg-gray-800/80 mx-auto flex items-center justify-center text-gray-400">
-            <KeyRound class="w-6 h-6" />
-          </div>
-          <p class="text-sm font-semibold text-gray-300">No active API keys yet</p>
-          <p class="text-xs text-gray-500 max-w-sm mx-auto">Generate an API key to integrate Lynqr QR code generation, short links, and analytics into your external systems.</p>
-        </div>
-
-        <div v-else class="divide-y divide-gray-800">
-          <div
-            v-for="k in apiKeys"
-            :key="k.id"
-            class="p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-gray-800/30 transition-colors"
-          >
-            <div class="space-y-1">
-              <div class="flex items-center gap-2.5">
-                <span class="text-sm font-bold text-gray-200">{{ k.name }}</span>
-                <span class="px-2 py-0.5 rounded bg-gray-800 text-[11px] font-mono text-gray-400 border border-gray-700">
-                  {{ k.key_prefix }}
-                </span>
-              </div>
-              <div class="flex items-center gap-4 text-xs text-gray-500 font-mono">
-                <span>Created: {{ formatDate(k.created_at) }}</span>
-                <span v-if="k.last_used_at">Last used: {{ formatDate(k.last_used_at) }}</span>
-                <span v-else class="text-gray-600">Never used</span>
-              </div>
-            </div>
-
-            <button
-              @click="revokeApiKey(k.id)"
-              class="px-3 py-1.5 rounded-lg border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-            >
-              <Trash2 class="w-3.5 h-3.5" />
-              <span>Revoke Key</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- MODAL: Generate New API Key -->
-    <div v-if="showCreateKeyModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-950/80 backdrop-blur-sm">
-      <div class="bg-gray-900 border border-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
-        <div class="flex items-center justify-between">
-          <h3 class="text-base font-bold text-gray-50 flex items-center gap-2">
-            <KeyRound class="w-4 h-4 text-lynqr-400" />
-            <span>Generate New API Key</span>
-          </h3>
-          <button @click="showCreateKeyModal = false" class="text-gray-400 hover:text-gray-50">
-            <X class="w-4 h-4" />
-          </button>
-        </div>
-
-        <div class="space-y-4">
-          <div>
-            <label class="block text-xs font-medium text-gray-300 mb-1">Key Label / Name</label>
-            <input
-              v-model="newKeyName"
-              type="text"
-              placeholder="e.g. Production Backend Bot"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
-            />
-          </div>
-
-          <div>
-            <label class="block text-xs font-medium text-gray-300 mb-1">Expiration</label>
-            <select
-              v-model="newKeyExpires"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
-            >
-              <option :value="0">Never expires (Default)</option>
-              <option :value="30">30 Days</option>
-              <option :value="90">90 Days</option>
-              <option :value="365">1 Year</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="flex items-center justify-end gap-3 pt-2">
-          <button
-            @click="showCreateKeyModal = false"
-            class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:text-gray-50 hover:bg-gray-800 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            @click="createApiKey"
-            :disabled="isCreatingKey"
-            class="px-4 py-2 bg-lynqr-600 hover:bg-lynqr-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-lynqr-600/20 transition-all disabled:opacity-50"
-          >
-            <Loader2 v-if="isCreatingKey" class="w-3.5 h-3.5 animate-spin" />
-            <span>Generate Key</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- MODAL: One-time Secret Display -->
-    <div v-if="newlyCreatedKeySecret" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-950/80 backdrop-blur-sm">
-      <div class="bg-gray-900 border border-emerald-500/30 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-            <Check class="w-5 h-5 stroke-[2.5]" />
-          </div>
-          <div>
-            <h3 class="text-base font-bold text-gray-50">API Key Created Successfully</h3>
-            <p class="text-xs text-gray-400">Copy this secret key now. It will not be shown again.</p>
-          </div>
-        </div>
-
-        <div class="p-3.5 rounded-xl bg-gray-950 border border-gray-800 space-y-2">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] font-mono text-gray-500 uppercase tracking-wider">Bearer Token</span>
-            <button
-              @click="copyKeySecret"
-              class="text-xs font-semibold text-lynqr-400 hover:text-lynqr-300 flex items-center gap-1.5 transition-colors"
-            >
-              <Copy class="w-3.5 h-3.5" />
-              <span>{{ hasCopied ? 'Copied!' : 'Copy Key' }}</span>
-            </button>
-          </div>
-          <div class="font-mono text-xs text-emerald-400 break-all select-all bg-gray-900/60 p-2.5 rounded-lg border border-gray-800">
-            {{ newlyCreatedKeySecret }}
-          </div>
-        </div>
-
-        <div class="flex items-center justify-end">
-          <button
-            @click="newlyCreatedKeySecret = ''"
-            class="px-5 py-2 bg-lynqr-600 hover:bg-lynqr-500 text-white rounded-xl text-xs font-semibold transition-all shadow-md"
-          >
-            I Have Saved This Key
-          </button>
-        </div>
-      </div>
-    </div>
+      </form>
+      <template #footer>
+        <button v-if="newKey" class="btn-primary" data-testid="api-key-done" @click="closeKeyModal">I've saved this key</button>
+        <template v-else>
+          <button class="btn-secondary" @click="closeKeyModal">Cancel</button>
+          <button class="btn-primary" type="submit" form="key-form" :disabled="saving" data-testid="create-api-key">Create key</button>
+        </template>
+      </template>
+    </AppModal>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import {
-  UserCircle,
-  KeyRound,
-  ShieldCheck,
-  Check,
-  CheckCircle2,
-  AlertCircle,
-  Mail,
-  Send,
-  ExternalLink,
-  Terminal,
-  Plus,
-  Trash2,
-  Copy,
-  X,
-  LogOut,
-  Loader2
+  UserCircle, Shield, KeyRound, Building2, Bell, Upload, Loader2, Plus, BookOpen, AlertTriangle, Monitor, Smartphone, Tablet
 } from 'lucide-vue-next'
+import { api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
+import { useToast } from '../composables/useToast'
+import { useConfirm } from '../composables/useConfirm'
+import PageHeader from '../components/ui/PageHeader.vue'
+import AppModal from '../components/ui/AppModal.vue'
+import EmptyState from '../components/ui/EmptyState.vue'
+import CopyButton from '../components/ui/CopyButton.vue'
+import Toggle from '../components/ui/Toggle.vue'
+import Tip from '../components/ui/Tip.vue'
 
-const authStore = useAuthStore()
+const auth = useAuthStore()
+const route = useRoute()
+const toast = useToast()
+const confirm = useConfirm()
 
-const activeTab = ref('profile')
-const feedbackMessage = ref('')
-const feedbackIsError = ref(false)
-
-const profile = ref({
-  id: '',
-  email: '',
-  name: '',
-  first_name: '',
-  last_name: '',
-  avatar_url: '',
-  role: 'owner'
-})
-
-const editForm = ref({
-  first_name: '',
-  last_name: '',
-  avatar_url: ''
-})
-
-const isSavingProfile = ref(false)
-const isSendingReset = ref(false)
-const isUpdatingPassword = ref(false)
-const passwordResetUrl = ref('')
-const currentPassword = ref('')
-const newPassword = ref('')
-const confirmPassword = ref('')
-
-// API Keys State
-const apiKeys = ref([])
-const isLoadingKeys = ref(false)
-const showCreateKeyModal = ref(false)
-const isCreatingKey = ref(false)
-const newKeyName = ref('')
-const newKeyExpires = ref(0)
-const newlyCreatedKeySecret = ref('')
-const hasCopied = ref(false)
-
+const myInvites = ref([])
 const tabs = computed(() => [
-  { id: 'profile', label: 'General Profile', icon: UserCircle },
-  { id: 'security', label: 'Password & Security', icon: KeyRound },
-  { id: 'api-keys', label: 'API Keys', icon: Terminal, badge: apiKeys.value.length || null },
+  { id: 'profile', label: 'Profile', icon: UserCircle },
+  { id: 'security', label: 'Security', icon: Shield },
+  { id: 'api-keys', label: 'API keys', icon: KeyRound },
+  { id: 'workspaces', label: 'Workspaces', icon: Building2, badge: myInvites.value.length || null },
+  { id: 'notifications', label: 'Notifications', icon: Bell }
 ])
+const tab = computed(() => (tabs.value.some((t) => t.id === route.query.tab) ? route.query.tab : 'profile'))
 
-const userInitials = computed(() => {
-  if (profile.value.name) {
-    const parts = profile.value.name.trim().split(' ')
-    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-    return profile.value.name.substring(0, 2).toUpperCase()
+const saving = ref(false)
+async function busy(fn) {
+  saving.value = true
+  try {
+    return await fn()
+  } catch (err) {
+    toast.error(err.message)
+  } finally {
+    saving.value = false
   }
-  return 'LK'
-})
+}
 
-function formatDate(d) {
-  if (!d) return ''
-  return new Date(d).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
+// ----- Profile -----
+const form = ref({ first_name: '', last_name: '', avatar_url: '' })
+watch(
+  () => auth.user,
+  (u) => u && (form.value = { first_name: u.first_name, last_name: u.last_name, avatar_url: u.avatar_url || '' }),
+  { immediate: true }
+)
+
+function onAvatar(e) {
+  const file = e.target.files?.[0]
+  e.target.value = ''
+  if (!file) return
+  const img = new Image()
+  img.onload = () => {
+    // Center-crop and downscale to 256px so avatars stay small.
+    const size = 256
+    const c = document.createElement('canvas')
+    c.width = c.height = size
+    const s = Math.min(img.width, img.height)
+    c.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size)
+    form.value.avatar_url = c.toDataURL('image/jpeg', 0.85)
+    URL.revokeObjectURL(img.src)
+  }
+  img.src = URL.createObjectURL(file)
+}
+
+const saveProfile = () =>
+  busy(async () => {
+    await api.updateProfile(form.value)
+    await auth.refresh()
+    toast.success('Profile updated successfully')
+  })
+
+// ----- Security -----
+const pw = ref({ current: '', next: '', confirm: '' })
+const sessions = ref([])
+const loadSessions = async () => (sessions.value = (await api.getSessions()).data)
+
+const changePassword = () =>
+  busy(async () => {
+    if (pw.value.next !== pw.value.confirm) throw new Error('New passwords do not match')
+    const res = await api.changePassword(pw.value.current, pw.value.next)
+    pw.value = { current: '', next: '', confirm: '' }
+    toast.success(res.message)
+    loadSessions()
+  })
+
+async function revokeSession(s) {
+  await busy(() => api.revokeSession(s.id))
+  loadSessions()
+}
+async function revokeOthers() {
+  const ok = await confirm({ title: 'Sign out everywhere else?', message: 'All other browsers and devices will need to sign in again.', confirmText: 'Sign out others' })
+  if (!ok) return
+  await busy(() => api.revokeOtherSessions())
+  toast.success('Signed out of other sessions')
+  loadSessions()
+}
+
+function describeUA(ua = '') {
+  const browser = /edg/i.test(ua) ? 'Edge' : /chrome|crios/i.test(ua) ? 'Chrome' : /firefox|fxios/i.test(ua) ? 'Firefox' : /safari/i.test(ua) ? 'Safari' : 'Browser'
+  const os = /iphone|ipad/i.test(ua) ? 'iOS' : /android/i.test(ua) ? 'Android' : /mac os/i.test(ua) ? 'macOS' : /windows/i.test(ua) ? 'Windows' : /linux/i.test(ua) ? 'Linux' : ''
+  return os ? `${browser} on ${os}` : ua ? browser : 'API client'
+}
+const deviceIcon = (ua = '') => (/ipad|tablet/i.test(ua) ? Tablet : /mobile|iphone|android/i.test(ua) ? Smartphone : Monitor)
+
+// ----- API keys -----
+const apiKeys = ref([])
+const keyModal = ref(false)
+const keyName = ref('')
+const keyExpiry = ref(90)
+const newKey = ref('')
+const loadKeys = async () => (apiKeys.value = (await api.getApiKeys()).api_keys)
+
+const createKey = () =>
+  busy(async () => {
+    const res = await api.createApiKey(keyName.value, keyExpiry.value)
+    newKey.value = res.api_key.key
+    keyName.value = ''
+    loadKeys()
+  })
+function closeKeyModal() {
+  keyModal.value = false
+  newKey.value = ''
+}
+async function revokeKey(k) {
+  const ok = await confirm({ title: `Revoke "${k.name}"?`, message: 'Anything using this key loses access immediately.', confirmText: 'Revoke key', danger: true })
+  if (!ok) return
+  await busy(() => api.revokeApiKey(k.id))
+  toast.success('API key revoked')
+  loadKeys()
+}
+
+// ----- Workspaces -----
+const loadInvites = async () => (myInvites.value = (await api.getMyInvitations()).data)
+async function respond(inv, accept) {
+  await busy(async () => {
+    await api.respondToInvitation(inv.id, accept)
+    toast.success(accept ? `You joined ${inv.team_name}` : 'Invitation declined')
+    await auth.refresh()
+    if (accept) await auth.switchTeam(inv.team_id)
+    loadInvites()
   })
 }
 
-async function fetchProfile() {
+// ----- Notifications -----
+const prefs = ref({})
+const browserTZ = Intl.DateTimeFormat().resolvedOptions().timeZone
+const timezones = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : []
+const notificationOptions = [
+  { key: 'security_alerts', label: 'Security alerts', description: 'Password changes and sign-ins from new devices.', locked: true },
+  { key: 'team_activity', label: 'Team activity', description: 'Invitations, role changes and removals in your workspaces.' },
+  { key: 'usage_alerts', label: 'Trial & billing', description: 'Trial reminders, payment issues and plan changes.' },
+  { key: 'weekly_report', label: 'Weekly analytics digest', description: 'Top links, QR codes and traffic trends every Monday.' },
+  { key: 'product_updates', label: 'Product updates', description: 'Occasional news about new Lynqr features.' }
+]
+async function setPref(key, value) {
+  const prev = prefs.value[key]
+  prefs.value = { ...prefs.value, [key]: value }
   try {
-    const res = await fetch('/api/v1/user/profile')
-    if (res.ok) {
-      const data = await res.json()
-      if (data.user) {
-        profile.value = data.user
-        editForm.value.first_name = data.user.first_name || ''
-        editForm.value.last_name = data.user.last_name || ''
-        editForm.value.avatar_url = data.user.avatar_url || ''
-      }
-    }
+    prefs.value = await api.updatePreferences(prefs.value)
+    toast.success('Preferences saved')
   } catch (err) {
-    console.error('Failed to load profile:', err)
+    prefs.value = { ...prefs.value, [key]: prev }
+    toast.error(err.message)
   }
 }
 
-async function saveProfile() {
-  isSavingProfile.value = true
-  feedbackMessage.value = ''
-  try {
-    const res = await fetch('/api/v1/user/profile', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editForm.value)
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Failed to update profile')
-    
-    feedbackIsError.value = false
-    feedbackMessage.value = 'Profile updated successfully'
-    await fetchProfile()
-  } catch (err) {
-    feedbackIsError.value = true
-    feedbackMessage.value = err.message
-  } finally {
-    isSavingProfile.value = false
-  }
-}
-
-async function sendPasswordResetEmail() {
-  isSendingReset.value = true
-  feedbackMessage.value = ''
-  passwordResetUrl.value = ''
-  try {
-    const res = await fetch('/api/v1/auth/password-reset', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: profile.value.email })
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Failed to send password reset')
-
-    feedbackIsError.value = false
-    feedbackMessage.value = 'Password reset instructions have been dispatched'
-    if (data.password_reset_url) {
-      passwordResetUrl.value = data.password_reset_url
-    }
-  } catch (err) {
-    feedbackIsError.value = true
-    feedbackMessage.value = err.message
-  } finally {
-    isSendingReset.value = false
-  }
-}
-
-async function changePassword() {
-  if (newPassword.value !== confirmPassword.value) {
-    feedbackIsError.value = true
-    feedbackMessage.value = 'Passwords do not match'
-    return
-  }
-
-  if (newPassword.value.length < 8) {
-    feedbackIsError.value = true
-    feedbackMessage.value = 'Password must be at least 8 characters long'
-    return
-  }
-
-  isUpdatingPassword.value = true
-  feedbackMessage.value = ''
-  try {
-    const res = await fetch('/api/v1/user/change-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ current_password: currentPassword.value, new_password: newPassword.value })
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Failed to update password')
-
-    feedbackIsError.value = false
-    feedbackMessage.value = data.message || 'Password updated successfully'
-    currentPassword.value = ''
-    newPassword.value = ''
-    confirmPassword.value = ''
-  } catch (err) {
-    feedbackIsError.value = true
-    feedbackMessage.value = err.message
-  } finally {
-    isUpdatingPassword.value = false
-  }
-}
-
-async function fetchApiKeys() {
-  isLoadingKeys.value = true
-  try {
-    const res = await fetch('/api/v1/api-keys')
-    if (res.ok) {
-      const data = await res.json()
-      apiKeys.value = data.api_keys || []
-    }
-  } catch (err) {
-    console.error('Failed to load API keys:', err)
-  } finally {
-    isLoadingKeys.value = false
-  }
-}
-
-async function createApiKey() {
-  isCreatingKey.value = true
-  try {
-    const res = await fetch('/api/v1/api-keys', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: newKeyName.value || 'API Key',
-        expires_in_days: Number(newKeyExpires.value)
-      })
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Failed to create API key')
-
-    showCreateKeyModal.value = false
-    newKeyName.value = ''
-    newKeyExpires.value = 0
-    if (data.api_key && data.api_key.key) {
-      newlyCreatedKeySecret.value = data.api_key.key
-      hasCopied.value = false
-    }
-    await fetchApiKeys()
-  } catch (err) {
-    feedbackIsError.value = true
-    feedbackMessage.value = err.message
-  } finally {
-    isCreatingKey.value = false
-  }
-}
-
-async function revokeApiKey(id) {
-  if (!confirm('Are you sure you want to revoke this API key? Systems using this key will immediately lose access.')) {
-    return
-  }
-
-  try {
-    const res = await fetch(`/api/v1/api-keys/${id}`, { method: 'DELETE' })
-    if (!res.ok) {
-      const data = await res.json()
-      throw new Error(data.error || 'Failed to revoke API key')
-    }
-    await fetchApiKeys()
-    feedbackIsError.value = false
-    feedbackMessage.value = 'API key revoked'
-  } catch (err) {
-    feedbackIsError.value = true
-    feedbackMessage.value = err.message
-  }
-}
-
-function copyKeySecret() {
-  if (!newlyCreatedKeySecret.value) return
-  navigator.clipboard.writeText(newlyCreatedKeySecret.value)
-  hasCopied.value = true
-  setTimeout(() => {
-    hasCopied.value = false
-  }, 2500)
-}
-
-onMounted(() => {
-  fetchProfile()
-  fetchApiKeys()
-})
+watch(
+  tab,
+  (t) => {
+    if (t === 'security') loadSessions()
+    if (t === 'api-keys') loadKeys()
+    if (t === 'notifications') api.getPreferences().then((p) => (prefs.value = p))
+  },
+  { immediate: true }
+)
+watch(() => auth.team?.id, () => tab.value === 'api-keys' && loadKeys())
+onMounted(loadInvites)
 </script>

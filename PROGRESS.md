@@ -11,8 +11,8 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 | 1 | Auth & tenancy hardening | `feat/auth-tenancy` | ✅ merged (#1), live test-drive 63/63 API + 13/13 UI |
 | 2 | Theme system + modern UI redesign | `feat/ui-redesign` | ✅ merged (#2), live UI 15/15 + API pytest 15/15 |
 | 3 | QR studio: real preview, all types, styling, exports | `feat/qr-studio` | ✅ merged (#3), live API 64/64 + UI 14/14 |
-| 4 | Links: password, UTM, expiry & pause | `feat/link-controls` | 🚧 PR open |
-| 5 | Team & user management UI | `feat/team-management-ui` | ⏳ |
+| 4 | Links: password, UTM, expiry & pause | `feat/link-controls` | ✅ merged (#4), live API 64/64 + UI 15/15 |
+| 5 | Team & user management UI | `feat/team-management-ui` | 🚧 PR open |
 | 6 | Dashboard & analytics (charts, ranges, geo, export, live feed, CF geo headers) | `feat/analytics` | ⏳ |
 | 7 | Tooltips, Quick Docs, shortcuts, user guides | `feat/help-docs` | ⏳ |
 | 8 | Stripe billing (7-day no-card trial · $5/mo annual or $8.99 monthly · per workspace) | `feat/billing` | ⏳ keys + pricing received 2026-10-25 |
@@ -73,6 +73,16 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 - [x] "Create QR" from any link attaches a dynamic QR code to it (`owns_link` keeps the link when that QR is deleted)
 - [x] Fixed: the unlock form's redirect was blocked by CSP `form-action`
 - [x] Tests: e2e for UTM, passwords (wrong/right/cookie/revocation/removal), pause/expiry/fallback, slug changes, QR attachment; live Playwright unlock flow
+- [x] CI + merge + live test-drive
+
+## 5. Team & user management UI (feat/team-management-ui)
+- [x] Team & Settings tabs (deep-linkable `?tab=`): Members, General, Audit log (admins+)
+- [x] Members: search, role dropdown (hierarchy-aware: only owners grant/manage admins), suspend/reactivate, password-reset email, transfer ownership (typed confirmation), remove; invite modal with role descriptions and a one-time copyable invite link; pending invitations with revoke; roles & permissions matrix
+- [x] General: rename, role/members/created summary, leave workspace, delete workspace (type-the-name confirmation)
+- [x] Audit log: human-readable actions with actor, affected member, details and IP; category filter; pagination; CSV export
+- [x] Profile tabs: profile (avatar upload, client-side center-crop to 256px), security (change password, active sessions, sign out others), API keys (expiry, last used, show-once secret, revoke), workspaces (invitations for you: accept/decline; switch), notifications (preferences + report time zone)
+- [x] Backend: notification preferences (`/user/preferences`, migration 0004); audit entries resolve the affected member
+- [x] Tests: e2e for preferences and session revocation; two-user local Playwright flow (invite → accept → role → suspend → reactivate → audit → rename → API key → prefs → leave); live suite updated
 - [ ] CI + merge + live test-drive
 
 ## 8. Stripe billing (plan)
