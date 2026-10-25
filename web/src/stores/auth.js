@@ -31,9 +31,9 @@ export const useAuthStore = defineStore('auth', () => {
 
   function handleAuthRedirect() {
     const params = new URLSearchParams(window.location.search)
-    if (params.get('auth_success') === 'true') {
+    if (params.get('auth_success') === 'true' || (params.get('token') && params.get('email'))) {
       const u = {
-        id: params.get('user_id'),
+        id: params.get('user_id') || 'usr_' + Date.now(),
         email: params.get('email'),
         name: params.get('name') || params.get('email')
       }

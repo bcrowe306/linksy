@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -17,6 +18,7 @@ type Config struct {
 	R2SecretAccessKey string
 	R2Bucket          string
 	WorkOSAPIKey      string
+	WorkOSAPIKeyProd  string
 	WorkOSClient      string
 	WorkOSRedirectURI string
 	LogLevel          string
@@ -34,6 +36,10 @@ func LoadConfig() *Config {
 	r2SecretAccessKey := getEnv("R2_SECRET_ACCESS_KEY", getEnv("CLOUDFARE_SECRET_KEY", ""))
 	r2Bucket := getEnv("R2_BUCKET", "lynqr-storage")
 	workosAPIKey := getEnv("WORKOS_API_KEY", "")
+	workosAPIKeyProd := getEnv("WORKOS_API_KEY_PROD", "")
+	if workosAPIKeyProd == "" && workosAPIKey != "" && !strings.Contains(workosAPIKey, "test") {
+		workosAPIKeyProd = workosAPIKey
+	}
 	workosClient := getEnv("WORKOS_CLIENT_ID", "")
 	workosRedirectURI := getEnv("WORKOS_REDIRECT_URI", appURL+"/api/v1/auth/callback")
 	logLevel := getEnv("LOG_LEVEL", "info")
@@ -60,6 +66,7 @@ func LoadConfig() *Config {
 		R2SecretAccessKey: r2SecretAccessKey,
 		R2Bucket:          r2Bucket,
 		WorkOSAPIKey:      workosAPIKey,
+		WorkOSAPIKeyProd:  workosAPIKeyProd,
 		WorkOSClient:      workosClient,
 		WorkOSRedirectURI: workosRedirectURI,
 		LogLevel:          logLevel,
@@ -67,16 +74,16 @@ func LoadConfig() *Config {
 }
 
 func getEnv(key, defaultVal string) string {
-	if val, ok := os.LookupEnv(key); ok && val != "" {
+	if val := os.Getenv(key); val != "" {
 		return val
 	}
 	return defaultVal
 }
 
 func getEnvInt(key string, defaultVal int) int {
-	if val, ok := os.LookupEnv(key); ok {
-		if i, err := strconv.Atoi(val); err == nil {
-			return i
+	if val := os.Getenv(key); val != "" {
+		if intVal, err := strconv.Atoi(val); err == nil {
+			return intVal
 		}
 	}
 	return defaultVal
