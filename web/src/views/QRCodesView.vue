@@ -39,7 +39,7 @@
           <span class="absolute left-3 top-3 badge-neutral bg-surface/90 backdrop-blur">
             <component :is="typeMeta[qr.type]?.icon || QrCode" class="w-3 h-3" /> {{ typeMeta[qr.type]?.label || qr.type }}
           </span>
-          <span v-if="qr.link_id" class="absolute right-3 top-3 badge-brand bg-surface/90 backdrop-blur">Dynamic</span>
+          <span v-if="qr.is_dynamic" class="absolute right-3 top-3 badge-brand bg-surface/90 backdrop-blur">Dynamic</span>
         </router-link>
 
         <div class="flex flex-1 flex-col gap-3 p-4">
@@ -73,7 +73,7 @@
 import { ref, computed } from 'vue'
 import {
   Plus, QrCode, Wand2, Search, SearchX, Download, BarChart3, Pencil, Trash2, ScanLine, Globe, FileText, Contact, Wifi,
-  Smartphone, Type, Mail, MessageSquare, Image, FileImage, FileType2
+  Smartphone, Type, Mail, MessageSquare, Phone, Image, FileImage, FileType2
 } from 'lucide-vue-next'
 import { useLynqrStore } from '../stores/lynqr'
 import { useAuthStore } from '../stores/auth'
@@ -101,12 +101,14 @@ const typeMeta = {
   app: { label: 'App store', icon: Smartphone },
   text: { label: 'Text', icon: Type },
   email: { label: 'Email', icon: Mail },
-  sms: { label: 'SMS', icon: MessageSquare }
+  sms: { label: 'SMS', icon: MessageSquare },
+  phone: { label: 'Phone', icon: Phone }
 }
 const formats = [
   { id: 'png', label: 'PNG · 2048px', icon: Image },
   { id: 'svg', label: 'SVG · vector', icon: FileType2 },
-  { id: 'pdf', label: 'PDF · print ready', icon: FileText },
+  { id: 'pdf', label: 'PDF · A4 sheet', icon: FileText },
+  { id: 'pdf-card', label: 'PDF · card / sticker', icon: FileText, layout: 'card' },
   { id: 'jpeg', label: 'JPEG · 2048px', icon: FileImage }
 ]
 
@@ -123,14 +125,18 @@ const visible = computed(() => {
 const previewUrl = (qr) => `${api.getExportUrl(qr.id, 'png', 360, false)}&v=${new Date(qr.updated_at).getTime()}`
 
 function describe(qr) {
+  if (qr.target_url) return qr.target_url
   if (qr.type === 'wifi') return 'Wi-Fi credentials'
   if (qr.type === 'vcard') return 'Contact card'
+  if (qr.type === 'app') return 'App Store / Google Play'
+  if (qr.type === 'document') return store.documents.find((d) => d.id === qr.document_id)?.filename || 'Hosted document'
   return qr.payload
 }
 
 function download(qr, fmt) {
+  const f = formats.find((x) => x.id === fmt)
   const a = document.createElement('a')
-  a.href = api.getExportUrl(qr.id, fmt, 2048, true)
+  a.href = api.getExportUrl(qr.id, fmt.replace('-card', ''), 2048, true, f?.layout || '')
   a.download = ''
   document.body.appendChild(a)
   a.click()

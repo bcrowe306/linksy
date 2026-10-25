@@ -14,7 +14,7 @@ export function onUnauthorized(fn) {
   unauthorizedHandler = fn
 }
 
-export async function request(method, path, { body, form, query, raw } = {}) {
+export async function request(method, path, { body, form, query, raw, signal } = {}) {
   let url = path
   if (query) {
     const params = new URLSearchParams()
@@ -25,7 +25,7 @@ export async function request(method, path, { body, form, query, raw } = {}) {
     if (qs) url += `?${qs}`
   }
 
-  const init = { method, credentials: 'same-origin', headers: { Accept: 'application/json' } }
+  const init = { method, credentials: 'same-origin', headers: { Accept: 'application/json' }, signal }
   if (form) {
     init.body = form
   } else if (body !== undefined) {
@@ -120,8 +120,9 @@ export const api = {
   createQRCode: (data) => post('/api/v1/qr', data),
   updateQRCode: (id, data) => put(`/api/v1/qr/${id}`, data),
   deleteQRCode: (id) => del(`/api/v1/qr/${id}`),
-  getExportUrl(id, format = 'png', size = 512, download = true) {
-    return `/api/v1/qr/${id}/export?format=${format}&size=${size}&download=${download}`
+  previewQR: (data, signal) => request('POST', '/api/v1/qr/preview', { body: data, signal }),
+  getExportUrl(id, format = 'png', size = 1024, download = true, layout = '') {
+    return `/api/v1/qr/${id}/export?format=${format}&size=${size}&download=${download}${layout ? `&layout=${layout}` : ''}`
   },
 
   // Documents

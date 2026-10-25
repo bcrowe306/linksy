@@ -24,7 +24,11 @@ const (
 	QRTypeText     QRType = "text"
 	QRTypeEmail    QRType = "email"
 	QRTypeSMS      QRType = "sms"
+	QRTypePhone    QRType = "phone"
 )
+
+// QRTypes lists every supported QR content type.
+var QRTypes = []QRType{QRTypeWebsite, QRTypeDocument, QRTypeVCard, QRTypeWiFi, QRTypeApp, QRTypeText, QRTypeEmail, QRTypeSMS, QRTypePhone}
 
 type User struct {
 	ID        string    `json:"id"`
@@ -132,13 +136,14 @@ type QRStyle struct {
 
 	// Module Shapes & Finder Eyes
 	DotStyle      string `json:"dot_style"`       // "square", "dots", "rounded", "classy"
-	EyeShape      string `json:"eye_shape"`       // "square", "rounded", "circle"
+	EyeShape      string `json:"eye_shape"`       // outer finder ring: square, rounded, extra-rounded, circle, leaf
+	EyeInnerShape string `json:"eye_inner_shape"` // finder center: square, rounded, circle, leaf
 	EyeColor      string `json:"eye_color"`       // Custom outer finder eye color
 	EyeInnerColor string `json:"eye_inner_color"` // Custom inner eyeball color
 
 	// QR Spec Precision
 	ErrorCorrection string `json:"error_correction"` // "L", "M", "Q", "H" (Default "H")
-	Margin          int    `json:"margin"`           // Quiet zone margin in modules (0-10)
+	Margin          int    `json:"margin"`           // Quiet zone in modules (1-10, default 2)
 
 	// Center Logo Customization
 	LogoURL     string  `json:"logo_url"`      // URL or storage path
@@ -155,7 +160,7 @@ type QRStyle struct {
 	FrameBgColor string `json:"frame_bg_color"` // Frame outer background hex
 	LabelText    string `json:"label_text"`     // e.g. "SCAN ME"
 	LabelColor   string `json:"label_color"`    // Label font hex color
-	LabelSize    int    `json:"label_size"`     // Font size in pt/px
+	LabelSize    int    `json:"label_size"`     // Label scale in percent (50–160, default 100)
 }
 
 type QRCode struct {
@@ -164,6 +169,10 @@ type QRCode struct {
 	UserID     string    `json:"user_id"`
 	LinkID     *string   `json:"link_id,omitempty"`     // Linked short link for dynamic redirection
 	DocumentID *string   `json:"document_id,omitempty"` // Hosted document served by this QR
+	Code       string    `json:"code,omitempty"`        // Short scan code for dynamic codes (/q/{code})
+	IsDynamic  bool      `json:"is_dynamic"`            // Encodes a Lynqr redirect, so content can change after printing
+	TargetURL  string    `json:"target_url,omitempty"`  // Current destination (dynamic website codes); computed
+	ScanURL    string    `json:"scan_url,omitempty"`    // Public URL encoded in dynamic codes; computed
 	Type       QRType    `json:"type"`
 	Title      string    `json:"title"`
 	Payload    string    `json:"payload"`  // Encoded destination URL or raw payload

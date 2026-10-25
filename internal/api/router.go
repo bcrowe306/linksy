@@ -30,6 +30,7 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 
 	// Authentication (WorkOS password, email verification, OAuth / AuthKit)
 	authLimit := middleware.AuthRateLimiter()
+	flowLimit := middleware.FlowRateLimiter()
 	app.Get("/api/v1/auth/config", authH.GetAuthConfig)
 	app.Get("/api/v1/auth/me", authH.GetCurrentUser)
 	app.Post("/api/v1/auth/logout", authH.HandleLogout)
@@ -37,18 +38,20 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	app.Post("/api/v1/auth/login", authLimit, authH.HandlePasswordLogin)
 	app.Post("/api/v1/auth/verify-email", authLimit, authH.HandleVerifyEmail)
 	app.Post("/api/v1/auth/dev-login", authLimit, authH.HandleDevLogin)
-	app.Get("/api/v1/auth/login", authLimit, authH.HandleLogin)
-	app.Get("/api/v1/auth/oauth/:provider", authLimit, authH.HandleOAuthLogin)
-	app.Get("/api/v1/auth/callback", authLimit, authH.HandleCallback)
+	app.Get("/api/v1/auth/login", flowLimit, authH.HandleLogin)
+	app.Get("/api/v1/auth/oauth/:provider", flowLimit, authH.HandleOAuthLogin)
+	app.Get("/api/v1/auth/callback", flowLimit, authH.HandleCallback)
 	app.Post("/api/v1/auth/password-reset", authLimit, authH.HandlePasswordReset)
 	app.Post("/api/v1/auth/password-reset/confirm", authLimit, authH.HandlePasswordResetConfirm)
 
 	// Invitation preview (public so the accept page can render before sign-in)
-	app.Get("/api/v1/invitations/:token", authLimit, teamH.PreviewInvitation)
+	app.Get("/api/v1/invitations/:token", flowLimit, teamH.PreviewInvitation)
 
 	// High throughput public redirectors
 	app.Get("/s/:slug", middleware.RedirectRateLimiter(), h.HandleShortLinkRedirect)
-	app.Get("/qr/r/:id", middleware.RedirectRateLimiter(), h.HandleQRScanRedirect)
+	app.Get("/q/:code", middleware.RedirectRateLimiter(), h.HandleQRScan)
+	app.Get("/qr/r/:id", middleware.RedirectRateLimiter(), h.HandleLegacyQRScan)
+	app.Get("/d/:id", middleware.RedirectRateLimiter(), h.HandleDocumentLink)
 
 	// Hosted document files behind document QR codes (random, unguessable keys)
 	app.Get("/api/v1/documents/files/:filename", middleware.RedirectRateLimiter(), h.DownloadDocumentFile)
@@ -84,6 +87,7 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 
 	// QR Codes
 	api.Post("/qr", can(auth.PermEditAssets), h.CreateQR)
+	api.Post("/qr/preview", can(auth.PermViewAssets), h.PreviewQR)
 	api.Get("/qr", can(auth.PermViewAssets), h.ListQR)
 	api.Get("/qr/:id", can(auth.PermViewAssets), h.GetQR)
 	api.Get("/qr/:id/export", can(auth.PermExportAssets), h.ExportQR)

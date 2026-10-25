@@ -286,36 +286,45 @@ def test_profile_and_developer_api_keys(page: Page, base_url: str):
 # 6. PLAYWRIGHT UI TESTS: QR STUDIO & UNSAVED CHANGES NAVIGATION GUARD
 # ==============================================================================
 def test_qr_studio_unsaved_changes_warning(page: Page, base_url: str):
-    """Verify that editing QR code prompts user when attempting to navigate away"""
+    """Editing in QR Studio marks the design dirty and guards navigation with a confirm dialog."""
     authenticate_page(page, base_url)
     page.goto(f"{base_url}/qr-studio")
     page.wait_for_load_state("networkidle")
-    
-    # Fill the QR Studio Title input
-    title_input = page.locator("input[placeholder*='Summer Campaign']")
-    expect(title_input).to_be_visible()
-    title_input.fill("Modified QR Code Without Saving")
-    
-    # Verify the "Unsaved Changes" badge appears in header
-    expect(page.locator("text=Unsaved Changes")).to_be_visible(timeout=5000)
-    
-    # Listen for the window.confirm dialog
-    dialog_handled = {"triggered": False, "message": ""}
-    def handle_dialog(dialog):
-        dialog_handled["triggered"] = True
-        dialog_handled["message"] = dialog.message
-        dialog.accept() # Accept to proceed with navigation
-        
-    page.once("dialog", handle_dialog)
-    
-    # Attempt to navigate away by clicking "Short Links" in the sidebar
-    links_nav = page.locator("aside a[href='/links']").first
-    links_nav.click()
-    
-    # Verify dialog was triggered with unsaved changes prompt
+
+    page.fill("[data-testid=qr-title-input]", "Modified QR Code Without Saving")
+    expect(page.locator("[data-testid=unsaved-badge]")).to_be_visible(timeout=5000)
+
+    page.locator("aside a[href='/links']").first.click()
+    expect(page.get_by_text("Discard unsaved changes?")).to_be_visible()
+    page.get_by_role("button", name="Cancel").click()
+    assert "/qr-studio" in page.url, "Cancel must keep the user in the studio"
+
+    page.locator("aside a[href='/links']").first.click()
+    page.click("[data-testid=confirm-accept]")
     page.wait_for_url("**/links", timeout=8000)
-    assert dialog_handled["triggered"], "Navigation prompt dialog was not triggered when leaving with unsaved changes"
-    assert "unsaved changes" in dialog_handled["message"].lower(), f"Unexpected dialog message: {dialog_handled['message']}"
+
+
+def test_qr_studio_create_scan_and_export(page: Page, base_url: str):
+    """Create a dynamic QR in the studio, verify the live preview scans, download it, and follow its scan URL."""
+    authenticate_page(page, base_url)
+    page.goto(f"{base_url}/qr-studio")
+    page.wait_for_load_state("networkidle")
+    page.fill("[data-testid=qr-title-input]", f"QA Studio {int(time.time())}")
+    page.fill("[data-testid=qr-target-url]", "https://lynqr.app/?from=qa")
+    page.get_by_role("button", name="Indigo").click()
+    expect(page.locator("[data-testid=scan-ok]")).to_be_visible(timeout=10000)
+
+    page.click("[data-testid=qr-save]")
+    page.wait_for_url("**/qr-studio/*", timeout=10000)
+    scan_url = page.locator("text=/\\/q\\/[A-Za-z0-9]{7}/").first.inner_text().strip()
+
+    with page.expect_download() as dl:
+        page.click("[data-testid=export-svg]")
+    assert dl.value.suggested_filename.endswith(".svg")
+
+    r = requests.get(scan_url, allow_redirects=False, timeout=10)
+    assert r.status_code == 302 and r.headers["Location"] == "https://lynqr.app/?from=qa", f"scan: {r.status_code} {r.headers.get('Location')}"
+
 
 # ==============================================================================
 # 7. PLAYWRIGHT UI TESTS: LINKS CREATION & REDIRECTION

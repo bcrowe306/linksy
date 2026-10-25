@@ -9,14 +9,16 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 | # | Area | Branch | Status |
 |---|------|--------|--------|
 | 1 | Auth & tenancy hardening | `feat/auth-tenancy` | ✅ merged (#1), live test-drive 63/63 API + 13/13 UI |
-| 2 | Theme system + modern UI redesign | `feat/ui-redesign` | 🚧 PR open |
-| 3 | QR editor: real preview, 8 types, styling, exports | `feat/qr-studio` | ⏳ |
+| 2 | Theme system + modern UI redesign | `feat/ui-redesign` | ✅ merged (#2), live UI 15/15 + API pytest 15/15 |
+| 3 | QR studio: real preview, all types, styling, exports | `feat/qr-studio` | 🚧 PR open |
 | 4 | Links: password, UTM, expiry & pause | `feat/link-controls` | ⏳ |
 | 5 | Team & user management UI | `feat/team-management-ui` | ⏳ |
 | 6 | Dashboard & analytics (charts, ranges, geo, export, live feed, CF geo headers) | `feat/analytics` | ⏳ |
 | 7 | Tooltips, Quick Docs, shortcuts, user guides | `feat/help-docs` | ⏳ |
-| 8 | Test suites (Go, Vitest, Playwright, live test-drive) | `feat/test-suites` | ⏳ (tests also added per area) |
-| 9 | Stripe billing + email notifications | `feat/billing-email` | ⏸ deferred by user (2026-10-25); revisit last |
+| 8 | Stripe billing (7-day no-card trial · $5/mo annual or $8.99 monthly · per workspace) | `feat/billing` | ⏳ keys + pricing received 2026-10-25 |
+| 9 | SEO & public marketing site | `feat/seo-marketing` | ⏳ requested 2026-10-25 |
+| 10 | Test suites (Go, Vitest, Playwright, live test-drive) | `feat/test-suites` | ⏳ (tests also added per area) |
+| 11 | Email notifications | `feat/email` | ⏸ waiting on email provider choice |
 
 ## 1. Auth & tenancy (feat/auth-tenancy)
 - [x] Opaque, server-side sessions (`lqs_` tokens, SHA-256 at rest, HttpOnly + Secure + SameSite=Lax cookie, 30-day sliding expiry, revocable)
@@ -46,10 +48,50 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 - [x] Rebuilt: auth pages (split-screen brand layout, OAuth buttons, password strength), invite & reset pages, create modal, Links (filters/sort/pause/edit/delete), QR gallery (downloads, type filter), Documents (versions, replace, bulk delete), API reference, help drawer
 - [x] Remaining views (dashboard, analytics, studio, settings, profile) theme-correct now; fully rebuilt in items 3, 5 and 6
 - [x] Fixed: embedded API reference blocked by X-Frame-Options DENY
+- [x] CI + merge + live test-drive
+
+## 3. QR studio (feat/qr-studio)
+- [x] New vector-first engine (`internal/qr`): one Scene drawn by SVG, raster (PNG/JPEG via gg) and vector PDF renderers, so exports match the preview
+- [x] Styles: 5 module shapes (neighbor-aware fluid/classy), 5 eye frames × 4 eye centers, eye colors, solid/linear(angle)/radial gradients, transparent bg, quiet zone, rounded corners, logo with module excavation + badge, 6 frames (border, banner, top banner, card, badge) with auto-fit, auto-legible labels
+- [x] Security: every style value validated/normalized; SVG output contains only numbers, validated colors, escaped text and re-encoded PNG (fixes SVG script injection); remote logo URLs dropped (SSRF)
+- [x] Fixes: quiet-zone border offset made eye styling wrong; labels were never drawn; eye/frame/angle options were ignored
+- [x] Scannability check: every preview is decoded with ZXing + WCAG contrast, density and quiet-zone warnings
+- [x] Types: website, document, vCard (3.0/4.0/MeCard, escaped), Wi-Fi (escaped, WPA3), app stores (device routing + chooser page), text, email, SMS, phone (new)
+- [x] Dynamic codes get their own short scan code `/q/{code}`: scans tracked separately from link clicks; paused/expired destinations show a branded page; legacy `/qr/r/{id}` still works
+- [x] Document codes resolve the current file (survive replacement); stable `/d/{id}` document links; dynamic vCards hosted as .vcf
+- [x] Exports: PNG/JPEG up to 4096px, JPEG on custom background, SVG, PDF A4 sheet and PDF card/sticker
+- [x] Studio UI: type picker, per-type forms with tooltips, templates, pattern/colors/logo/frame/advanced panels, debounced live server preview with scan badge, duplicate, unsaved-changes guard, downloads
+- [x] Auth limiter split (credentials 30/min, OAuth/invite flows 120/min); logs include CF client IP to verify per-client limiting
+- [x] Tests: every shape/eye/frame combination must decode; SVG injection; payload escaping per type; e2e for scans, app routing, vCard hosting, document replacement, static types, preview, export options
 - [ ] CI + merge + live test-drive
 
+## 8. Stripe billing (plan)
+- Per-workspace subscription: 7-day trial without a card, then $5/mo billed annually ($60) or $8.99 monthly; owner-only billing page; Stripe Checkout + Customer Portal; webhook-driven status
+- Lapsed or expired trial → read-only workspace, and links/QR codes show a "subscription inactive" page
+- **Checkout codes** via Stripe Coupons + Promotion Codes: code field on the billing page with a live server-side preview ("50% off for 3 months"), applied to the Checkout session (plus Stripe's own code field); 100%-off codes create card-free comp accounts (`payment_method_collection: if_required`); `?code=` deep links from pricing; redemption stored on the workspace and in the audit log
+- Optional: Lynqr-side trial-extension codes (Stripe codes can't lengthen trials)
+- Restricted key needs: Coupons + Promotion Codes (write, for the admin console), Customers, Checkout Sessions, Subscriptions, Billing Portal, Prices
+
+## 8b. Platform admin console (plan, decided 2026-10-25)
+- Platform-admin flag on users (separate from workspace roles); first admins bootstrapped from the `ADMIN_EMAILS` env var (verified accounts only); admins can grant or revoke others in the console
+- Same WorkOS login; entering `/admin` requires password re-auth within 15 minutes → short-lived admin session; all `/api/v1/admin/*` routes gated server-side; `noindex`
+- **Checkout codes:** create, list and deactivate Stripe coupons + promotion codes (percent/amount, duration, max redemptions, expiry, plan restriction), view redemptions; Lynqr trial-extension codes
+- **Workspaces & users:** search; view plan, trial, members and usage; extend trial; comp; suspend or unsuspend
+- **Platform metrics:** signups, trials, active subscriptions, MRR, trial→paid conversion, links/QR created, clicks/scans per day
+- **Abuse moderation:** search links/QR by destination or domain, disable or restore with reason (shows a "disabled for abuse" page), domain blocklist checked at create/update time, user reports from the public error page
+- **Platform audit log:** every admin action with actor, target, before/after and IP; append-only
+
+## 9. SEO & marketing site (plan)
+- Server-rendered (Go `html/template`) public pages, served to visitors without a session so crawlers get real HTML: landing `/`, `/pricing`, `/features`, `/about`, legal (`/terms`, `/privacy`)
+- Free public QR generator (no login, static codes, rate-limited) plus one landing page per type (`/qr-code-generator/wifi`, `/vcard`, `/pdf`, `/app-store`, …) targeting high-volume searches, with signup CTAs for dynamic codes and analytics
+- Guides/blog section (`/guides/...`) from embedded Markdown, shared with in-app help (item 7)
+- Per-page title/description/canonical, Open Graph + Twitter cards with generated OG images, JSON-LD (Organization, SoftwareApplication with offers, FAQPage, BreadcrumbList, HowTo)
+- `sitemap.xml`, `robots.txt`; `noindex` on test.lynqr.app and every app/auth route; short links and scan URLs are `noindex` + `X-Robots-Tag`
+- Core Web Vitals: no JS required for marketing pages, inline critical CSS, self-hosted fonts with preload, image dimensions, compression and caching headers
+- Search Console / Bing verification hooks via env vars; optional privacy-friendly analytics snippet
+
 ## Open questions / blocked items
-- Stripe: need `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and the plan/pricing structure.
+- Stripe: decided (see item 8). The live key is used on test.lynqr.app by choice, so automated tests stop at the Checkout page.
 - Email: need a provider + API key (Resend, Postmark or SES) and a verified sending domain on lynqr.app.
 - WorkOS: confirm whether the environment emails password-reset links itself (otherwise item 8 sends them).
 

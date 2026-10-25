@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -317,8 +318,88 @@ type CreateQRInput struct {
 	TargetURL  string         `json:"target_url"`
 	RawData    string         `json:"raw_data"`
 	Style      models.QRStyle `json:"style"`
-	IsDynamic  bool           `json:"is_dynamic"` // Default true for website & docs so destination can be updated
+	IsDynamic  bool           `json:"is_dynamic"`
 	DocumentID string         `json:"document_id"`
+}
+
+func validQRType(t models.QRType) bool {
+	for _, k := range models.QRTypes {
+		if k == t {
+			return true
+		}
+	}
+	return false
+}
+
+// dynamicFor decides whether a QR type encodes a Lynqr redirect. Documents and
+// app links are always dynamic; websites and contact cards are opt-in.
+func dynamicFor(t models.QRType, requested bool) bool {
+	switch t {
+	case models.QRTypeDocument, models.QRTypeApp:
+		return true
+	case models.QRTypeWebsite, models.QRTypeVCard:
+		return requested
+	}
+	return false
+}
+
+// ScanURL is the public address encoded in a dynamic QR code.
+func (s *Service) ScanURL(code string) string { return s.appURL + "/q/" + code }
+
+func (s *Service) allocateQRCode() (string, error) {
+	for i := 0; i < 8; i++ {
+		c, err := GenerateRandomSlug(7)
+		if err != nil {
+			return "", err
+		}
+		if !s.repo.QRCodeExists(c) {
+			return c, nil
+		}
+	}
+	return "", errors.New("could not allocate a unique QR code")
+}
+
+// validateQRContent checks type-specific content before anything is saved.
+func validateQRContent(t models.QRType, target, raw string, dynamic bool) error {
+	switch t {
+	case models.QRTypeWebsite:
+		return ValidateTargetURL(target)
+	case models.QRTypeDocument:
+		return nil
+	case models.QRTypeApp:
+		var a qr.AppData
+		if err := json.Unmarshal([]byte(raw), &a); err != nil {
+			return errors.New("invalid app store data")
+		}
+		if a.AppStoreURL == "" && a.PlayStoreURL == "" && a.WebURL == "" {
+			return errors.New("add at least one App Store, Google Play or web link")
+		}
+		for _, u := range []string{a.AppStoreURL, a.PlayStoreURL, a.WebURL} {
+			if u != "" {
+				if err := ValidateTargetURL(u); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	_, err := qr.BuildPayload(t, raw, target)
+	return err
+}
+
+// enrich fills computed fields for API responses.
+func (s *Service) enrich(q *models.QRCode) *models.QRCode {
+	if q.IsDynamic && q.Code != "" {
+		q.ScanURL = s.ScanURL(q.Code)
+	}
+	if q.LinkID != nil {
+		if l, err := s.repo.GetLinkByID(*q.LinkID); err == nil {
+			q.TargetURL = l.TargetURL
+		}
+	} else if q.Type == models.QRTypeWebsite {
+		q.TargetURL = q.Payload
+	}
+	return q
 }
 
 func (s *Service) CreateQRCode(a Actor, input CreateQRInput) (*models.QRCode, error) {
@@ -328,119 +409,231 @@ func (s *Service) CreateQRCode(a Actor, input CreateQRInput) (*models.QRCode, er
 	if input.Type == "" {
 		input.Type = models.QRTypeWebsite
 	}
-	var linkID, docID *string
-	payload := ""
+	if !validQRType(input.Type) {
+		return nil, fmt.Errorf("unsupported QR type %q", input.Type)
+	}
+	title := strings.TrimSpace(input.Title)
+	if title == "" {
+		return nil, errors.New("give the QR code a name")
+	}
+	if len(title) > 120 {
+		return nil, errors.New("name must be 120 characters or fewer")
+	}
 
-	if input.DocumentID != "" {
+	dynamic := dynamicFor(input.Type, input.IsDynamic)
+	input.TargetURL = strings.TrimSpace(input.TargetURL)
+
+	var docID *string
+	if input.Type == models.QRTypeDocument {
+		if input.DocumentID == "" {
+			return nil, errors.New("choose a document for this QR code")
+		}
 		if _, err := s.repo.GetDocument(input.DocumentID, a.TeamID); err != nil {
 			return nil, ErrDocNotFound
 		}
 		docID = &input.DocumentID
 	}
-
-	// Dynamic routing: if website or document, we route through dynamic short link
-	if (input.Type == models.QRTypeWebsite || input.Type == models.QRTypeDocument) && input.IsDynamic {
-		link, err := s.CreateShortLink(a, CreateLinkInput{
-			TargetURL:   input.TargetURL,
-			Title:       input.Title,
-			Description: fmt.Sprintf("Dynamic link for QR Code: %s", input.Title),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate dynamic link: %w", err)
-		}
-		linkID = &link.ID
-		// Payload encoded into QR is the short redirect URL
-		payload = fmt.Sprintf("%s/s/%s", s.appURL, link.Slug)
-	} else {
-		if input.Type == models.QRTypeWebsite {
-			if err := ValidateTargetURL(input.TargetURL); err != nil {
-				return nil, err
-			}
-		}
-		builtPayload, err := qr.BuildPayload(input.Type, input.RawData, input.TargetURL)
-		if err != nil {
-			return nil, fmt.Errorf("failed to format QR payload: %w", err)
-		}
-		payload = builtPayload
-	}
-
-	if input.Style.FgColor == "" {
-		input.Style.FgColor = "#000000"
-	}
-	if input.Style.BgColor == "" {
-		input.Style.BgColor = "#FFFFFF"
+	if err := validateQRContent(input.Type, input.TargetURL, input.RawData, dynamic); err != nil {
+		return nil, err
 	}
 
 	qrCode := &models.QRCode{
 		TeamID:     a.TeamID,
 		UserID:     a.UserID,
-		LinkID:     linkID,
 		DocumentID: docID,
 		Type:       input.Type,
-		Title:      input.Title,
-		Payload:    payload,
+		Title:      title,
 		RawData:    input.RawData,
-		Style:      input.Style,
+		Style:      qr.NormalizeStyle(input.Style),
+		IsDynamic:  dynamic,
 	}
 
-	if err := s.repo.CreateQRCode(qrCode); err != nil {
-		return nil, fmt.Errorf("failed to save QR code: %w", err)
-	}
-	s.audit(a, "qr.create", "qr_code", qrCode.ID, map[string]any{"type": qrCode.Type, "title": qrCode.Title})
-	return qrCode, nil
-}
-
-func (s *Service) UpdateQRCode(a Actor, id string, title, targetURL, rawData string, style models.QRStyle) (*models.QRCode, error) {
-	if err := a.require(auth.PermEditAssets); err != nil {
-		return nil, err
-	}
-	existing, err := s.repo.GetQRCode(id, a.TeamID)
-	if err != nil {
-		return nil, ErrQRNotFound
-	}
-
-	if title != "" {
-		existing.Title = title
-	}
-	if rawData != "" {
-		existing.RawData = rawData
-	}
-	existing.Style = style
-
-	// If this QR code is linked to a dynamic short link, update the short link destination!
-	if existing.LinkID != nil && targetURL != "" {
-		link, err := s.repo.GetLink(*existing.LinkID, a.TeamID)
-		if err != nil {
-			return nil, fmt.Errorf("failed updating target link: %w", err)
-		}
-		if _, err := s.UpdateShortLink(a, link.ID, UpdateLinkInput{
-			TargetURL: targetURL, Title: existing.Title, Description: link.Description,
-			IsActive: link.IsActive, ExpiresAt: link.ExpiresAt,
-		}); err != nil {
-			return nil, fmt.Errorf("failed updating target link: %w", err)
-		}
-	} else if targetURL != "" || rawData != "" {
-		if existing.Type == models.QRTypeWebsite && targetURL != "" {
-			if err := ValidateTargetURL(targetURL); err != nil {
-				return nil, err
-			}
-		}
-		newPayload, err := qr.BuildPayload(existing.Type, existing.RawData, targetURL)
+	if dynamic {
+		code, err := s.allocateQRCode()
 		if err != nil {
 			return nil, err
 		}
-		existing.Payload = newPayload
+		qrCode.Code = code
+		qrCode.Payload = s.ScanURL(code)
+		if input.Type == models.QRTypeWebsite {
+			link, err := s.CreateShortLink(a, CreateLinkInput{
+				TargetURL:   input.TargetURL,
+				Title:       title,
+				Description: "Destination for QR code: " + title,
+			})
+			if err != nil {
+				return nil, err
+			}
+			qrCode.LinkID = &link.ID
+		}
+	} else {
+		payload, err := qr.BuildPayload(input.Type, input.RawData, input.TargetURL)
+		if err != nil {
+			return nil, err
+		}
+		qrCode.Payload = payload
 	}
 
-	if err := s.repo.UpdateQRCode(existing); err != nil {
+	if _, err := qr.Matrix(qrCode.Payload, qrCode.Style.ErrorCorrection); err != nil {
 		return nil, err
 	}
-	s.audit(a, "qr.update", "qr_code", existing.ID, nil)
-	return existing, nil
+	if err := s.repo.CreateQRCode(qrCode); err != nil {
+		return nil, fmt.Errorf("failed to save QR code: %w", err)
+	}
+	s.audit(a, "qr.create", "qr_code", qrCode.ID, map[string]any{"type": qrCode.Type, "title": qrCode.Title, "dynamic": dynamic})
+	return s.enrich(qrCode), nil
+}
+
+type UpdateQRInput struct {
+	Title      string
+	TargetURL  string
+	RawData    string
+	Style      *models.QRStyle
+	DocumentID string
+}
+
+// UpdateQRCode changes a code's name, style and content. Dynamic codes keep
+// their encoded URL, so printed copies follow the new content immediately.
+func (s *Service) UpdateQRCode(a Actor, id string, in UpdateQRInput) (*models.QRCode, error) {
+	if err := a.require(auth.PermEditAssets); err != nil {
+		return nil, err
+	}
+	q, err := s.repo.GetQRCode(id, a.TeamID)
+	if err != nil {
+		return nil, ErrQRNotFound
+	}
+	if t := strings.TrimSpace(in.Title); t != "" {
+		if len(t) > 120 {
+			return nil, errors.New("name must be 120 characters or fewer")
+		}
+		q.Title = t
+	}
+	if in.Style != nil {
+		q.Style = qr.NormalizeStyle(*in.Style)
+	}
+	if in.RawData != "" {
+		q.RawData = in.RawData
+	}
+	target := strings.TrimSpace(in.TargetURL)
+
+	switch {
+	case q.Type == models.QRTypeWebsite && q.LinkID != nil:
+		if target != "" {
+			link, err := s.repo.GetLink(*q.LinkID, a.TeamID)
+			if err != nil {
+				return nil, fmt.Errorf("destination link is missing: %w", err)
+			}
+			if _, err := s.UpdateShortLink(a, link.ID, UpdateLinkInput{
+				TargetURL: target, Title: link.Title, Description: link.Description, IsActive: link.IsActive, ExpiresAt: link.ExpiresAt,
+			}); err != nil {
+				return nil, err
+			}
+		}
+	case q.Type == models.QRTypeDocument:
+		if in.DocumentID != "" {
+			if _, err := s.repo.GetDocument(in.DocumentID, a.TeamID); err != nil {
+				return nil, ErrDocNotFound
+			}
+			q.DocumentID = &in.DocumentID
+		}
+	case q.IsDynamic:
+		if err := validateQRContent(q.Type, target, q.RawData, true); err != nil {
+			return nil, err
+		}
+	default:
+		if target == "" && q.Type == models.QRTypeWebsite {
+			target = q.Payload
+		}
+		if err := validateQRContent(q.Type, target, q.RawData, false); err != nil {
+			return nil, err
+		}
+		payload, err := qr.BuildPayload(q.Type, q.RawData, target)
+		if err != nil {
+			return nil, err
+		}
+		q.Payload = payload
+	}
+
+	if _, err := qr.Matrix(q.Payload, q.Style.ErrorCorrection); err != nil {
+		return nil, err
+	}
+	if err := s.repo.UpdateQRCode(q); err != nil {
+		return nil, err
+	}
+	s.audit(a, "qr.update", "qr_code", q.ID, nil)
+	return s.enrich(q), nil
+}
+
+// PreviewInput describes an unsaved design for the studio's live preview.
+type PreviewInput struct {
+	ID        string         `json:"id"` // existing code being edited (keeps its real scan URL)
+	Type      models.QRType  `json:"type"`
+	TargetURL string         `json:"target_url"`
+	RawData   string         `json:"raw_data"`
+	IsDynamic bool           `json:"is_dynamic"`
+	Style     models.QRStyle `json:"style"`
+	Size      int            `json:"size"`
+}
+
+type PreviewResult struct {
+	SVG     string         `json:"svg"`
+	Payload string         `json:"payload"`
+	Dynamic bool           `json:"dynamic"`
+	Check   qr.Check       `json:"check"`
+	Style   models.QRStyle `json:"style"`
+}
+
+// Preview renders an unsaved design exactly as it will export.
+func (s *Service) Preview(a Actor, in PreviewInput) (*PreviewResult, error) {
+	if err := a.require(auth.PermViewAssets); err != nil {
+		return nil, err
+	}
+	if in.Type == "" {
+		in.Type = models.QRTypeWebsite
+	}
+	if !validQRType(in.Type) {
+		return nil, fmt.Errorf("unsupported QR type %q", in.Type)
+	}
+	dynamic := dynamicFor(in.Type, in.IsDynamic)
+	var content string
+	if in.ID != "" {
+		if q, err := s.repo.GetQRCode(in.ID, a.TeamID); err == nil && q.IsDynamic {
+			content = q.Payload
+			dynamic = true
+		}
+	}
+	if content == "" {
+		if dynamic {
+			content = s.ScanURL("0000000") // same length as a real code, so density matches
+		} else {
+			p, err := qr.BuildPayload(in.Type, in.RawData, in.TargetURL)
+			if err != nil {
+				return nil, err
+			}
+			content = p
+		}
+	}
+	size := in.Size
+	if size <= 0 {
+		size = 512
+	}
+	style := qr.NormalizeStyle(in.Style)
+	sc, err := qr.BuildScene(content, size, style)
+	if err != nil {
+		return nil, err
+	}
+	return &PreviewResult{SVG: string(sc.SVG()), Payload: content, Dynamic: dynamic, Check: qr.Verify(content, style), Style: style}, nil
+}
+
+// ExportOptions control downloads.
+type ExportOptions struct {
+	Format string
+	Size   int
+	Layout qr.PDFLayout
 }
 
 // ExportQRCode renders a team's QR code in the requested format.
-func (s *Service) ExportQRCode(a Actor, id string, format string, size int) ([]byte, string, error) {
+func (s *Service) ExportQRCode(a Actor, id string, opts ExportOptions) ([]byte, string, error) {
 	if err := a.require(auth.PermExportAssets); err != nil {
 		return nil, "", err
 	}
@@ -448,20 +641,17 @@ func (s *Service) ExportQRCode(a Actor, id string, format string, size int) ([]b
 	if err != nil {
 		return nil, "", ErrQRNotFound
 	}
-	return RenderQR(qrCode, format, size)
+	return RenderQR(qrCode, opts)
 }
 
 // RenderQR encodes a QR code's payload in one of the supported export formats.
-func RenderQR(qrCode *models.QRCode, format string, size int) ([]byte, string, error) {
+func RenderQR(qrCode *models.QRCode, opts ExportOptions) ([]byte, string, error) {
 	payload := strings.TrimSpace(qrCode.Payload)
-	if payload == "" {
-		payload = qrCode.RawData
+	size := opts.Size
+	if size <= 0 {
+		size = 1024
 	}
-	if size > 4096 {
-		size = 4096
-	}
-
-	switch strings.ToLower(strings.TrimSpace(format)) {
+	switch strings.ToLower(strings.TrimSpace(opts.Format)) {
 	case "jpeg", "jpg":
 		data, err := qr.RenderJPEG(payload, size, qrCode.Style)
 		return data, "image/jpeg", err
@@ -469,13 +659,17 @@ func RenderQR(qrCode *models.QRCode, format string, size int) ([]byte, string, e
 		data, err := qr.RenderSVG(payload, size, qrCode.Style)
 		return data, "image/svg+xml", err
 	case "pdf":
-		data, err := qr.RenderPDF(payload, qrCode.Title, qrCode.Style)
+		layout := opts.Layout
+		if layout != qr.PDFCard {
+			layout = qr.PDFSheet
+		}
+		data, err := qr.RenderPDF(payload, qrCode.Title, qrCode.Style, layout)
 		return data, "application/pdf", err
 	case "png", "":
 		data, err := qr.RenderPNG(payload, size, qrCode.Style)
 		return data, "image/png", err
 	default:
-		return nil, "", fmt.Errorf("unsupported export format: %s", format)
+		return nil, "", fmt.Errorf("unsupported export format: %s", opts.Format)
 	}
 }
 
@@ -483,17 +677,25 @@ func (s *Service) ListQRCodes(a Actor, limit, offset int) ([]models.QRCode, erro
 	if err := a.require(auth.PermViewAssets); err != nil {
 		return nil, err
 	}
-	return s.repo.ListQRCodes(a.TeamID, clampLimit(limit), max(offset, 0))
+	list, err := s.repo.ListQRCodes(a.TeamID, clampLimit(limit), max(offset, 0))
+	for i := range list {
+		s.enrich(&list[i])
+	}
+	return list, err
 }
 
 func (s *Service) GetQRCode(a Actor, id string) (*models.QRCode, error) {
 	if err := a.require(auth.PermViewAssets); err != nil {
 		return nil, err
 	}
-	return s.repo.GetQRCode(id, a.TeamID)
+	q, err := s.repo.GetQRCode(id, a.TeamID)
+	if err != nil {
+		return nil, err
+	}
+	return s.enrich(q), nil
 }
 
-// GetPublicQRCode is used by the scan redirector, which is unauthenticated by design.
+// GetPublicQRCode resolves a QR by ID for the legacy /qr/r/{id} route.
 func (s *Service) GetPublicQRCode(id string) (*models.QRCode, error) {
 	return s.repo.GetQRCodeByID(id)
 }
@@ -502,8 +704,16 @@ func (s *Service) DeleteQRCode(a Actor, id string) error {
 	if err := a.require(auth.PermEditAssets); err != nil {
 		return err
 	}
+	q, err := s.repo.GetQRCode(id, a.TeamID)
+	if err != nil {
+		return err
+	}
 	if err := s.repo.DeleteQRCode(id, a.TeamID); err != nil {
 		return err
+	}
+	// The destination link of a dynamic website code belongs to the code.
+	if q.LinkID != nil && q.IsDynamic {
+		_ = s.repo.DeleteLink(*q.LinkID, a.TeamID)
 	}
 	s.audit(a, "qr.delete", "qr_code", id, nil)
 	return nil
@@ -511,6 +721,92 @@ func (s *Service) DeleteQRCode(a Actor, id string) error {
 
 func (s *Service) RecordQRScan(id string) {
 	_ = s.repo.IncrementQRScans(id)
+}
+
+// ScanTarget describes what a public scan of /q/{code} should do.
+type ScanTarget struct {
+	QR       *models.QRCode
+	Redirect string // URL to redirect to
+	VCard    string // vCard body to serve (dynamic contact cards)
+	App      *qr.AppData
+	Inactive bool // destination paused/expired/removed
+}
+
+// ResolveScan looks up a dynamic code and its current destination.
+func (s *Service) ResolveScan(code string, userAgent string) (*ScanTarget, error) {
+	q, err := s.repo.GetQRCodeByCode(code)
+	if err != nil {
+		return nil, ErrQRNotFound
+	}
+	return s.resolveTarget(q, userAgent), nil
+}
+
+// ResolveLegacyScan handles codes printed with the old /qr/r/{id} URL.
+func (s *Service) ResolveLegacyScan(id string, userAgent string) (*ScanTarget, error) {
+	q, err := s.repo.GetQRCodeByID(id)
+	if err != nil {
+		return nil, ErrQRNotFound
+	}
+	return s.resolveTarget(q, userAgent), nil
+}
+
+func (s *Service) resolveTarget(q *models.QRCode, userAgent string) *ScanTarget {
+	t := &ScanTarget{QR: q}
+	switch q.Type {
+	case models.QRTypeWebsite:
+		if q.LinkID == nil {
+			t.Redirect = q.Payload
+			break
+		}
+		link, err := s.repo.GetLinkByID(*q.LinkID)
+		if err != nil || !link.IsActive || (link.ExpiresAt != nil && link.ExpiresAt.Before(time.Now().UTC())) {
+			t.Inactive = true
+			break
+		}
+		t.Redirect = link.TargetURL
+	case models.QRTypeDocument:
+		if q.DocumentID == nil {
+			t.Inactive = true
+			break
+		}
+		doc, err := s.repo.GetDocumentByID(*q.DocumentID)
+		if err != nil {
+			t.Inactive = true
+			break
+		}
+		t.Redirect = s.storage.GetURL(doc.StoredPath)
+	case models.QRTypeApp:
+		var app qr.AppData
+		_ = json.Unmarshal([]byte(q.RawData), &app)
+		t.App = &app
+		ua := strings.ToLower(userAgent)
+		switch {
+		case (strings.Contains(ua, "iphone") || strings.Contains(ua, "ipad") || strings.Contains(ua, "ipod")) && app.AppStoreURL != "":
+			t.Redirect = app.AppStoreURL
+		case strings.Contains(ua, "android") && app.PlayStoreURL != "":
+			t.Redirect = app.PlayStoreURL
+		case app.WebURL != "":
+			t.Redirect = app.WebURL
+		}
+	case models.QRTypeVCard:
+		var v qr.VCardData
+		if json.Unmarshal([]byte(q.RawData), &v) == nil {
+			v.Format = "vcard3" // most widely supported for downloads
+			t.VCard, _ = qr.BuildVCard(v)
+		}
+	default:
+		t.Inactive = q.Payload == ""
+	}
+	return t
+}
+
+// DocumentRedirect returns the current file URL behind a stable /d/{id} link.
+func (s *Service) DocumentRedirect(docID string) (string, error) {
+	doc, err := s.repo.GetDocumentByID(docID)
+	if err != nil {
+		return "", ErrDocNotFound
+	}
+	return s.storage.GetURL(doc.StoredPath), nil
 }
 
 // ----------------- Document Management & Sharing -----------------

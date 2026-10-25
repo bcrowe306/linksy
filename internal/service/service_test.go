@@ -129,12 +129,12 @@ func TestDynamicQRCodeAndExport(t *testing.T) {
 	}
 
 	for _, f := range []string{"png", "jpeg", "svg", "pdf"} {
-		b, mime, err := k.Svc.ExportQRCode(a, qrCode.ID, f, 256)
+		b, mime, err := k.Svc.ExportQRCode(a, qrCode.ID, service.ExportOptions{Format: f, Size: 256})
 		if err != nil || len(b) == 0 || mime == "" {
 			t.Fatalf("export %s: %v (len=%d mime=%q)", f, err, len(b), mime)
 		}
 	}
-	if _, _, err := k.Svc.ExportQRCode(a, qrCode.ID, "bmp", 256); err == nil {
+	if _, _, err := k.Svc.ExportQRCode(a, qrCode.ID, service.ExportOptions{Format: "bmp"}); err == nil {
 		t.Fatal("expected unsupported format error")
 	}
 }
