@@ -14,7 +14,9 @@ build-backend:
 
 test:
 	@echo "==> Running backend tests..."
-	go test -v -race ./...
+	go test -race ./...
+	@echo "==> Running frontend tests..."
+	cd web && npm test
 
 dev-backend:
 	@echo "==> Starting Go Fiber dev server..."

@@ -1,21 +1,28 @@
 // Free QR code generator (/qr-code-generator): live preview and downloads.
 // Everything is rendered by the server's QR engine; nothing is stored.
 
+// generatorPayload reads the form into the public API's request body. Text
+// codes send the text itself; other types send their fields as JSON.
+export function generatorPayload(form, type) {
+  const raw = {}
+  form.querySelectorAll('[data-raw]').forEach((el) => {
+    raw[el.dataset.raw] = el.type === 'checkbox' ? el.checked : el.value
+  })
+  const body = {
+    type,
+    target_url: form.querySelector('[data-target]')?.value || '',
+    raw_data: type === 'text' ? raw.text || '' : JSON.stringify(raw)
+  }
+  form.querySelectorAll('[data-style]').forEach((el) => (body[el.dataset.style] = el.value))
+  return body
+}
+
 export function initGenerator(root) {
   const form = root.querySelector('[data-qr-form]')
   const preview = root.querySelector('[data-qr-preview]')
   const status = root.querySelector('[data-qr-status]')
   const type = root.dataset.type
-
-  function payload() {
-    const raw = {}
-    form.querySelectorAll('[data-raw]').forEach((el) => {
-      raw[el.dataset.raw] = el.type === 'checkbox' ? el.checked : el.value
-    })
-    const body = { type, target_url: form.querySelector('[data-target]')?.value || '', raw_data: JSON.stringify(raw) }
-    form.querySelectorAll('[data-style]').forEach((el) => (body[el.dataset.style] = el.value))
-    return body
-  }
+  const payload = () => generatorPayload(form, type)
 
   async function request(format) {
     const res = await fetch(`/api/v1/public/qr?format=${format}`, {
