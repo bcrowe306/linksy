@@ -485,3 +485,22 @@ def test_password_protected_link_with_utm(page: Page, base_url: str, browser):
     visitor.wait_for_url(lambda u: u.startswith("https://lynqr.app/members"), timeout=10000)
     assert "utm_source=newsletter" in visitor.url and "utm_medium=email" in visitor.url
     visitor.context.close()
+
+
+def test_dashboard_and_analytics(page: Page, base_url: str):
+    """Dashboard KPIs and live feed connect; analytics filters update the URL; all three exports download."""
+    authenticate_page(page, base_url)
+    page.goto(f"{base_url}/")
+    expect(page.locator("[data-testid=dash-total]")).to_be_visible()
+    expect(page.locator("[data-testid=live-status]")).to_have_text("Live", timeout=10000)
+
+    page.goto(f"{base_url}/analytics")
+    expect(page.locator("[data-testid=kpi-total]")).to_be_visible()
+    page.click("[data-testid=date-range]")
+    page.click("[data-testid=range-90d]")
+    page.wait_for_url("**range=90d**")
+    for fmt in ("CSV", "JSON", "PDF"):
+        page.click("[data-testid=export-report]")
+        with page.expect_download() as dl:
+            page.locator(f"text=({fmt})").click()
+        assert dl.value.suggested_filename.startswith("lynqr-"), dl.value.suggested_filename

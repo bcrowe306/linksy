@@ -144,6 +144,8 @@ export const api = {
     post('/api/v1/documents/bulk-delete', { document_ids: documentIds, delete_qr: deleteQR }),
 
   // Analytics
+  getReport: (params) => get('/api/v1/analytics/report', params),
+  analyticsExportUrl: (params) => `/api/v1/analytics/export?${new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString()}`,
   getAnalyticsSummary: (params = {}) =>
     get('/api/v1/analytics/summary', {
       link_id: params.linkId,

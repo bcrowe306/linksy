@@ -53,7 +53,7 @@ func TestIngestionEnrichment(t *testing.T) {
 	for _, x := range r.Referrers {
 		refs[x.Name] = true
 	}
-	if !refs["l.instagram.com"] || !refs["google.com"] || refs["https://www.google.com/search?q=lynqr"] {
+	if !refs["l.instagram.com"] || !refs["google.com"] || refs["https://www.google.com/search?q=lynqr"] || refs["Direct"] {
 		t.Fatalf("referrers should be stored as domains only: %v", r.Referrers)
 	}
 	countries := map[string]bool{}

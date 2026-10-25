@@ -6,7 +6,6 @@ export const useLynqrStore = defineStore('lynqr', () => {
   const links = ref([])
   const qrCodes = ref([])
   const documents = ref([])
-  const analyticsSummary = ref(null)
   const loading = ref(false)
 
   async function fetchLinks() {
@@ -45,37 +44,25 @@ export const useLynqrStore = defineStore('lynqr', () => {
     }
   }
 
-  async function fetchAnalytics(linkId = null, qrId = null) {
-    try {
-      const res = await api.getAnalyticsSummary({ linkId, qrId })
-      analyticsSummary.value = res
-    } catch (err) {
-      console.error(err)
-    }
-  }
-
   function reset() {
     links.value = []
     qrCodes.value = []
     documents.value = []
-    analyticsSummary.value = null
   }
 
   async function refreshAll() {
-    await Promise.all([fetchLinks(), fetchQRCodes(), fetchDocuments(), fetchAnalytics()])
+    await Promise.all([fetchLinks(), fetchQRCodes(), fetchDocuments()])
   }
 
   return {
     links,
     qrCodes,
     documents,
-    analyticsSummary,
     loading,
     reset,
     fetchLinks,
     fetchQRCodes,
     fetchDocuments,
-    fetchAnalytics,
     refreshAll
   }
 })

@@ -167,6 +167,14 @@ func (s *Service) Report(a Actor, q ReportQuery) (*Report, error) {
 			return nil, err
 		}
 	}
+	// Referring sites lists real domains only; "no referrer" is the Direct channel.
+	refs := r.Referrers[:0]
+	for _, x := range r.Referrers {
+		if x.Name != "Direct" {
+			refs = append(refs, x)
+		}
+	}
+	r.Referrers = refs
 	if r.Cities, err = s.repo.TopCities(f, 20); err != nil {
 		return nil, err
 	}
