@@ -401,6 +401,7 @@ func (h *Handler) UpdateDocumentFile(c fiber.Ctx) error {
 }
 
 func (h *Handler) DownloadDocumentFile(c fiber.Ctx) error {
+	c.Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	filename := c.Params("filename")
 	rc, err := h.svc.OpenDocumentFile(filename)
 	if err != nil {

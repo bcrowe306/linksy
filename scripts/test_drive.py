@@ -601,7 +601,7 @@ class LinksyTestHarness:
                 self.log("Delete Document (/api/v1/documents/:id)", f"Failed ({status}): {del_res}", "FAIL")
 
             # Confirm file download is gone
-            status_gone, _ = self.request("GET", doc_url, auth=False)
+            status_gone, _ = self.request("GET", doc_url + "?nocache=" + str(time.time()), auth=False, headers={"Cache-Control": "no-cache"})
             if status_gone == 404:
                 self.passed += 1
                 self.log("Confirm Document Storage Deleted", "Verified file endpoint returns 404 after deletion", "PASS")

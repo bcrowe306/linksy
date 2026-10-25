@@ -390,7 +390,7 @@ def test_documents_management_and_download(session):
     assert not any(d.get("id") == STATE["doc_id"] for d in r_check.json().get("data", [])), "Deleted document still in database"
 
     # Confirm physical file is gone
-    r_file_check = session.get(v2_url, timeout=10)
+    r_file_check = session.get(v2_url, headers={"Cache-Control": "no-cache"}, params={"nocache": str(time.time())}, timeout=10)
     assert r_file_check.status_code == 404, f"Expected 404 for deleted file, got {r_file_check.status_code}"
 
     # 7. Bulk Delete Documents Test
