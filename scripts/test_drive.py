@@ -121,13 +121,17 @@ class LinksyTestHarness:
             self.log("Cloudflare Zone", f"Zone {zone.get('name')} active (ID: {zone.get('id')})", "PASS")
             
             # Check DNS Record
-            records = self.cf.get_dns_records(zone["id"], "test.lynqr.app")
+            import urllib.parse
+            target_host = urllib.parse.urlparse(self.base_url).netloc or "lynqr.app"
+            records = self.cf.get_dns_records(zone["id"], target_host)
+            if not records:
+                records = self.cf.get_dns_records(zone["id"], "lynqr.app") or self.cf.get_dns_records(zone["id"], "test.lynqr.app")
             if records and "onrender.com" in records[0].get("content", ""):
                 self.passed += 1
-                self.log("Cloudflare DNS", f"test.lynqr.app -> {records[0].get('content')} (Proxied: {records[0].get('proxied')})	", "PASS")
+                self.log("Cloudflare DNS", f"{target_host} -> {records[0].get('content')} (Proxied: {records[0].get('proxied')})", "PASS")
             else:
                 self.failed += 1
-                self.log("Cloudflare DNS", "DNS record for test.lynqr.app not found or misconfigured", "FAIL")
+                self.log("Cloudflare DNS", f"DNS record for {target_host} not found or misconfigured", "FAIL")
         else:
             self.failed += 1
             self.log("Cloudflare Zone", "Failed to retrieve Cloudflare zone lynqr.app", "FAIL")

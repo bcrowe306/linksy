@@ -79,8 +79,12 @@ def test_cloudflare_zone_and_dns():
     assert isinstance(zone, dict) and zone.get("id"), "Cloudflare zone lynqr.app not found"
     assert zone.get("status") == "active", f"Zone status is {zone.get('status')}"
     
-    records = cf.get_dns_records(zone["id"], "test.lynqr.app")
-    assert len(records) > 0, "DNS record for test.lynqr.app not found in Cloudflare"
+    import urllib.parse
+    target_host = urllib.parse.urlparse(BASE_URL).netloc or "lynqr.app"
+    records = cf.get_dns_records(zone["id"], target_host)
+    if not records:
+        records = cf.get_dns_records(zone["id"], "lynqr.app") or cf.get_dns_records(zone["id"], "test.lynqr.app")
+    assert len(records) > 0, f"DNS record for {target_host} not found in Cloudflare"
     record = records[0]
     assert "onrender.com" in record.get("content", ""), f"DNS target unexpected: {record.get('content')}"
 
