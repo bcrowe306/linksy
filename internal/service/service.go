@@ -180,136 +180,6 @@ func (s *Service) allocateSlug(custom string) (string, error) {
 	return "", errors.New("could not allocate a unique slug")
 }
 
-// ----------------- Links Management -----------------
-
-type CreateLinkInput struct {
-	TargetURL   string     `json:"target_url"`
-	CustomSlug  string     `json:"custom_slug"`
-	Title       string     `json:"title"`
-	Description string     `json:"description"`
-	ExpiresAt   *time.Time `json:"expires_at"`
-}
-
-func (s *Service) CreateShortLink(a Actor, input CreateLinkInput) (*models.Link, error) {
-	if err := a.require(auth.PermEditAssets); err != nil {
-		return nil, err
-	}
-	if err := ValidateTargetURL(input.TargetURL); err != nil {
-		return nil, err
-	}
-	slug, err := s.allocateSlug(input.CustomSlug)
-	if err != nil {
-		return nil, err
-	}
-
-	title := strings.TrimSpace(input.Title)
-	if title == "" {
-		title = input.TargetURL
-	}
-
-	link := &models.Link{
-		TeamID:      a.TeamID,
-		UserID:      a.UserID,
-		Slug:        slug,
-		TargetURL:   strings.TrimSpace(input.TargetURL),
-		Title:       title,
-		Description: input.Description,
-		IsActive:    true,
-		ExpiresAt:   input.ExpiresAt,
-	}
-
-	if err := s.repo.CreateLink(link); err != nil {
-		return nil, fmt.Errorf("failed to save link: %w", err)
-	}
-	s.audit(a, "link.create", "link", link.ID, map[string]any{"slug": link.Slug})
-	return link, nil
-}
-
-// ResolveShortLink looks up an active, unexpired link for the public redirector.
-func (s *Service) ResolveShortLink(slug string) (*models.Link, error) {
-	link, err := s.repo.GetLinkBySlug(slug)
-	if err != nil {
-		return nil, ErrLinkNotFound
-	}
-	if !link.IsActive {
-		return nil, ErrLinkNotFound
-	}
-	if link.ExpiresAt != nil && link.ExpiresAt.Before(time.Now().UTC()) {
-		return nil, ErrLinkNotFound
-	}
-	_ = s.repo.IncrementLinkClicks(link.ID)
-	return link, nil
-}
-
-type UpdateLinkInput struct {
-	TargetURL   string
-	Title       string
-	Description string
-	IsActive    bool
-	ExpiresAt   *time.Time
-}
-
-func (s *Service) UpdateShortLink(a Actor, id string, in UpdateLinkInput) (*models.Link, error) {
-	if err := a.require(auth.PermEditAssets); err != nil {
-		return nil, err
-	}
-	link, err := s.repo.GetLink(id, a.TeamID)
-	if err != nil {
-		return nil, ErrLinkNotFound
-	}
-
-	if in.TargetURL != "" && in.TargetURL != link.TargetURL {
-		if err := ValidateTargetURL(in.TargetURL); err != nil {
-			return nil, err
-		}
-		link.TargetURL = strings.TrimSpace(in.TargetURL)
-	}
-	if in.Title != "" {
-		link.Title = in.Title
-	}
-	link.Description = in.Description
-	link.IsActive = in.IsActive
-	link.ExpiresAt = in.ExpiresAt
-
-	if err := s.repo.UpdateLink(link); err != nil {
-		return nil, err
-	}
-	s.audit(a, "link.update", "link", link.ID, map[string]any{"slug": link.Slug})
-	return link, nil
-}
-
-func clampLimit(limit int) int {
-	if limit <= 0 || limit > 100 {
-		return 50
-	}
-	return limit
-}
-
-func (s *Service) ListLinks(a Actor, limit, offset int) ([]models.Link, error) {
-	if err := a.require(auth.PermViewAssets); err != nil {
-		return nil, err
-	}
-	return s.repo.ListLinks(a.TeamID, clampLimit(limit), max(offset, 0))
-}
-
-func (s *Service) GetLink(a Actor, id string) (*models.Link, error) {
-	if err := a.require(auth.PermViewAssets); err != nil {
-		return nil, err
-	}
-	return s.repo.GetLink(id, a.TeamID)
-}
-
-func (s *Service) DeleteLink(a Actor, id string) error {
-	if err := a.require(auth.PermEditAssets); err != nil {
-		return err
-	}
-	if err := s.repo.DeleteLink(id, a.TeamID); err != nil {
-		return err
-	}
-	s.audit(a, "link.delete", "link", id, nil)
-	return nil
-}
-
 // ----------------- QR Code Management -----------------
 
 type CreateQRInput struct {
@@ -320,6 +190,7 @@ type CreateQRInput struct {
 	Style      models.QRStyle `json:"style"`
 	IsDynamic  bool           `json:"is_dynamic"`
 	DocumentID string         `json:"document_id"`
+	LinkID     string         `json:"link_id"` // attach a dynamic website code to an existing short link
 }
 
 func validQRType(t models.QRType) bool {
@@ -433,6 +304,18 @@ func (s *Service) CreateQRCode(a Actor, input CreateQRInput) (*models.QRCode, er
 		}
 		docID = &input.DocumentID
 	}
+	var existingLink *models.Link
+	if input.LinkID != "" {
+		if input.Type != models.QRTypeWebsite {
+			return nil, errors.New("only website QR codes can be attached to a short link")
+		}
+		l, err := s.repo.GetLink(input.LinkID, a.TeamID)
+		if err != nil {
+			return nil, ErrLinkNotFound
+		}
+		existingLink, dynamic = l, true
+		input.TargetURL = l.TargetURL
+	}
 	if err := validateQRContent(input.Type, input.TargetURL, input.RawData, dynamic); err != nil {
 		return nil, err
 	}
@@ -455,7 +338,9 @@ func (s *Service) CreateQRCode(a Actor, input CreateQRInput) (*models.QRCode, er
 		}
 		qrCode.Code = code
 		qrCode.Payload = s.ScanURL(code)
-		if input.Type == models.QRTypeWebsite {
+		if existingLink != nil {
+			qrCode.LinkID = &existingLink.ID
+		} else if input.Type == models.QRTypeWebsite {
 			link, err := s.CreateShortLink(a, CreateLinkInput{
 				TargetURL:   input.TargetURL,
 				Title:       title,
@@ -465,6 +350,7 @@ func (s *Service) CreateQRCode(a Actor, input CreateQRInput) (*models.QRCode, er
 				return nil, err
 			}
 			qrCode.LinkID = &link.ID
+			qrCode.OwnsLink = true
 		}
 	} else {
 		payload, err := qr.BuildPayload(input.Type, input.RawData, input.TargetURL)
@@ -711,8 +597,8 @@ func (s *Service) DeleteQRCode(a Actor, id string) error {
 	if err := s.repo.DeleteQRCode(id, a.TeamID); err != nil {
 		return err
 	}
-	// The destination link of a dynamic website code belongs to the code.
-	if q.LinkID != nil && q.IsDynamic {
+	// A destination link created for this code is removed with it; attached links stay.
+	if q.LinkID != nil && q.OwnsLink {
 		_ = s.repo.DeleteLink(*q.LinkID, a.TeamID)
 	}
 	s.audit(a, "qr.delete", "qr_code", id, nil)
@@ -759,11 +645,24 @@ func (s *Service) resolveTarget(q *models.QRCode, userAgent string) *ScanTarget 
 			break
 		}
 		link, err := s.repo.GetLinkByID(*q.LinkID)
-		if err != nil || !link.IsActive || (link.ExpiresAt != nil && link.ExpiresAt.Before(time.Now().UTC())) {
+		if err != nil {
 			t.Inactive = true
 			break
 		}
-		t.Redirect = link.TargetURL
+		if !link.IsActive || (link.ExpiresAt != nil && link.ExpiresAt.Before(time.Now().UTC())) {
+			if link.FallbackURL != "" {
+				t.Redirect = link.FallbackURL
+			} else {
+				t.Inactive = true
+			}
+			break
+		}
+		if link.PasswordHash != "" {
+			// The short link's unlock page handles the password; the scan is already counted.
+			t.Redirect = s.appURL + "/s/" + link.Slug + "?src=qr"
+			break
+		}
+		t.Redirect = Destination(link)
 	case models.QRTypeDocument:
 		if q.DocumentID == nil {
 			t.Inactive = true
@@ -1089,4 +988,11 @@ func (s *Service) GetUserProfile(userID string) (*models.User, error) {
 
 func (s *Service) UpdateUserProfile(user *models.User) error {
 	return s.repo.UpsertUser(user)
+}
+
+func clampLimit(limit int) int {
+	if limit <= 0 || limit > 100 {
+		return 50
+	}
+	return limit
 }

@@ -65,7 +65,12 @@
           <tbody>
             <tr v-for="link in visible" :key="link.id" :class="{ 'bg-brand-500/5': link.id === route.query.focus }">
               <td class="max-w-[260px]">
-                <p class="truncate font-medium text-fg">{{ link.title || link.slug }}</p>
+                <p class="flex items-center gap-1.5 font-medium text-fg">
+                  <span class="truncate">{{ link.title || link.slug }}</span>
+                  <Tip v-if="link.has_password" text="Password protected"><Lock class="h-3.5 w-3.5 shrink-0 text-fg-subtle" /></Tip>
+                  <Tip v-if="hasUTM(link)" :text="utmSummary(link)"><Tag class="h-3.5 w-3.5 shrink-0 text-fg-subtle" /></Tip>
+                  <Tip v-if="qrCount(link)" :text="`${qrCount(link)} QR code${qrCount(link) > 1 ? 's' : ''} use this link`"><QrCode class="h-3.5 w-3.5 shrink-0 text-brand-500" /></Tip>
+                </p>
                 <div class="mt-0.5 flex items-center gap-1">
                   <a :href="shortUrl(link)" target="_blank" rel="noopener" class="truncate font-mono text-xs text-brand-500 hover:underline">{{ shortHost }}/s/{{ link.slug }}</a>
                   <CopyButton :value="shortUrl(link)" label="Copy short link" />
@@ -86,6 +91,7 @@
                         <Pause v-if="link.is_active" class="w-4 h-4" /><Play v-else class="w-4 h-4" />
                       </button>
                     </Tip>
+                    <Tip text="Create a QR code for this link"><button class="btn-ghost btn-icon" aria-label="Create QR code" data-testid="link-create-qr" @click="createQR(link)"><QrCode class="w-4 h-4" /></button></Tip>
                     <Tip text="Edit"><button class="btn-ghost btn-icon" aria-label="Edit link" data-testid="edit-link" @click="openEdit(link)"><Pencil class="w-4 h-4" /></button></Tip>
                     <Tip text="Delete"><button class="btn-ghost btn-icon hover:!text-rose-500" aria-label="Delete link" @click="remove(link)"><Trash2 class="w-4 h-4" /></button></Tip>
                   </template>
@@ -130,23 +136,28 @@
           <input id="edit-target" v-model="form.target_url" type="url" required class="input" data-testid="edit-target" />
         </div>
         <div>
-          <label class="label" for="edit-title">Title</label>
-          <input id="edit-title" v-model="form.title" class="input" />
+          <label class="label" for="edit-slug">Back-half <Tip text="Changing it breaks the old short URL. Printed QR codes are unaffected." /></label>
+          <div class="flex items-stretch overflow-hidden rounded-xl border border-line focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-500/15">
+            <span class="flex items-center bg-subtle px-3 font-mono text-sm text-fg-subtle">{{ shortHost }}/s/</span>
+            <input id="edit-slug" v-model="form.slug" required pattern="[A-Za-z0-9][A-Za-z0-9_\-]{2,63}" class="flex-1 bg-surface px-3 py-2 text-sm text-fg outline-none" data-testid="edit-slug" />
+          </div>
+          <p v-if="form.slug !== editing.slug" class="hint text-amber-600 dark:text-amber-400">{{ shortHost }}/s/{{ editing.slug }} will stop working.</p>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label class="label" for="edit-title">Title</label>
+            <input id="edit-title" v-model="form.title" class="input" />
+          </div>
+          <label class="flex items-center justify-between gap-3 self-end rounded-xl border border-line px-3.5 py-2">
+            <span class="text-sm font-medium text-fg">Active <Tip text="Paused links show a branded notice, or send visitors to the fallback URL." /></span>
+            <Toggle v-model="form.is_active" />
+          </label>
         </div>
         <div>
           <label class="label" for="edit-desc">Notes</label>
           <textarea id="edit-desc" v-model="form.description" rows="2" class="input" />
         </div>
-        <div class="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label class="label" for="edit-expiry">Expires</label>
-            <input id="edit-expiry" v-model="form.expires_local" type="datetime-local" class="input" />
-          </div>
-          <label class="flex items-center justify-between gap-3 self-end rounded-xl border border-line px-3.5 py-2">
-            <span class="text-sm font-medium text-fg">Active</span>
-            <Toggle v-model="form.is_active" />
-          </label>
-        </div>
+        <LinkOptionsFields v-model="form" :has-password="editing.has_password" />
       </form>
       <template #footer>
         <button class="btn-secondary" @click="editing = null">Cancel</button>
@@ -161,7 +172,7 @@
 <script setup>
 import { ref, computed, h } from 'vue'
 import { useRoute } from 'vue-router'
-import { Plus, Link2, Search, SearchX, Pencil, Trash2, Pause, Play, BarChart3, Loader2 } from 'lucide-vue-next'
+import { Plus, Link2, Search, SearchX, Pencil, Trash2, Pause, Play, BarChart3, Loader2, Lock, Tag, QrCode } from 'lucide-vue-next'
 import { useLynqrStore } from '../stores/lynqr'
 import { useAuthStore } from '../stores/auth'
 import { api } from '../api/client'
@@ -173,11 +184,15 @@ import AppModal from '../components/ui/AppModal.vue'
 import CopyButton from '../components/ui/CopyButton.vue'
 import Tip from '../components/ui/Tip.vue'
 import Toggle from '../components/ui/Toggle.vue'
+import LinkOptionsFields from '../components/LinkOptionsFields.vue'
+import { linkToForm, formToPayload } from '../lib/linkForm'
+import { useRouter } from 'vue-router'
 
 defineEmits(['open-create'])
 const store = useLynqrStore()
 const auth = useAuthStore()
 const route = useRoute()
+const router = useRouter()
 const toast = useToast()
 const confirm = useConfirm()
 
@@ -228,12 +243,20 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-// datetime-local wants local "YYYY-MM-DDTHH:mm"
-function toLocalInput(iso) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content']
+const hasUTM = (l) => UTM_KEYS.some((k) => l[k])
+const utmSummary = (l) => UTM_KEYS.filter((k) => l[k]).map((k) => `${k.slice(4)}=${l[k]}`).join(' · ')
+const qrCount = (l) => store.qrCodes.filter((q) => q.link_id === l.id).length
+
+async function createQR(link) {
+  try {
+    const qr = await api.createQRCode({ type: 'website', title: link.title || link.slug, link_id: link.id })
+    toast.success('Style it, then download', { title: 'QR code created' })
+    store.fetchQRCodes()
+    router.push(`/qr-studio/${qr.id}`)
+  } catch (err) {
+    toast.error(err.message)
+  }
 }
 
 const editing = ref(null)
@@ -242,31 +265,18 @@ const form = ref({})
 
 function openEdit(link) {
   editing.value = link
-  form.value = {
-    title: link.title,
-    target_url: link.target_url,
-    description: link.description,
-    is_active: link.is_active,
-    expires_local: toLocalInput(link.expires_at)
-  }
+  form.value = linkToForm(link)
 }
 
+// Toggling only touches the active flag; omitted optional fields stay unchanged server-side.
 function payloadFor(link, overrides = {}) {
-  return {
-    title: link.title,
-    target_url: link.target_url,
-    description: link.description,
-    is_active: link.is_active,
-    expires_at: link.expires_at || null,
-    ...overrides
-  }
+  return { title: link.title, target_url: link.target_url, description: link.description, is_active: link.is_active, expires_at: link.expires_at || null, ...overrides }
 }
 
 async function saveEdit() {
   saving.value = true
   try {
-    const { expires_local, ...rest } = form.value
-    await api.updateLink(editing.value.id, { ...rest, expires_at: expires_local ? new Date(expires_local).toISOString() : null })
+    await api.updateLink(editing.value.id, formToPayload(form.value))
     toast.success('Link updated')
     editing.value = null
     await store.fetchLinks()

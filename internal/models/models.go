@@ -119,6 +119,7 @@ type Link struct {
 	UTMCampaign  string     `json:"utm_campaign"`
 	UTMTerm      string     `json:"utm_term"`
 	UTMContent   string     `json:"utm_content"`
+	FallbackURL  string     `json:"fallback_url"` // Where paused/expired links send visitors (optional)
 	ClickCount   int64      `json:"click_count"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
@@ -171,6 +172,7 @@ type QRCode struct {
 	DocumentID *string   `json:"document_id,omitempty"` // Hosted document served by this QR
 	Code       string    `json:"code,omitempty"`        // Short scan code for dynamic codes (/q/{code})
 	IsDynamic  bool      `json:"is_dynamic"`            // Encodes a Lynqr redirect, so content can change after printing
+	OwnsLink   bool      `json:"owns_link"`             // Destination link was created for (and is deleted with) this code
 	TargetURL  string    `json:"target_url,omitempty"`  // Current destination (dynamic website codes); computed
 	ScanURL    string    `json:"scan_url,omitempty"`    // Public URL encoded in dynamic codes; computed
 	Type       QRType    `json:"type"`

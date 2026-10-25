@@ -10,15 +10,15 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 |---|------|--------|--------|
 | 1 | Auth & tenancy hardening | `feat/auth-tenancy` | ✅ merged (#1), live test-drive 63/63 API + 13/13 UI |
 | 2 | Theme system + modern UI redesign | `feat/ui-redesign` | ✅ merged (#2), live UI 15/15 + API pytest 15/15 |
-| 3 | QR studio: real preview, all types, styling, exports | `feat/qr-studio` | 🚧 PR open |
-| 4 | Links: password, UTM, expiry & pause | `feat/link-controls` | ⏳ |
+| 3 | QR studio: real preview, all types, styling, exports | `feat/qr-studio` | ✅ merged (#3), live API 64/64 + UI 14/14 |
+| 4 | Links: password, UTM, expiry & pause | `feat/link-controls` | 🚧 PR open |
 | 5 | Team & user management UI | `feat/team-management-ui` | ⏳ |
 | 6 | Dashboard & analytics (charts, ranges, geo, export, live feed, CF geo headers) | `feat/analytics` | ⏳ |
 | 7 | Tooltips, Quick Docs, shortcuts, user guides | `feat/help-docs` | ⏳ |
 | 8 | Stripe billing (7-day no-card trial · $5/mo annual or $8.99 monthly · per workspace) | `feat/billing` | ⏳ keys + pricing received 2026-10-25 |
 | 9 | SEO & public marketing site | `feat/seo-marketing` | ⏳ requested 2026-10-25 |
 | 10 | Test suites (Go, Vitest, Playwright, live test-drive) | `feat/test-suites` | ⏳ (tests also added per area) |
-| 11 | Email notifications | `feat/email` | ⏸ waiting on email provider choice |
+| 11 | Email notifications (Resend) | `feat/email` | ⏳ RESEND_API_KEY (send-only) added 2026-10-25; need verified from-address |
 
 ## 1. Auth & tenancy (feat/auth-tenancy)
 - [x] Opaque, server-side sessions (`lqs_` tokens, SHA-256 at rest, HttpOnly + Secure + SameSite=Lax cookie, 30-day sliding expiry, revocable)
@@ -63,6 +63,16 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 - [x] Studio UI: type picker, per-type forms with tooltips, templates, pattern/colors/logo/frame/advanced panels, debounced live server preview with scan badge, duplicate, unsaved-changes guard, downloads
 - [x] Auth limiter split (credentials 30/min, OAuth/invite flows 120/min); logs include CF client IP to verify per-client limiting
 - [x] Tests: every shape/eye/frame combination must decode; SVG injection; payload escaping per type; e2e for scans, app routing, vCard hosting, document replacement, static types, preview, export options
+- [x] CI + merge + live test-drive (rate limiter verified per client IP in Render logs)
+
+## 4. Link controls (feat/link-controls)
+- [x] Password protection: bcrypt hashes (never returned by the API), branded unlock page that doesn't reveal the destination, signed per-link unlock cookie (12h, revoked when the password changes), unlock attempts rate-limited; protected links' QR scans route through the unlock page without double counting
+- [x] UTM auto-tagging (source/medium/campaign/term/content) appended at redirect time without overwriting existing parameters; presets and a live tagged-URL preview in the UI
+- [x] Pause and expiry with an optional fallback URL; paused/expired visits return a branded 410 and aren't counted as clicks
+- [x] Editable back-half with collision checks; default titles from the destination host/path
+- [x] "Create QR" from any link attaches a dynamic QR code to it (`owns_link` keeps the link when that QR is deleted)
+- [x] Fixed: the unlock form's redirect was blocked by CSP `form-action`
+- [x] Tests: e2e for UTM, passwords (wrong/right/cookie/revocation/removal), pause/expiry/fallback, slug changes, QR attachment; live Playwright unlock flow
 - [ ] CI + merge + live test-drive
 
 ## 8. Stripe billing (plan)
@@ -92,7 +102,7 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 
 ## Open questions / blocked items
 - Stripe: decided (see item 8). The live key is used on test.lynqr.app by choice, so automated tests stop at the Checkout page.
-- Email: need a provider + API key (Resend, Postmark or SES) and a verified sending domain on lynqr.app.
+- Email: Resend chosen; key is send-only. Need the verified sending domain/from-address (e.g. `notifications@lynqr.app`).
 - WorkOS: confirm whether the environment emails password-reset links itself (otherwise item 8 sends them).
 
 ## Notes

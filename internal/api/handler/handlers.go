@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -91,18 +92,60 @@ func visitorEvent(c fiber.Ctx, eventType, teamID string, linkID, qrID *string) *
 	}
 }
 
+const unlockCookiePrefix = "lq_unlock_"
+
+// HandleShortLinkRedirect serves /s/{slug}: fallback for paused/expired links,
+// a password page for protected links, otherwise a redirect with UTM tags.
 func (h *Handler) HandleShortLinkRedirect(c fiber.Ctx) error {
 	slug := c.Params("slug")
-	link, err := h.svc.ResolveShortLink(slug)
+	link, state, err := h.svc.LookupLink(slug)
 	if err != nil {
-		return h.renderBrandedError(c, "Link Not Found or Inactive", fmt.Sprintf("The short link \"/s/%s\" does not exist, has expired, or has been removed.", slug), fiber.StatusNotFound)
+		return h.renderBrandedError(c, "Link Not Found", fmt.Sprintf("The short link \"/s/%s\" does not exist or has been removed.", slug), fiber.StatusNotFound)
 	}
-
-	ev := visitorEvent(c, "click", link.TeamID, &link.ID, nil)
-	go h.svc.TrackEvent(ev)
-
 	c.Set("Cache-Control", "no-store")
-	return c.Redirect().Status(fiber.StatusFound).To(link.TargetURL)
+	c.Set("X-Robots-Tag", "noindex, nofollow")
+	if state != service.LinkOK {
+		if link.FallbackURL != "" {
+			return c.Redirect().Status(fiber.StatusFound).To(link.FallbackURL)
+		}
+		title, msg := "Link Paused", "The owner of this link has temporarily paused it."
+		if state == service.LinkExpired {
+			title, msg = "Link Expired", "This link has expired and no longer redirects."
+		}
+		return h.renderBrandedError(c, title, msg, fiber.StatusGone)
+	}
+	if link.PasswordHash != "" && !h.svc.ValidUnlock(link, c.Cookies(unlockCookiePrefix+link.ID), time.Now()) {
+		return h.renderPasswordPage(c, link, "", fiber.StatusUnauthorized)
+	}
+	return h.redirectLink(c, link)
+}
+
+// HandleShortLinkUnlock checks the password posted from the unlock page.
+func (h *Handler) HandleShortLinkUnlock(c fiber.Ctx) error {
+	link, state, err := h.svc.LookupLink(c.Params("slug"))
+	if err != nil || state != service.LinkOK || link.PasswordHash == "" {
+		return c.Redirect().Status(fiber.StatusSeeOther).To("/s/" + c.Params("slug"))
+	}
+	if !h.svc.CheckLinkPassword(link, c.FormValue("password")) {
+		return h.renderPasswordPage(c, link, "That password is incorrect. Please try again.", fiber.StatusUnauthorized)
+	}
+	c.Cookie(&fiber.Cookie{
+		Name: unlockCookiePrefix + link.ID, Value: h.svc.UnlockToken(link, time.Now()),
+		Path: "/s/" + link.Slug, MaxAge: int((12 * time.Hour).Seconds()), HTTPOnly: true,
+		Secure: strings.HasPrefix(h.appURL, "https://"), SameSite: fiber.CookieSameSiteLaxMode,
+	})
+	return h.redirectLink(c, link)
+}
+
+func (h *Handler) redirectLink(c fiber.Ctx, link *models.Link) error {
+	// Scans of a protected QR code arrive here after being counted as scans.
+	if c.Query("src") != "qr" {
+		h.svc.CountClick(link.ID)
+		ev := visitorEvent(c, "click", link.TeamID, &link.ID, nil)
+		go h.svc.TrackEvent(ev)
+	}
+	c.Set("Cache-Control", "no-store")
+	return c.Redirect().Status(fiber.StatusFound).To(service.Destination(link))
 }
 
 // HandleQRScan serves /q/{code}: records the scan and sends the visitor to
@@ -169,6 +212,9 @@ type CreateLinkRequest struct {
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
 	ExpiresAt   *time.Time `json:"expires_at"`
+	Password    string     `json:"password"`
+	FallbackURL string     `json:"fallback_url"`
+	service.UTM
 }
 
 func (h *Handler) CreateLink(c fiber.Ctx) error {
@@ -186,6 +232,9 @@ func (h *Handler) CreateLink(c fiber.Ctx) error {
 		Title:       req.Title,
 		Description: req.Description,
 		ExpiresAt:   req.ExpiresAt,
+		Password:    req.Password,
+		UTM:         req.UTM,
+		FallbackURL: req.FallbackURL,
 	})
 	if err != nil {
 		return fail(c, err)
@@ -211,12 +260,39 @@ func (h *Handler) GetLink(c fiber.Ctx) error {
 	return c.JSON(link)
 }
 
+// UpdateLinkRequest: omitted optional fields are left unchanged; password ""
+// removes protection.
 type UpdateLinkRequest struct {
 	TargetURL   string     `json:"target_url"`
+	Slug        string     `json:"slug"`
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
 	IsActive    *bool      `json:"is_active"`
 	ExpiresAt   *time.Time `json:"expires_at"`
+	Password    *string    `json:"password"`
+	FallbackURL *string    `json:"fallback_url"`
+	UTMSource   *string    `json:"utm_source"`
+	UTMMedium   *string    `json:"utm_medium"`
+	UTMCampaign *string    `json:"utm_campaign"`
+	UTMTerm     *string    `json:"utm_term"`
+	UTMContent  *string    `json:"utm_content"`
+}
+
+func (r UpdateLinkRequest) utm(current *models.Link) *service.UTM {
+	if r.UTMSource == nil && r.UTMMedium == nil && r.UTMCampaign == nil && r.UTMTerm == nil && r.UTMContent == nil {
+		return nil
+	}
+	pick := func(p *string, cur string) string {
+		if p == nil {
+			return cur
+		}
+		return *p
+	}
+	return &service.UTM{
+		Source: pick(r.UTMSource, current.UTMSource), Medium: pick(r.UTMMedium, current.UTMMedium),
+		Campaign: pick(r.UTMCampaign, current.UTMCampaign), Term: pick(r.UTMTerm, current.UTMTerm),
+		Content: pick(r.UTMContent, current.UTMContent),
+	}
 }
 
 func (h *Handler) UpdateLink(c fiber.Ctx) error {
@@ -224,12 +300,18 @@ func (h *Handler) UpdateLink(c fiber.Ctx) error {
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
+	a := middleware.Actor(c)
+	current, err := h.svc.GetLink(a, c.Params("id"))
+	if err != nil {
+		return fail(c, err)
+	}
 	isActive := true
 	if req.IsActive != nil {
 		isActive = *req.IsActive
 	}
-	updated, err := h.svc.UpdateShortLink(middleware.Actor(c), c.Params("id"), service.UpdateLinkInput{
-		TargetURL: req.TargetURL, Title: req.Title, Description: req.Description, IsActive: isActive, ExpiresAt: req.ExpiresAt,
+	updated, err := h.svc.UpdateShortLink(a, current.ID, service.UpdateLinkInput{
+		TargetURL: req.TargetURL, Slug: req.Slug, Title: req.Title, Description: req.Description, IsActive: isActive,
+		ExpiresAt: req.ExpiresAt, Password: req.Password, FallbackURL: req.FallbackURL, UTM: req.utm(current),
 	})
 	if err != nil {
 		return fail(c, err)
@@ -255,6 +337,7 @@ type CreateQRRequest struct {
 	Style      models.QRStyle `json:"style"`
 	IsDynamic  bool           `json:"is_dynamic"`
 	DocumentID string         `json:"document_id"`
+	LinkID     string         `json:"link_id"`
 }
 
 func (h *Handler) CreateQR(c fiber.Ctx) error {
@@ -277,6 +360,7 @@ func (h *Handler) CreateQR(c fiber.Ctx) error {
 		Style:      req.Style,
 		IsDynamic:  req.IsDynamic,
 		DocumentID: req.DocumentID,
+		LinkID:     req.LinkID,
 	})
 	if err != nil {
 		return fail(c, err)
@@ -699,4 +783,36 @@ func truncateRunes(s string, n int) string {
 		return string(r[:n])
 	}
 	return s
+}
+
+// renderPasswordPage asks for a protected link's password.
+func (h *Handler) renderPasswordPage(c fiber.Ctx, link *models.Link, errMsg string, status int) error {
+	errHTML := ""
+	if errMsg != "" {
+		errHTML = `<p class="err" role="alert">` + html.EscapeString(errMsg) + `</p>`
+	}
+	action := "/s/" + url.PathEscape(link.Slug)
+	if c.Query("src") == "qr" {
+		action += "?src=qr"
+	}
+	page := fmt.Sprintf(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow"><title>Protected link | Lynqr</title><style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:#0c0c0e;color:#f4f4f6;padding:24px}
+.card{max-width:380px;width:100%%;background:#16161a;border:1px solid #2c2c32;border-radius:20px;padding:32px;text-align:center}
+.icon{width:48px;height:48px;margin:0 auto 16px;border-radius:14px;background:rgba(99,102,241,.15);display:flex;align-items:center;justify-content:center;color:#a5b4fc}
+h1{font-size:20px;margin:0 0 6px}p{color:#acacb4;font-size:14px;margin:0 0 20px}
+input{width:100%%;padding:12px 14px;border-radius:12px;border:1px solid #3c3c44;background:#0c0c0e;color:#f4f4f6;font-size:15px;outline:none}
+input:focus{border-color:#6366f1;box-shadow:0 0 0 4px rgba(99,102,241,.2)}
+button{margin-top:12px;width:100%%;padding:12px;border:0;border-radius:12px;background:linear-gradient(#6366f1,#4f46e5);color:#fff;font-weight:600;font-size:15px;cursor:pointer}
+.err{color:#fb7185;font-size:13px;margin:0 0 12px}.foot{margin-top:20px;font-size:12px;color:#7c7c86}
+</style></head><body><form class="card" method="POST" action="%s">
+<div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+<h1>This link is protected</h1><p>Enter the password to continue.</p>%s
+<input type="password" name="password" placeholder="Password" autocomplete="current-password" autofocus required aria-label="Password">
+<button type="submit">Continue</button><div class="foot">Secured by Lynqr</div></form></body></html>`,
+		html.EscapeString(action), errHTML)
+	// form-action also governs the redirect that follows a correct password, and
+	// that redirect goes to the link's (external) destination.
+	c.Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https: http:; frame-ancestors 'none'; base-uri 'none'")
+	return c.Status(status).Type("html").SendString(page)
 }

@@ -49,6 +49,7 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 
 	// High throughput public redirectors
 	app.Get("/s/:slug", middleware.RedirectRateLimiter(), h.HandleShortLinkRedirect)
+	app.Post("/s/:slug", middleware.AuthRateLimiter(), h.HandleShortLinkUnlock)
 	app.Get("/q/:code", middleware.RedirectRateLimiter(), h.HandleQRScan)
 	app.Get("/qr/r/:id", middleware.RedirectRateLimiter(), h.HandleLegacyQRScan)
 	app.Get("/d/:id", middleware.RedirectRateLimiter(), h.HandleDocumentLink)
