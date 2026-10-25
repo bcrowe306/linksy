@@ -25,3 +25,32 @@ func TestRobotsAndSitemap(t *testing.T) {
 		t.Fatalf("sitemap: %s", r.Body)
 	}
 }
+
+func TestPublicQRGenerator(t *testing.T) {
+	k := testkit.New(t)
+	r := k.Do("POST", "/api/v1/public/qr", "", map[string]any{"type": "website", "target_url": "example.com/menu", "dot_style": "rounded"})
+	k.Expect(r, http.StatusOK, "preview")
+	m := r.Map()
+	if !strings.HasPrefix(m["svg"].(string), "<svg") || m["check"].(map[string]any)["scannable"] != true {
+		t.Fatalf("preview: %v", m["check"])
+	}
+	png := k.Do("POST", "/api/v1/public/qr?format=png", "", map[string]any{"type": "wifi", "raw_data": `{"ssid":"Cafe","password":"pw12345678"}`, "size": 512})
+	k.Expect(png, http.StatusOK, "png")
+	if png.Header.Get("Content-Type") != "image/png" || !strings.HasPrefix(string(png.Body), "\x89PNG") {
+		t.Fatalf("not a PNG: %s", png.Header.Get("Content-Type"))
+	}
+	svg := k.Do("POST", "/api/v1/public/qr?format=svg", "", map[string]any{"type": "vcard", "raw_data": `{"first_name":"Alex"}`})
+	k.Expect(svg, http.StatusOK, "svg")
+	if !strings.Contains(svg.Header.Get("Content-Disposition"), "qr-code.svg") {
+		t.Fatal("svg should download")
+	}
+	k.Expect(k.Do("POST", "/api/v1/public/qr", "", map[string]any{"type": "document"}), http.StatusBadRequest, "dynamic types are Pro-only")
+	k.Expect(k.Do("POST", "/api/v1/public/qr", "", map[string]any{"type": "website", "target_url": "http://127.0.0.1/admin"}), http.StatusBadRequest, "private targets")
+	k.Expect(k.Do("POST", "/api/v1/public/qr", "", map[string]any{"type": "email", "raw_data": `{"email":"nope"}`}), http.StatusBadRequest, "invalid email")
+
+	// Blocked domains can't be turned into QR codes either
+	admin := k.AdminLogin("mod@lynqr.test")
+	k.Expect(k.Do("POST", "/api/v1/admin/blocklist", admin.Token, map[string]any{"domain": "evil.example"}), http.StatusCreated, "block")
+	r = k.Do("POST", "/api/v1/public/qr", "", map[string]any{"type": "website", "target_url": "https://login.evil.example"})
+	k.Expect(r, http.StatusBadRequest, "blocked domain")
+}
