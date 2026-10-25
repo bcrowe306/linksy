@@ -1,0 +1,15 @@
+{{define "guides"}}{{template "head" .}}
+    <main id="main" class="mx-auto max-w-5xl px-4 py-14 sm:px-6">
+      <p class="text-sm font-semibold uppercase tracking-wider text-brand-500">Guides</p>
+      <h1 class="mt-2 text-3xl font-bold tracking-tight text-fg sm:text-4xl">Learn Lynqr</h1>
+      <p class="mt-3 max-w-2xl text-lg text-fg-muted">Step-by-step guides for short links, dynamic QR codes, analytics and teams.</p>
+      <ul class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {{range .Guides}}
+        <li><a href="/guides/{{.Slug}}" class="card card-hover block h-full p-5">
+          <h2 class="font-semibold text-fg">{{.Title}}</h2>
+          <p class="mt-2 text-sm text-fg-muted">{{.Description}}</p>
+        </a></li>
+        {{end}}
+      </ul>
+    </main>
+{{template "foot" .}}{{end}}

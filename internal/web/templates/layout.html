@@ -1,0 +1,96 @@
+{{define "head"}}<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0c0c0e" />
+    <title>{{.Title}} · Lynqr</title>
+    <meta name="description" content="{{.Description}}" />
+    {{if .NoIndex}}<meta name="robots" content="noindex" />{{end}}
+    <link rel="canonical" href="https://lynqr.app{{.Path}}" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Lynqr" />
+    <meta property="og:url" content="https://lynqr.app{{.Path}}" />
+    <meta property="og:title" content="{{.Title}}" />
+    <meta property="og:description" content="{{.Description}}" />
+    <meta property="og:image" content="https://lynqr.app/marketing/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    {{if .JSONLD}}<script type="application/ld+json">{{.JSONLD}}</script>{{end}}
+    {{.Assets}}
+  </head>
+  <body class="min-h-screen bg-canvas text-fg antialiased">
+    <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-4 focus:py-2">Skip to content</a>
+    <header class="sticky top-0 z-40 border-b border-line/70 bg-canvas/80 backdrop-blur-lg">
+      <nav class="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4 sm:px-6" aria-label="Main">
+        <a href="/" class="flex items-center gap-2 text-lg font-bold tracking-tight text-fg"><img src="/favicon.svg" alt="" width="28" height="28" class="h-7 w-7" />Lynqr</a>
+        <div class="hidden flex-1 items-center gap-1 text-sm md:flex">
+          <a href="/#features" class="rounded-lg px-3 py-2 text-fg-muted transition hover:text-fg">Features</a>
+          <a href="/#pricing" class="rounded-lg px-3 py-2 text-fg-muted transition hover:text-fg">Pricing</a>
+          <a href="/guides" class="rounded-lg px-3 py-2 text-fg-muted transition hover:text-fg">Guides</a>
+          <a href="/api-docs" class="rounded-lg px-3 py-2 text-fg-muted transition hover:text-fg">API</a>
+        </div>
+        <div class="ml-auto flex items-center gap-2">
+          <button type="button" class="btn-ghost btn-icon" data-theme-toggle aria-label="Switch between light and dark theme">
+            <svg class="h-5 w-5 dark:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+            <svg class="hidden h-5 w-5 dark:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+          </button>
+          <a href="/login" class="btn-ghost hidden sm:inline-flex">Sign in</a>
+          <a href="/signup" class="btn-primary">Start free trial</a>
+          <button type="button" class="btn-ghost btn-icon md:hidden" data-menu-toggle aria-expanded="false" aria-controls="mobile-menu" aria-label="Open menu">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+        </div>
+      </nav>
+      <div id="mobile-menu" class="hidden border-t border-line px-4 py-3 md:hidden">
+        <div class="flex flex-col text-sm">
+          <a href="/#features" class="rounded-lg px-3 py-2.5 text-fg">Features</a>
+          <a href="/#pricing" class="rounded-lg px-3 py-2.5 text-fg">Pricing</a>
+          <a href="/guides" class="rounded-lg px-3 py-2.5 text-fg">Guides</a>
+          <a href="/api-docs" class="rounded-lg px-3 py-2.5 text-fg">API</a>
+          <a href="/login" class="rounded-lg px-3 py-2.5 text-fg">Sign in</a>
+        </div>
+      </div>
+    </header>
+{{end}}
+
+{{define "foot"}}
+    <footer class="border-t border-line">
+      <div class="mx-auto grid max-w-6xl gap-8 px-4 py-12 text-sm sm:px-6 md:grid-cols-4">
+        <div>
+          <a href="/" class="flex items-center gap-2 font-bold text-fg"><img src="/favicon.svg" alt="" width="24" height="24" class="h-6 w-6" />Lynqr</a>
+          <p class="mt-3 text-fg-muted">Dynamic QR codes and short links with real-time analytics.</p>
+        </div>
+        <nav aria-label="Product">
+          <p class="font-semibold text-fg">Product</p>
+          <ul class="mt-3 space-y-2 text-fg-muted">
+            <li><a href="/#features" class="hover:text-fg">Features</a></li>
+            <li><a href="/#pricing" class="hover:text-fg">Pricing</a></li>
+            <li><a href="/guides" class="hover:text-fg">Guides</a></li>
+            <li><a href="/api-docs" class="hover:text-fg">API reference</a></li>
+          </ul>
+        </nav>
+        <nav aria-label="Legal">
+          <p class="font-semibold text-fg">Legal</p>
+          <ul class="mt-3 space-y-2 text-fg-muted">
+            <li><a href="/terms" class="hover:text-fg">Terms of Service</a></li>
+            <li><a href="/privacy" class="hover:text-fg">Privacy Policy</a></li>
+            <li><a href="/acceptable-use" class="hover:text-fg">Acceptable Use</a></li>
+          </ul>
+        </nav>
+        <nav aria-label="Trust and safety">
+          <p class="font-semibold text-fg">Trust & safety</p>
+          <ul class="mt-3 space-y-2 text-fg-muted">
+            <li><a href="/report" class="hover:text-fg">Report abuse</a></li>
+            <li><a href="mailto:support@lynqr.app" class="hover:text-fg">support@lynqr.app</a></li>
+          </ul>
+        </nav>
+      </div>
+      <p class="border-t border-line py-6 text-center text-xs text-fg-subtle">© <span data-year>2026</span> Lynqr. All rights reserved.</p>
+    </footer>
+  </body>
+</html>
+{{end}}

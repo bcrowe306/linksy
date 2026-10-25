@@ -1,0 +1,21 @@
+{{define "doc"}}{{template "head" .}}
+    <main id="main" class="mx-auto max-w-3xl px-4 py-14 sm:px-6">
+      {{if .Page.Order}}{{if lt .Page.Order 99}}
+      <nav class="mb-6 text-sm text-fg-subtle" aria-label="Breadcrumb"><a href="/guides" class="hover:text-fg">Guides</a> <span aria-hidden="true">/</span> <span class="text-fg-muted">{{.Page.Title}}</span></nav>
+      {{end}}{{end}}
+      <h1 class="text-3xl font-bold tracking-tight text-fg sm:text-4xl">{{.Page.Title}}</h1>
+      {{if .Page.Updated}}<p class="mt-2 text-sm text-fg-subtle">Last updated {{.Page.Updated}}</p>{{else if .Page.Description}}<p class="mt-3 text-lg text-fg-muted">{{.Page.Description}}</p>{{end}}
+      <article class="prose-lynqr mt-8">{{.Page.HTML}}</article>
+      {{if .Guides}}
+      <aside class="mt-14 rounded-2xl border border-line bg-surface p-6">
+        <h2 class="text-base font-semibold text-fg">More guides</h2>
+        <ul class="mt-3 grid gap-2 sm:grid-cols-2">{{range .Guides}}<li><a href="/guides/{{.Slug}}" class="text-sm text-brand-500 hover:underline">{{.Title}}</a></li>{{end}}</ul>
+      </aside>
+      <section class="mt-8 rounded-2xl bg-gradient-to-br from-brand-600 to-violet-500 p-8 text-center">
+        <h2 class="text-xl font-bold text-white">Try it on your own links and QR codes</h2>
+        <p class="mt-2 text-white/80">7 days free. No credit card required.</p>
+        <a href="/signup" class="mt-5 inline-flex rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-brand-700 hover:bg-white/90">Start your free trial</a>
+      </section>
+      {{end}}
+    </main>
+{{template "foot" .}}{{end}}

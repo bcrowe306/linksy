@@ -11,7 +11,7 @@ const brand = scale('brand', brandSteps)
 
 export default {
   darkMode: 'class',
-  content: ['./index.html', './home.html', './src/**/*.{vue,js,ts,jsx,tsx}'],
+  content: ['./index.html', './home.html', '../internal/web/templates/*.html', './src/**/*.{vue,js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {

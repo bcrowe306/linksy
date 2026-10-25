@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log"
 	"os"
 
 	"github.com/gofiber/fiber/v3"
@@ -11,6 +12,7 @@ import (
 	"github.com/bcrowe306/linksy/internal/auth"
 	"github.com/bcrowe306/linksy/internal/config"
 	"github.com/bcrowe306/linksy/internal/service"
+	"github.com/bcrowe306/linksy/internal/web"
 )
 
 func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
@@ -189,6 +191,16 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	app.Get("/robots.txt", h.RobotsTxt)
 	app.Get("/sitemap.xml", h.SitemapXML)
 	if _, err := os.Stat(handler.DistDir); err == nil {
+		if site, err := web.Load(handler.DistDir); err != nil {
+			log.Printf("[Lynqr] public pages disabled: %v", err)
+		} else {
+			h.SetSite(site)
+			app.Get("/guides", h.GuidesIndex)
+			app.Get("/guides/:slug", h.GuidePage)
+			for _, slug := range []string{"terms", "privacy", "acceptable-use"} {
+				app.Get("/"+slug, h.LegalPage(slug))
+			}
+		}
 		app.Get("/", h.Home)
 		app.Use("/", static.New(handler.DistDir))
 		app.Get("/*", func(c fiber.Ctx) error {

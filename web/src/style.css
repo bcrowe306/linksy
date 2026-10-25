@@ -223,3 +223,25 @@
     @apply bg-gradient-to-r from-brand-500 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent;
   }
 }
+
+/* Long-form public pages (guides, legal) rendered from Markdown on the server */
+@layer components {
+  .prose-lynqr { @apply text-[15px] leading-7 text-fg-muted; }
+  .prose-lynqr h2 { @apply mb-3 mt-10 scroll-mt-24 text-xl font-semibold tracking-tight text-fg; }
+  .prose-lynqr h3 { @apply mb-2 mt-8 scroll-mt-24 text-base font-semibold text-fg; }
+  .prose-lynqr p { @apply my-4; }
+  .prose-lynqr a { @apply font-medium text-brand-500 underline decoration-brand-500/30 underline-offset-2 hover:decoration-brand-500; }
+  .prose-lynqr strong { @apply font-semibold text-fg; }
+  .prose-lynqr ul { @apply my-4 list-disc space-y-1.5 pl-6 marker:text-fg-subtle; }
+  .prose-lynqr ol { @apply my-4 list-decimal space-y-1.5 pl-6 marker:text-fg-subtle; }
+  .prose-lynqr code { @apply rounded-md bg-subtle px-1.5 py-0.5 font-mono text-[13px] text-fg; }
+  .prose-lynqr pre { @apply my-5 overflow-x-auto rounded-xl border border-line bg-surface p-4 text-[13px]; }
+  .prose-lynqr pre code { @apply bg-transparent p-0; }
+  .prose-lynqr kbd { @apply rounded-md border border-line-strong bg-surface px-1.5 py-0.5 font-mono text-xs text-fg shadow-sm; }
+  .prose-lynqr blockquote { @apply my-5 rounded-xl border-l-4 border-brand-500 bg-brand-500/5 px-4 py-3 text-fg; }
+  .prose-lynqr blockquote p { @apply my-0; }
+  .prose-lynqr table { @apply my-6 w-full border-collapse overflow-hidden rounded-xl text-sm; }
+  .prose-lynqr th { @apply border-b border-line bg-subtle px-3 py-2 text-left font-semibold text-fg; }
+  .prose-lynqr td { @apply border-b border-line px-3 py-2 align-top; }
+  .prose-lynqr hr { @apply my-10 border-line; }
+}

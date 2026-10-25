@@ -43,6 +43,10 @@
         <button type="submit" :disabled="isSubmitting" class="btn-primary btn-lg w-full">
           <Loader2 v-if="isSubmitting" class="h-4 w-4 animate-spin" /><span v-else>Create Free Account</span>
         </button>
+        <p class="text-center text-xs text-fg-subtle">
+          By creating an account you agree to the <a href="/terms" target="_blank" class="underline hover:text-fg">Terms of Service</a>
+          and <a href="/privacy" target="_blank" class="underline hover:text-fg">Privacy Policy</a>.
+        </p>
       </form>
 
       <p class="mt-8 text-center text-sm text-fg-muted">

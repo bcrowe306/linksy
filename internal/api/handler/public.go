@@ -1,12 +1,15 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
+	"html/template"
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/bcrowe306/linksy/internal/api/middleware"
+	"github.com/bcrowe306/linksy/internal/web"
 )
 
 // DistDir holds the built frontend (app shell and public landing page).
@@ -54,6 +57,10 @@ func (h *Handler) RobotsTxt(c fiber.Ctx) error {
 var sitemapPages = []struct{ path, freq, priority string }{
 	{"/", "weekly", "1.0"},
 	{"/signup", "monthly", "0.8"},
+	{"/guides", "weekly", "0.7"},
+	{"/terms", "yearly", "0.2"},
+	{"/privacy", "yearly", "0.2"},
+	{"/acceptable-use", "yearly", "0.2"},
 	{"/api-docs", "monthly", "0.5"},
 	{"/login", "yearly", "0.3"},
 }
@@ -84,4 +91,54 @@ func (h *Handler) Unsubscribe(c fiber.Ctx) error {
 		return h.renderBrandedError(c, "Link Not Valid", "This unsubscribe link is invalid or has been changed. You can manage email settings from your Lynqr profile.", fiber.StatusBadRequest)
 	}
 	return h.renderNotice(c, "You're unsubscribed", "You won't get emails about "+label+" any more. You can turn them back on any time in your profile's notification settings.")
+}
+
+// SetSite enables the server-rendered public pages (guides and legal documents).
+func (h *Handler) SetSite(s *web.Site) { h.site = s }
+
+func (h *Handler) renderPage(c fiber.Ctx, name string, v web.View) error {
+	var buf strings.Builder
+	v.NoIndex = !h.indexable(c)
+	if v.NoIndex {
+		c.Set("X-Robots-Tag", "noindex, nofollow")
+	}
+	if err := h.site.Render(&buf, name, v); err != nil {
+		return err
+	}
+	c.Set("Cache-Control", "public, max-age=300")
+	return c.Type("html").SendString(buf.String())
+}
+
+func (h *Handler) GuidesIndex(c fiber.Ctx) error {
+	return h.renderPage(c, "guides", web.View{Title: "Guides", Path: "/guides",
+		Description: "Step-by-step guides for Lynqr short links, dynamic QR codes, analytics and teams.", Guides: h.site.Guides})
+}
+
+func (h *Handler) GuidePage(c fiber.Ctx) error {
+	g, ok := h.site.Guide(c.Params("slug"))
+	if !ok {
+		return h.renderBrandedError(c, "Guide Not Found", "That guide doesn't exist. Browse all guides at lynqr.app/guides.", fiber.StatusNotFound)
+	}
+	others := make([]web.Page, 0, len(h.site.Guides))
+	for _, o := range h.site.Guides {
+		if o.Slug != g.Slug {
+			others = append(others, o)
+		}
+	}
+	ld, _ := json.Marshal(map[string]any{
+		"@context": "https://schema.org", "@type": "TechArticle", "headline": g.Title, "description": g.Description,
+		"url": "https://lynqr.app/guides/" + g.Slug, "publisher": map[string]any{"@type": "Organization", "name": "Lynqr", "url": "https://lynqr.app/"},
+	})
+	return h.renderPage(c, "doc", web.View{Title: g.Title, Description: g.Description, Path: "/guides/" + g.Slug, Page: g, Guides: others, JSONLD: template.JS(ld)})
+}
+
+// LegalPage serves /terms, /privacy and /acceptable-use.
+func (h *Handler) LegalPage(slug string) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		p, ok := h.site.Legal[slug]
+		if !ok {
+			return fiber.ErrNotFound
+		}
+		return h.renderPage(c, "doc", web.View{Title: p.Title, Description: p.Description, Path: "/" + slug, Page: p})
+	}
 }

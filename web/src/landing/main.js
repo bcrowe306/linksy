@@ -25,6 +25,7 @@ const priceEl = document.querySelector('[data-price]')
 const noteEl = document.querySelector('[data-price-note]')
 const buttons = document.querySelectorAll('[data-interval]')
 function showInterval(interval) {
+  if (!priceEl) return // pages without the pricing card
   buttons.forEach((b) => {
     const on = b.dataset.interval === interval
     b.setAttribute('aria-checked', String(on))
