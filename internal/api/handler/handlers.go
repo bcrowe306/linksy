@@ -16,6 +16,7 @@ import (
 	"github.com/bcrowe306/linksy/internal/models"
 	"github.com/bcrowe306/linksy/internal/qr"
 	"github.com/bcrowe306/linksy/internal/service"
+	"github.com/bcrowe306/linksy/internal/web"
 )
 
 // MaxUploadBytes caps document uploads (CONVENTIONS §3.4).
@@ -24,6 +25,7 @@ const MaxUploadBytes = 15 << 20
 type Handler struct {
 	svc    *service.Service
 	appURL string
+	site   *web.Site // public pages; nil when the frontend isn't built
 }
 
 func New(svc *service.Service, appURL string) *Handler {

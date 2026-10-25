@@ -9,3 +9,6 @@ var OpenAPIYAML []byte
 
 //go:embed guides/*.md
 var Guides embed.FS
+
+//go:embed legal/*.md
+var Legal embed.FS
