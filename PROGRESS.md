@@ -70,7 +70,16 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 - Lapsed or expired trial → read-only workspace, and links/QR codes show a "subscription inactive" page
 - **Checkout codes** via Stripe Coupons + Promotion Codes: code field on the billing page with a live server-side preview ("50% off for 3 months"), applied to the Checkout session (plus Stripe's own code field); 100%-off codes create card-free comp accounts (`payment_method_collection: if_required`); `?code=` deep links from pricing; redemption stored on the workspace and in the audit log
 - Optional: Lynqr-side trial-extension codes (Stripe codes can't lengthen trials)
-- Restricted key needs read access to Coupons, Promotion Codes, Customers, Checkout Sessions, Subscriptions, Billing Portal and Prices
+- Restricted key needs: Coupons + Promotion Codes (write, for the admin console), Customers, Checkout Sessions, Subscriptions, Billing Portal, Prices
+
+## 8b. Platform admin console (plan, decided 2026-10-25)
+- Platform-admin flag on users (separate from workspace roles); first admins bootstrapped from the `ADMIN_EMAILS` env var (verified accounts only); admins can grant or revoke others in the console
+- Same WorkOS login; entering `/admin` requires password re-auth within 15 minutes → short-lived admin session; all `/api/v1/admin/*` routes gated server-side; `noindex`
+- **Checkout codes:** create, list and deactivate Stripe coupons + promotion codes (percent/amount, duration, max redemptions, expiry, plan restriction), view redemptions; Lynqr trial-extension codes
+- **Workspaces & users:** search; view plan, trial, members and usage; extend trial; comp; suspend or unsuspend
+- **Platform metrics:** signups, trials, active subscriptions, MRR, trial→paid conversion, links/QR created, clicks/scans per day
+- **Abuse moderation:** search links/QR by destination or domain, disable or restore with reason (shows a "disabled for abuse" page), domain blocklist checked at create/update time, user reports from the public error page
+- **Platform audit log:** every admin action with actor, target, before/after and IP; append-only
 
 ## 9. SEO & marketing site (plan)
 - Server-rendered (Go `html/template`) public pages, served to visitors without a session so crawlers get real HTML: landing `/`, `/pricing`, `/features`, `/about`, legal (`/terms`, `/privacy`)
