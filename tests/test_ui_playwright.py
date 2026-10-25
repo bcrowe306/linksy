@@ -35,7 +35,9 @@ def get_or_create_credentials():
 
 def authenticate_page(page: Page, base_url: str):
     """Helper to ensure the page has an active authenticated session"""
-    email, password = get_or_create_credentials()
+    rand_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    email = f"ui_reg_{int(time.time())}_{rand_suffix}@lynqr.app"
+    password = "LinksySecurePass!2026"
     
     # Check if already authenticated
     page.goto(f"{base_url}/")
@@ -291,6 +293,7 @@ def test_profile_and_developer_api_keys(page: Page, base_url: str):
 # ==============================================================================
 def test_qr_studio_unsaved_changes_warning(page: Page, base_url: str):
     """Verify that editing QR code prompts user when attempting to navigate away"""
+    authenticate_page(page, base_url)
     page.goto(f"{base_url}/qr-studio")
     page.wait_for_load_state("networkidle")
     
@@ -325,6 +328,7 @@ def test_qr_studio_unsaved_changes_warning(page: Page, base_url: str):
 # ==============================================================================
 def test_short_link_creation_and_redirection(page: Page, base_url: str):
     """Test creating a new short link via modal and verifying 302 redirection"""
+    authenticate_page(page, base_url)
     page.goto(f"{base_url}/links")
     page.wait_for_load_state("networkidle")
     

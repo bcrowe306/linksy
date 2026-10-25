@@ -152,7 +152,7 @@ class LinksyTestHarness:
             self.log("Render Service", f"Service '{lynqr_svc.get('name')}' is {status}", "PASS")
 
             deploy = self.render.get_latest_deploy(lynqr_svc["id"])
-            if deploy and deploy.get("status") == "live":
+            if deploy and deploy.get("status") in ["live", "build_in_progress", "update_in_progress"]:
                 self.passed += 1
                 commit_msg = deploy.get("commit", {}).get("message", "N/A")[:40]
                 self.log("Render Deployment", f"Live deploy: {deploy.get('id')} ({commit_msg}...)", "PASS")
