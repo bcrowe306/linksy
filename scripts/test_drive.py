@@ -247,8 +247,8 @@ class LinksyTestHarness:
             self.passed += 1
             self.log("Change Password", "Updated password directly via WorkOS API", "PASS")
         else:
-            # If in sandbox or password change is restricted, record warning
-            self.log("Change Password", f"Notice ({status}): {data}", "WARN")
+            self.failed += 1
+            self.log("Change Password", f"Failed ({status}): {data}", "FAIL")
 
     def test_login_with_new_password(self):
         payload = {
@@ -261,16 +261,8 @@ class LinksyTestHarness:
             self.token = data.get("token")
             self.log("Re-login with New Password", "Successfully logged in with new password", "PASS")
         else:
-            # Fall back to testing with original password
-            self.log("Re-login", f"New password login returned ({status}), testing original password", "INFO")
-            payload["password"] = self.dummy_password
-            status2, data2 = self.request("POST", "/api/v1/auth/login", payload)
-            if status2 == 200:
-                self.passed += 1
-                self.log("Re-login with Original Password", "Login verified", "PASS")
-            else:
-                self.failed += 1
-                self.log("Re-login", f"Failed ({status2}): {data2}", "FAIL")
+            self.failed += 1
+            self.log("Re-login with New Password", f"Failed ({status}): {data}", "FAIL")
 
 if __name__ == "__main__":
     target = sys.argv[1] if len(sys.argv) > 1 else "https://test.lynqr.app"

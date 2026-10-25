@@ -83,13 +83,18 @@ func AuthMiddleware(validators ...KeyValidator) fiber.Handler {
 					}
 					apiKey = key
 				}
+			} else if strings.HasPrefix(token, "user_") {
+				userID = token
 			} else if strings.HasPrefix(token, "sess_") {
-				// Format: sess_user_01M5R..._<timestamp>
-				parts := strings.Split(token, "_")
-				if len(parts) >= 3 && parts[1] == "user" {
-					userID = "user_" + parts[2]
-				} else if len(parts) >= 2 {
-					userID = parts[1]
+				clean := strings.TrimPrefix(token, "sess_")
+				if strings.HasPrefix(clean, "user_") {
+					parts := strings.Split(clean, "_")
+					if len(parts) >= 2 {
+						userID = "user_" + parts[1]
+					}
+				} else {
+					parts := strings.Split(clean, "_")
+					userID = parts[0]
 				}
 			} else if strings.HasPrefix(token, "workos_sess_") {
 				userID = strings.TrimPrefix(token, "workos_sess_")

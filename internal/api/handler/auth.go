@@ -346,10 +346,11 @@ func (a *AuthHandler) authenticateWithPassword(c fiber.Ctx, email, password stri
 		})
 	}
 
+	sessionToken := fmt.Sprintf("sess_%s_%d", authResp.User.ID, time.Now().Unix())
 	// Set session cookie
 	c.Cookie(&fiber.Cookie{
 		Name:     "linksy_session",
-		Value:    authResp.AccessToken,
+		Value:    sessionToken,
 		Expires:  time.Now().Add(7 * 24 * time.Hour),
 		HTTPOnly: false,
 		Secure:   true,
@@ -358,7 +359,7 @@ func (a *AuthHandler) authenticateWithPassword(c fiber.Ctx, email, password stri
 
 	name := fmt.Sprintf("%s %s", authResp.User.FirstName, authResp.User.LastName)
 	return c.JSON(fiber.Map{
-		"token": authResp.AccessToken,
+		"token": sessionToken,
 		"user": fiber.Map{
 			"id":         authResp.User.ID,
 			"email":      authResp.User.Email,
