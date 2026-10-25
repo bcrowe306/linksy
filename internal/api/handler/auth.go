@@ -93,7 +93,10 @@ func (a *AuthHandler) HandleOAuthLogin(c fiber.Ctx) error {
 	v.Set("redirect_uri", a.cfg.WorkOSRedirectURI)
 	v.Set("response_type", "code")
 	v.Set("provider", workOSProvider)
-	if screenHint != "" {
+	// Note: WorkOS AuthKit returns a 404 on /sign-up if public sign-ups are disabled
+	// in AuthKit dashboard settings. We safely ignore screen_hint="sign-up" so AuthKit
+	// opens the active hosted screen directly without 404ing.
+	if screenHint != "" && screenHint != "sign-up" {
 		v.Set("screen_hint", screenHint)
 	}
 

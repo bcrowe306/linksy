@@ -4,7 +4,7 @@
       <!-- Logo -->
       <router-link to="/" class="inline-flex items-center gap-2.5 mb-6 group">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-linksy-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-linksy-500/25 group-hover:scale-105 transition-transform">
-          <QrCode class="w-6 h-6 stroke-[2.5]" />
+          <QrCode class="w-6 h-6 stroke-[2.5]"/>
         </div>
         <span class="text-2xl font-black tracking-tight text-white font-mono">
           LINKSY<span class="text-linksy-400">.</span>
@@ -26,7 +26,7 @@
         <div class="space-y-2.5 mb-6">
           <!-- Google -->
           <button
-            @click="authStore.loginWithOAuth('google', 'sign-up')"
+            @click="authStore.loginWithOAuth('google')"
             type="button"
             class="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-gray-700 rounded-xl text-sm font-semibold text-gray-200 bg-gray-800/80 hover:bg-gray-800 hover:border-gray-600 transition-all shadow-sm active:scale-[0.98]"
           >
@@ -41,7 +41,7 @@
 
           <!-- Microsoft -->
           <button
-            @click="authStore.loginWithOAuth('microsoft', 'sign-up')"
+            @click="authStore.loginWithOAuth('microsoft')"
             type="button"
             class="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-gray-700 rounded-xl text-sm font-semibold text-gray-200 bg-gray-800/80 hover:bg-gray-800 hover:border-gray-600 transition-all shadow-sm active:scale-[0.98]"
           >
@@ -56,7 +56,7 @@
 
           <!-- GitHub -->
           <button
-            @click="authStore.loginWithOAuth('github', 'sign-up')"
+            @click="authStore.loginWithOAuth('github')"
             type="button"
             class="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-gray-700 rounded-xl text-sm font-semibold text-gray-200 bg-gray-800/80 hover:bg-gray-800 hover:border-gray-600 transition-all shadow-sm active:scale-[0.98]"
           >
@@ -206,10 +206,15 @@ async function handleSubmit() {
 
   isSubmitting.value = true
   try {
-    await authStore.signup(firstName.value, lastName.value, email.value, password.value)
+    await authStore.signUpWithPassword({
+      first_name: firstName.value,
+      last_name: lastName.value,
+      email: email.value,
+      password: password.value,
+    })
     router.push('/')
   } catch (err) {
-    errorMessage.value = err.message || 'Failed to create account'
+    errorMessage.value = err.message || 'Registration failed'
   } finally {
     isSubmitting.value = false
   }
