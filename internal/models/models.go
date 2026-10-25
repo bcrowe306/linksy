@@ -41,12 +41,63 @@ type User struct {
 }
 
 type Team struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Slug      string    `json:"slug"`
-	OwnerID   string    `json:"owner_id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        string      `json:"id"`
+	Name      string      `json:"name"`
+	Slug      string      `json:"slug"`
+	OwnerID   string      `json:"owner_id"`
+	CreatedAt time.Time   `json:"created_at"`
+	UpdatedAt time.Time   `json:"updated_at"`
+	Billing   TeamBilling `json:"-"`
+}
+
+// TeamBilling is the workspace's subscription state (synced from Stripe).
+type TeamBilling struct {
+	TrialEndsAt          *time.Time
+	StripeCustomerID     string
+	StripeSubscriptionID string
+	SubscriptionStatus   string // Stripe status: trialing, active, past_due, canceled, unpaid, …
+	Interval             string // month | year
+	CurrentPeriodEnd     *time.Time
+	CancelAtPeriodEnd    bool
+	DiscountCode         string
+	DiscountLabel        string
+	Comped               bool
+}
+
+// Billing states exposed to clients.
+const (
+	BillingTrial    = "trial"    // Lynqr's no-card trial
+	BillingTrialing = "trialing" // subscribed, paid billing starts after the trial
+	BillingActive   = "active"
+	BillingPastDue  = "past_due" // payment failed, Stripe is retrying
+	BillingComped   = "comped"   // complimentary access granted by Lynqr
+	BillingExpired  = "expired"  // trial ended without a subscription
+	BillingCanceled = "canceled" // subscription ended
+)
+
+// State reports the workspace's billing state at time now.
+func (b TeamBilling) State(now time.Time) string {
+	switch {
+	case b.Comped:
+		return BillingComped
+	case b.SubscriptionStatus == "active":
+		return BillingActive
+	case b.SubscriptionStatus == "trialing":
+		return BillingTrialing
+	case b.SubscriptionStatus == "past_due":
+		return BillingPastDue
+	case b.TrialEndsAt != nil && now.Before(*b.TrialEndsAt):
+		return BillingTrial
+	case b.StripeSubscriptionID != "":
+		return BillingCanceled
+	}
+	return BillingExpired
+}
+
+// Lapsed reports whether the workspace has lost access (read-only, codes stop).
+func (b TeamBilling) Lapsed(now time.Time) bool {
+	s := b.State(now)
+	return s == BillingExpired || s == BillingCanceled
 }
 
 // Membership status values

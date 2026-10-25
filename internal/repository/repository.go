@@ -129,8 +129,10 @@ func (r *Repository) CreateTeam(t *models.Team) error {
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.Exec(r.db.Rebind(`INSERT INTO teams (id, name, slug, owner_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`),
-		t.ID, t.Name, t.Slug, t.OwnerID, ts, ts); err != nil {
+	trialEnd := ts.Add(7 * 24 * time.Hour)
+	t.Billing.TrialEndsAt = &trialEnd
+	if _, err := tx.Exec(r.db.Rebind(`INSERT INTO teams (id, name, slug, owner_id, created_at, updated_at, trial_ends_at) VALUES (?, ?, ?, ?, ?, ?, ?)`),
+		t.ID, t.Name, t.Slug, t.OwnerID, ts, ts, trialEnd); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(r.db.Rebind(`INSERT INTO team_members (id, team_id, user_id, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`),
@@ -140,14 +142,60 @@ func (r *Repository) CreateTeam(t *models.Team) error {
 	return tx.Commit()
 }
 
-func (r *Repository) GetTeam(id string) (*models.Team, error) {
+const teamCols = `id, name, slug, owner_id, created_at, updated_at, trial_ends_at, stripe_customer_id, stripe_subscription_id,
+	subscription_status, billing_interval, current_period_end, cancel_at_period_end, discount_code, discount_label, comped`
+
+func scanTeam(row interface{ Scan(...any) error }) (*models.Team, error) {
 	var t models.Team
-	err := r.queryRow(`SELECT id, name, slug, owner_id, created_at, updated_at FROM teams WHERE id = ?`, id).
-		Scan(&t.ID, &t.Name, &t.Slug, &t.OwnerID, &t.CreatedAt, &t.UpdatedAt)
-	if err != nil {
+	b := &t.Billing
+	if err := row.Scan(&t.ID, &t.Name, &t.Slug, &t.OwnerID, &t.CreatedAt, &t.UpdatedAt, &b.TrialEndsAt, &b.StripeCustomerID,
+		&b.StripeSubscriptionID, &b.SubscriptionStatus, &b.Interval, &b.CurrentPeriodEnd, &b.CancelAtPeriodEnd,
+		&b.DiscountCode, &b.DiscountLabel, &b.Comped); err != nil {
 		return nil, notFound(err)
 	}
 	return &t, nil
+}
+
+func (r *Repository) GetTeam(id string) (*models.Team, error) {
+	return scanTeam(r.queryRow(`SELECT `+teamCols+` FROM teams WHERE id = ?`, id))
+}
+
+func (r *Repository) GetTeamByCustomer(customerID string) (*models.Team, error) {
+	return scanTeam(r.queryRow(`SELECT `+teamCols+` FROM teams WHERE stripe_customer_id = ? AND stripe_customer_id <> ''`, customerID))
+}
+
+func (r *Repository) SetTeamCustomer(teamID, customerID string) error {
+	return requireAffected(r.exec(`UPDATE teams SET stripe_customer_id = ?, updated_at = ? WHERE id = ?`, customerID, now(), teamID))
+}
+
+// UpdateTeamSubscription stores the subscription state synced from Stripe.
+func (r *Repository) UpdateTeamSubscription(teamID string, b models.TeamBilling) error {
+	return requireAffected(r.exec(`UPDATE teams SET stripe_customer_id = ?, stripe_subscription_id = ?, subscription_status = ?,
+		billing_interval = ?, current_period_end = ?, cancel_at_period_end = ?, discount_code = ?, discount_label = ?, updated_at = ?
+		WHERE id = ?`,
+		b.StripeCustomerID, b.StripeSubscriptionID, b.SubscriptionStatus, b.Interval, b.CurrentPeriodEnd, b.CancelAtPeriodEnd,
+		b.DiscountCode, b.DiscountLabel, now(), teamID))
+}
+
+func (r *Repository) SetTeamTrialEnd(teamID string, t time.Time) error {
+	return requireAffected(r.exec(`UPDATE teams SET trial_ends_at = ?, updated_at = ? WHERE id = ?`, t, now(), teamID))
+}
+
+func (r *Repository) SetTeamComped(teamID string, comped bool) error {
+	return requireAffected(r.exec(`UPDATE teams SET comped = ?, updated_at = ? WHERE id = ?`, comped, now(), teamID))
+}
+
+// RecordStripeEvent stores an event ID; it returns false if it was already processed.
+func (r *Repository) RecordStripeEvent(id, typ string) (bool, error) {
+	var n int
+	if err := r.queryRow(`SELECT COUNT(*) FROM stripe_events WHERE id = ?`, id).Scan(&n); err != nil {
+		return false, err
+	}
+	if n > 0 {
+		return false, nil
+	}
+	_, err := r.exec(`INSERT INTO stripe_events (id, type, received_at) VALUES (?, ?, ?)`, id, typ, now())
+	return err == nil, err
 }
 
 func (r *Repository) TeamSlugExists(slug string) bool {

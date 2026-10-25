@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { api, onUnauthorized } from '../api/client'
+import { api, onUnauthorized, onPaymentRequired } from '../api/client'
 
 // Session state is derived from the server (/api/v1/auth/me); the session
 // itself lives in an HttpOnly cookie the browser JavaScript can't read.
@@ -11,6 +11,7 @@ export const useAuthStore = defineStore('auth', () => {
   const role = ref(null)
   const permissions = ref([])
   const pendingInvitations = ref(0)
+  const billing = ref(null)
   const authConfig = ref({ enabled: false, dev_login: false, providers: [] })
   const loaded = ref(false)
   const loading = ref(false)
@@ -37,6 +38,7 @@ export const useAuthStore = defineStore('auth', () => {
       role.value = me.role
       permissions.value = me.permissions || []
       pendingInvitations.value = me.pending_invitations || 0
+      billing.value = me.billing || null
     } else {
       user.value = null
       team.value = null
@@ -44,6 +46,7 @@ export const useAuthStore = defineStore('auth', () => {
       role.value = null
       permissions.value = []
       pendingInvitations.value = 0
+      billing.value = null
       if (me?.error) error.value = me.error
     }
   }
@@ -130,6 +133,9 @@ export const useAuthStore = defineStore('auth', () => {
     }
   })
 
+  // The plan lapsed mid-session: pick up the read-only state and banner.
+  onPaymentRequired(() => refresh())
+
   checkAuthConfig()
 
   return {
@@ -139,6 +145,8 @@ export const useAuthStore = defineStore('auth', () => {
     role,
     permissions,
     pendingInvitations,
+    billing,
+    readOnly: computed(() => !!billing.value?.read_only),
     authConfig,
     loaded,
     loading,

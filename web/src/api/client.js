@@ -10,6 +10,13 @@ export class ApiError extends Error {
 }
 
 let unauthorizedHandler = null
+let paymentRequiredHandler = null
+
+// Called when the server rejects a write because the workspace's plan lapsed.
+export function onPaymentRequired(fn) {
+  paymentRequiredHandler = fn
+}
+
 export function onUnauthorized(fn) {
   unauthorizedHandler = fn
 }
@@ -48,6 +55,7 @@ export async function request(method, path, { body, form, query, raw, signal } =
 
   if (!res.ok) {
     if (res.status === 401 && unauthorizedHandler) unauthorizedHandler()
+    if (res.status === 402 && paymentRequiredHandler) paymentRequiredHandler()
     throw new ApiError(data?.error || `Request failed (${res.status})`, res.status, data)
   }
   return data
@@ -67,6 +75,12 @@ export const api = {
   verifyEmail: (pendingToken, code) => post('/api/v1/auth/verify-email', { pending_token: pendingToken, code }),
   devLogin: (payload) => post('/api/v1/auth/dev-login', payload),
   logout: () => post('/api/v1/auth/logout'),
+
+  // Billing
+  billing: () => get('/api/v1/billing'),
+  previewPromo: (code, interval) => post('/api/v1/billing/promo', { code, interval }),
+  startCheckout: (interval, code) => post('/api/v1/billing/checkout', { interval, code }),
+  billingPortal: () => post('/api/v1/billing/portal'),
   requestPasswordReset: (email) => post('/api/v1/auth/password-reset', { email }),
   confirmPasswordReset: (token, newPassword) => post('/api/v1/auth/password-reset/confirm', { token, new_password: newPassword }),
 

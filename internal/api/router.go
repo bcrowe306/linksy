@@ -45,6 +45,9 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	app.Post("/api/v1/auth/password-reset", authLimit, authH.HandlePasswordReset)
 	app.Post("/api/v1/auth/password-reset/confirm", authLimit, authH.HandlePasswordResetConfirm)
 
+	// Stripe webhooks (signature-verified)
+	app.Post("/api/webhooks/stripe", h.StripeWebhook)
+
 	// Invitation preview (public so the accept page can render before sign-in)
 	app.Get("/api/v1/invitations/:token", flowLimit, teamH.PreviewInvitation)
 
@@ -110,6 +113,12 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	api.Get("/analytics/report", can(auth.PermViewAnalytics), h.GetAnalyticsReport)
 	api.Get("/analytics/export", can(auth.PermExportAssets), h.ExportAnalytics)
 	api.Get("/analytics/live", can(auth.PermViewAnalytics), h.LiveUpgrade, h.LiveFeed())
+
+	// Billing (owners manage; everyone can read the plan state)
+	api.Get("/billing", sessionOnly, h.GetBilling)
+	api.Post("/billing/promo", sessionOnly, can(auth.PermManageBilling), h.PreviewPromo)
+	api.Post("/billing/checkout", sessionOnly, can(auth.PermManageBilling), h.StartCheckout)
+	api.Post("/billing/portal", sessionOnly, can(auth.PermManageBilling), h.BillingPortal)
 
 	// Workspaces (multi-team membership & switching)
 	api.Get("/teams", sessionOnly, teamH.ListTeams)

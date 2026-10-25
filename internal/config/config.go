@@ -28,6 +28,9 @@ type Config struct {
 	LogLevel              string
 	// AppSecret salts analytics IP hashes. Required in production.
 	AppSecret string
+	// Stripe (billing is disabled when StripeKey is empty)
+	StripeKey           string
+	StripeWebhookSecret string
 	// DevLogin enables a password-less local login. Only honoured when AppURL is localhost.
 	DevLogin bool
 }
@@ -116,6 +119,8 @@ func LoadConfig() *Config {
 		LogLevel:              logLevel,
 		AppSecret:             getEnv("APP_SECRET", ""),
 		DevLogin:              getEnv("DEV_LOGIN", "") == "true",
+		StripeKey:             getEnv("STRIPE_SECRET_KEY", getEnv("STRIP_SECRET_KEY", "")),
+		StripeWebhookSecret:   getEnv("STRIPE_WEBHOOK_SECRET", ""),
 	}
 }
 

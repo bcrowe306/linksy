@@ -15,6 +15,7 @@
 
     <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
       <Header @open-create="openCreate" @open-mobile-nav="mobileNavOpen = true" />
+      <BillingBanner />
       <main class="flex-1 overflow-y-auto">
         <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <router-view @open-create="openCreate" />
@@ -36,6 +37,7 @@ import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
 import Header from './components/Header.vue'
+import BillingBanner from './components/BillingBanner.vue'
 import CreateModal from './components/CreateModal.vue'
 import HelpDrawer from './components/HelpDrawer.vue'
 import ToastHost from './components/ui/ToastHost.vue'
