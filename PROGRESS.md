@@ -16,8 +16,9 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 | 6 | Dashboard & analytics (charts, ranges, geo, export, live feed, CF geo headers) | `feat/analytics` | ⏳ |
 | 7 | Tooltips, Quick Docs, shortcuts, user guides | `feat/help-docs` | ⏳ |
 | 8 | Stripe billing (7-day no-card trial · $5/mo annual or $8.99 monthly · per workspace) | `feat/billing` | ⏳ keys + pricing received 2026-10-25 |
-| 9 | Test suites (Go, Vitest, Playwright, live test-drive) | `feat/test-suites` | ⏳ (tests also added per area) |
-| 10 | Email notifications | `feat/email` | ⏸ waiting on email provider choice |
+| 9 | SEO & public marketing site | `feat/seo-marketing` | ⏳ requested 2026-10-25 |
+| 10 | Test suites (Go, Vitest, Playwright, live test-drive) | `feat/test-suites` | ⏳ (tests also added per area) |
+| 11 | Email notifications | `feat/email` | ⏸ waiting on email provider choice |
 
 ## 1. Auth & tenancy (feat/auth-tenancy)
 - [x] Opaque, server-side sessions (`lqs_` tokens, SHA-256 at rest, HttpOnly + Secure + SameSite=Lax cookie, 30-day sliding expiry, revocable)
@@ -63,6 +64,15 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 - [x] Auth limiter split (credentials 30/min, OAuth/invite flows 120/min); logs include CF client IP to verify per-client limiting
 - [x] Tests: every shape/eye/frame combination must decode; SVG injection; payload escaping per type; e2e for scans, app routing, vCard hosting, document replacement, static types, preview, export options
 - [ ] CI + merge + live test-drive
+
+## 9. SEO & marketing site (plan)
+- Server-rendered (Go `html/template`) public pages, served to visitors without a session so crawlers get real HTML: landing `/`, `/pricing`, `/features`, `/about`, legal (`/terms`, `/privacy`)
+- Free public QR generator (no login, static codes, rate-limited) plus one landing page per type (`/qr-code-generator/wifi`, `/vcard`, `/pdf`, `/app-store`, …) targeting high-volume searches, with signup CTAs for dynamic codes and analytics
+- Guides/blog section (`/guides/...`) from embedded Markdown, shared with in-app help (item 7)
+- Per-page title/description/canonical, Open Graph + Twitter cards with generated OG images, JSON-LD (Organization, SoftwareApplication with offers, FAQPage, BreadcrumbList, HowTo)
+- `sitemap.xml`, `robots.txt`; `noindex` on test.lynqr.app and every app/auth route; short links and scan URLs are `noindex` + `X-Robots-Tag`
+- Core Web Vitals: no JS required for marketing pages, inline critical CSS, self-hosted fonts with preload, image dimensions, compression and caching headers
+- Search Console / Bing verification hooks via env vars; optional privacy-friendly analytics snippet
 
 ## Open questions / blocked items
 - Stripe: decided (see item 8). The live key is used on test.lynqr.app by choice, so automated tests stop at the Checkout page.
