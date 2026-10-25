@@ -409,13 +409,13 @@ func (r *Repository) SetInvitationState(id, teamID, state string) error {
 // ----------------- Links -----------------
 
 const linkCols = `id, team_id, user_id, slug, target_url, title, description, is_active, expires_at, password_hash,
-	utm_source, utm_medium, utm_campaign, utm_term, utm_content, click_count, created_at, updated_at`
+	utm_source, utm_medium, utm_campaign, utm_term, utm_content, fallback_url, click_count, created_at, updated_at`
 
 func scanLink(row interface{ Scan(...any) error }) (*models.Link, error) {
 	var l models.Link
 	if err := row.Scan(&l.ID, &l.TeamID, &l.UserID, &l.Slug, &l.TargetURL, &l.Title, &l.Description,
 		&l.IsActive, &l.ExpiresAt, &l.PasswordHash,
-		&l.UTMSource, &l.UTMMedium, &l.UTMCampaign, &l.UTMTerm, &l.UTMContent,
+		&l.UTMSource, &l.UTMMedium, &l.UTMCampaign, &l.UTMTerm, &l.UTMContent, &l.FallbackURL,
 		&l.ClickCount, &l.CreatedAt, &l.UpdatedAt); err != nil {
 		return nil, notFound(err)
 	}
@@ -429,9 +429,9 @@ func (r *Repository) CreateLink(l *models.Link) error {
 	}
 	ts := now()
 	l.CreatedAt, l.UpdatedAt = ts, ts
-	_, err := r.exec(`INSERT INTO links (`+linkCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	_, err := r.exec(`INSERT INTO links (`+linkCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		l.ID, l.TeamID, l.UserID, l.Slug, l.TargetURL, l.Title, l.Description, l.IsActive, l.ExpiresAt, l.PasswordHash,
-		l.UTMSource, l.UTMMedium, l.UTMCampaign, l.UTMTerm, l.UTMContent, l.ClickCount, l.CreatedAt, l.UpdatedAt)
+		l.UTMSource, l.UTMMedium, l.UTMCampaign, l.UTMTerm, l.UTMContent, l.FallbackURL, l.ClickCount, l.CreatedAt, l.UpdatedAt)
 	l.HasPassword = l.PasswordHash != ""
 	return err
 }
@@ -476,11 +476,11 @@ func (r *Repository) ListLinks(teamID string, limit, offset int) ([]models.Link,
 func (r *Repository) UpdateLink(l *models.Link) error {
 	l.UpdatedAt = now()
 	l.HasPassword = l.PasswordHash != ""
-	return requireAffected(r.exec(`UPDATE links SET target_url = ?, title = ?, description = ?, is_active = ?, expires_at = ?, password_hash = ?,
-		utm_source = ?, utm_medium = ?, utm_campaign = ?, utm_term = ?, utm_content = ?, updated_at = ?
+	return requireAffected(r.exec(`UPDATE links SET slug = ?, target_url = ?, title = ?, description = ?, is_active = ?, expires_at = ?, password_hash = ?,
+		utm_source = ?, utm_medium = ?, utm_campaign = ?, utm_term = ?, utm_content = ?, fallback_url = ?, updated_at = ?
 		WHERE id = ? AND team_id = ?`,
-		l.TargetURL, l.Title, l.Description, l.IsActive, l.ExpiresAt, l.PasswordHash,
-		l.UTMSource, l.UTMMedium, l.UTMCampaign, l.UTMTerm, l.UTMContent, l.UpdatedAt, l.ID, l.TeamID))
+		l.Slug, l.TargetURL, l.Title, l.Description, l.IsActive, l.ExpiresAt, l.PasswordHash,
+		l.UTMSource, l.UTMMedium, l.UTMCampaign, l.UTMTerm, l.UTMContent, l.FallbackURL, l.UpdatedAt, l.ID, l.TeamID))
 }
 
 func (r *Repository) IncrementLinkClicks(id string) error {
@@ -499,13 +499,13 @@ func (r *Repository) DeleteLink(id, teamID string) error {
 
 // ----------------- QR Codes -----------------
 
-const qrCols = `id, team_id, user_id, link_id, document_id, COALESCE(code, ''), is_dynamic, type, title, payload, raw_data, style, scan_count, created_at, updated_at`
-const qrInsertCols = `id, team_id, user_id, link_id, document_id, code, is_dynamic, type, title, payload, raw_data, style, scan_count, created_at, updated_at`
+const qrCols = `id, team_id, user_id, link_id, document_id, COALESCE(code, ''), is_dynamic, owns_link, type, title, payload, raw_data, style, scan_count, created_at, updated_at`
+const qrInsertCols = `id, team_id, user_id, link_id, document_id, code, is_dynamic, owns_link, type, title, payload, raw_data, style, scan_count, created_at, updated_at`
 
 func scanQR(row interface{ Scan(...any) error }) (*models.QRCode, error) {
 	var q models.QRCode
 	var styleJSON string
-	if err := row.Scan(&q.ID, &q.TeamID, &q.UserID, &q.LinkID, &q.DocumentID, &q.Code, &q.IsDynamic, &q.Type, &q.Title, &q.Payload, &q.RawData,
+	if err := row.Scan(&q.ID, &q.TeamID, &q.UserID, &q.LinkID, &q.DocumentID, &q.Code, &q.IsDynamic, &q.OwnsLink, &q.Type, &q.Title, &q.Payload, &q.RawData,
 		&styleJSON, &q.ScanCount, &q.CreatedAt, &q.UpdatedAt); err != nil {
 		return nil, notFound(err)
 	}
@@ -527,8 +527,8 @@ func (r *Repository) CreateQRCode(q *models.QRCode) error {
 	if q.Code != "" {
 		code = q.Code
 	}
-	_, err = r.exec(`INSERT INTO qr_codes (`+qrInsertCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		q.ID, q.TeamID, q.UserID, q.LinkID, q.DocumentID, code, q.IsDynamic, string(q.Type), q.Title, q.Payload, q.RawData, string(styleJSON), q.ScanCount, q.CreatedAt, q.UpdatedAt)
+	_, err = r.exec(`INSERT INTO qr_codes (`+qrInsertCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		q.ID, q.TeamID, q.UserID, q.LinkID, q.DocumentID, code, q.IsDynamic, q.OwnsLink, string(q.Type), q.Title, q.Payload, q.RawData, string(styleJSON), q.ScanCount, q.CreatedAt, q.UpdatedAt)
 	return err
 }
 

@@ -49,6 +49,14 @@ func TestLinksAndRedirectE2E(t *testing.T) {
 	k.Expect(k.Do("GET", "/api/v1/links/"+link.ID, u.Token, nil), http.StatusOK, "get")
 	k.Expect(k.Do("DELETE", "/api/v1/links/"+link.ID, u.Token, nil), http.StatusNoContent, "delete")
 	k.Expect(k.Do("GET", "/s/my-goog", "", nil, "Accept", "application/json"), http.StatusNotFound, "deleted redirect")
+
+	// Links default their title to the destination host/path
+	auto := k.Do("POST", "/api/v1/links", u.Token, map[string]any{"target_url": "https://www.example.com/spring/"})
+	var al models.Link
+	_ = auto.JSON(&al)
+	if al.Title != "example.com/spring" {
+		t.Errorf("default title = %q", al.Title)
+	}
 }
 
 func TestBrandedErrorEscapesInput(t *testing.T) {

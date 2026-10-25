@@ -457,7 +457,7 @@ def test_branded_error_page_ui(page: Page, base_url: str):
 
     # Verify Lynqr branding and return to home button
     expect(page.locator("text=Lynqr Smart Routing")).to_be_visible()
-    expect(page.locator("h1:has-text('Link Not Found or Inactive')")).to_be_visible()
+    expect(page.locator("h1:has-text('Link Not Found')")).to_be_visible()
     home_btn = page.locator("a:has-text('Return to Lynqr Home')")
     expect(home_btn).to_be_visible()
 
@@ -465,3 +465,31 @@ def test_branded_error_page_ui(page: Page, base_url: str):
     home_btn.click()
     page.wait_for_load_state("networkidle")
     assert page.url.rstrip("/").endswith(base_url.rstrip("/").split("://")[-1]) or "/" in page.url
+
+
+def test_password_protected_link_with_utm(page: Page, base_url: str, browser):
+    """Create a password-protected, UTM-tagged link in the UI, then unlock it as an anonymous visitor."""
+    authenticate_page(page, base_url)
+    page.goto(f"{base_url}/links")
+    slug = f"qa-pw-{int(time.time())}"
+    page.click("[data-testid=new-link]")
+    page.fill("[data-testid=link-target]", "https://lynqr.app/members")
+    page.fill("[data-testid=link-slug]", slug)
+    page.click("text=Password protection")
+    page.fill("[data-testid=link-password]", "letmein")
+    page.click("text=UTM campaign tags")
+    page.get_by_role("button", name="Newsletter", exact=True).click()
+    page.click("[data-testid=create-submit]")
+    expect(page.get_by_text("Short link created")).to_be_visible(timeout=8000)
+
+    visitor = browser.new_context().new_page()
+    visitor.goto(f"{base_url}/s/{slug}")
+    expect(visitor.get_by_text("This link is protected")).to_be_visible()
+    visitor.fill("input[name=password]", "wrong")
+    visitor.click("button[type=submit]")
+    expect(visitor.get_by_text("That password is incorrect")).to_be_visible()
+    visitor.fill("input[name=password]", "letmein")
+    visitor.click("button[type=submit]")
+    visitor.wait_for_url(lambda u: u.startswith("https://lynqr.app/members"), timeout=10000)
+    assert "utm_source=newsletter" in visitor.url and "utm_medium=email" in visitor.url
+    visitor.context.close()

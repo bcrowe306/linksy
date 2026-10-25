@@ -37,19 +37,11 @@
             <input id="link-slug" v-model="linkForm.custom_slug" pattern="[A-Za-z0-9][A-Za-z0-9_\-]{2,63}" placeholder="summer-sale" class="flex-1 bg-surface px-3 py-2 text-sm text-fg outline-none" data-testid="link-slug" />
           </div>
         </div>
-        <div class="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label class="label" for="link-title">Title <span class="text-fg-subtle font-normal">(optional)</span></label>
-            <input id="link-title" v-model="linkForm.title" placeholder="Summer campaign" class="input" />
-          </div>
-          <div>
-            <label class="label" for="link-expiry">
-              Expires <span class="text-fg-subtle font-normal">(optional)</span>
-              <Tip text="After this moment the link shows a branded 'expired' page instead of redirecting." />
-            </label>
-            <input id="link-expiry" v-model="linkForm.expires_local" type="datetime-local" class="input" />
-          </div>
+        <div>
+          <label class="label" for="link-title">Title <span class="text-fg-subtle font-normal">(optional)</span></label>
+          <input id="link-title" v-model="linkForm.title" placeholder="Summer campaign" class="input" />
         </div>
+        <LinkOptionsFields v-model="linkForm" />
       </template>
 
       <!-- ---------- QR code ---------- -->
@@ -92,6 +84,8 @@ import AppModal from './ui/AppModal.vue'
 import Tip from './ui/Tip.vue'
 import FileDrop from './ui/FileDrop.vue'
 import QRTypeFields from './qr/QRTypeFields.vue'
+import LinkOptionsFields from './LinkOptionsFields.vue'
+import { blankLinkForm, formToPayload } from '../lib/linkForm'
 import { defaultsFor, rawDataFor, validateContent } from '../lib/qrContent'
 
 const props = defineProps({
@@ -112,7 +106,7 @@ const activeTab = ref('link')
 const isSubmitting = ref(false)
 const errorMessage = ref('')
 
-const blankLink = () => ({ target_url: '', title: '', custom_slug: '', expires_local: '' })
+const blankLink = blankLinkForm
 const blankQR = () => ({ type: 'website', target_url: '', is_dynamic: true, document_id: '', data: defaultsFor('website') })
 const linkForm = ref(blankLink())
 const qrContent = ref(blankQR())
@@ -144,8 +138,7 @@ async function submit() {
   isSubmitting.value = true
   try {
     if (activeTab.value === 'link') {
-      const { expires_local, ...rest } = linkForm.value
-      const link = await api.createLink({ ...rest, expires_at: expires_local ? new Date(expires_local).toISOString() : null })
+      const link = await api.createLink(formToPayload(linkForm.value))
       toast.success(`${window.location.host}/s/${link.slug} is live`, { title: 'Short link created' })
     } else if (activeTab.value === 'qr') {
       const problem = validateContent(qrContent.value)
