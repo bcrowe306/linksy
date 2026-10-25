@@ -319,66 +319,76 @@ func (a *AuthHandler) HandleCallback(c fiber.Ctx) error {
 		return c.Redirect().To(fmt.Sprintf("/login?auth_error=%s", url.QueryEscape(errDesc)))
 	}
 
-	reqBody := WorkOSAuthRequest{
-		ClientID:     a.cfg.WorkOSClient,
-		ClientSecret: a.cfg.WorkOSAPIKey,
-		GrantType:    "authorization_code",
-		Code:         code,
+	type credentialPair struct {
+		clientID string
+		secret   string
 	}
 
-	jsonBytes, err := json.Marshal(reqBody)
-	if err != nil {
-		return c.Redirect().To("/login?auth_error=internal_error")
+	pairs := []credentialPair{
+		{a.cfg.WorkOSClient, a.cfg.WorkOSAPIKey},
+	}
+	if a.cfg.WorkOSClientIDProd != "" && a.cfg.WorkOSAPIKeyProd != "" {
+		pairs = append(pairs, credentialPair{a.cfg.WorkOSClientIDProd, a.cfg.WorkOSAPIKeyProd})
+	}
+	if a.cfg.WorkOSClientIDStaging != "" && a.cfg.WorkOSAPIKeyTest != "" {
+		pairs = append(pairs, credentialPair{a.cfg.WorkOSClientIDStaging, a.cfg.WorkOSAPIKeyTest})
 	}
 
-	resp, err := a.httpClient.Post(
-		"https://api.workos.com/user_management/authenticate",
-		"application/json",
-		bytes.NewBuffer(jsonBytes),
-	)
-	if err != nil {
-		return c.Redirect().To(fmt.Sprintf("/login?auth_error=%s", url.QueryEscape(err.Error())))
-	}
-	defer resp.Body.Close()
-
-	respBody, _ := io.ReadAll(resp.Body)
 	var authResp WorkOSAuthResponse
-	_ = json.Unmarshal(respBody, &authResp)
+	var lastErr string
+	success := false
 
-	// If WorkOS complains about client secret from a different environment, retry with the alternate key if configured
-	if resp.StatusCode != http.StatusOK && strings.Contains(strings.ToLower(authResp.ErrorDesc), "different environment") {
-		alternateKey := a.cfg.WorkOSAPIKeyProd
-		if alternateKey == "" || alternateKey == reqBody.ClientSecret {
-			alternateKey = a.cfg.WorkOSAPIKey
+	for _, pair := range pairs {
+		if pair.clientID == "" || pair.secret == "" {
+			continue
 		}
-		if alternateKey != "" && alternateKey != reqBody.ClientSecret {
-			reqBody.ClientSecret = alternateKey
-			retryBytes, _ := json.Marshal(reqBody)
-			retryResp, retryErr := a.httpClient.Post(
-				"https://api.workos.com/user_management/authenticate",
-				"application/json",
-				bytes.NewBuffer(retryBytes),
-			)
-			if retryErr == nil {
-				defer retryResp.Body.Close()
-				retryRespBody, _ := io.ReadAll(retryResp.Body)
-				if retryResp.StatusCode == http.StatusOK {
-					var retryAuthResp WorkOSAuthResponse
-					if err := json.Unmarshal(retryRespBody, &retryAuthResp); err == nil {
-						resp.StatusCode = http.StatusOK
-						authResp = retryAuthResp
-					}
-				}
+
+		reqBody := WorkOSAuthRequest{
+			ClientID:     pair.clientID,
+			ClientSecret: pair.secret,
+			GrantType:    "authorization_code",
+			Code:         code,
+		}
+
+		jsonBytes, err := json.Marshal(reqBody)
+		if err != nil {
+			continue
+		}
+
+		resp, err := a.httpClient.Post(
+			"https://api.workos.com/user_management/authenticate",
+			"application/json",
+			bytes.NewBuffer(jsonBytes),
+		)
+		if err != nil {
+			lastErr = err.Error()
+			continue
+		}
+
+		respBody, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			if err := json.Unmarshal(respBody, &authResp); err == nil {
+				success = true
+				break
+			}
+		} else {
+			var errResp WorkOSAuthResponse
+			_ = json.Unmarshal(respBody, &errResp)
+			if errResp.ErrorDesc != "" {
+				lastErr = errResp.ErrorDesc
+			} else {
+				lastErr = fmt.Sprintf("WorkOS error (%d)", resp.StatusCode)
 			}
 		}
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		msg := authResp.ErrorDesc
-		if msg == "" {
-			msg = fmt.Sprintf("WorkOS error (%d)", resp.StatusCode)
+	if !success {
+		if lastErr == "" {
+			lastErr = "Authentication failed"
 		}
-		return c.Redirect().To(fmt.Sprintf("/login?auth_error=%s", url.QueryEscape(msg)))
+		return c.Redirect().To(fmt.Sprintf("/login?auth_error=%s", url.QueryEscape(lastErr)))
 	}
 
 	// Set session cookie

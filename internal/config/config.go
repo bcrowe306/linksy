@@ -3,25 +3,27 @@ package config
 import (
 	"os"
 	"strconv"
-	"strings"
 )
 
 type Config struct {
-	Port              string
-	DBType            string // "sqlite" or "postgres"
-	DBDSN             string
-	StorageType       string // "local" or "r2" or "s3"
-	StoragePath       string
-	AppURL            string
-	R2Endpoint        string
-	R2AccessKeyID     string
-	R2SecretAccessKey string
-	R2Bucket          string
-	WorkOSAPIKey      string
-	WorkOSAPIKeyProd  string
-	WorkOSClient      string
-	WorkOSRedirectURI string
-	LogLevel          string
+	Port                  string
+	DBType                string // "sqlite" or "postgres"
+	DBDSN                 string
+	StorageType           string // "local" or "r2" or "s3"
+	StoragePath           string
+	AppURL                string
+	R2Endpoint            string
+	R2AccessKeyID         string
+	R2SecretAccessKey     string
+	R2Bucket              string
+	WorkOSAPIKey          string
+	WorkOSClient          string
+	WorkOSAPIKeyTest      string
+	WorkOSClientIDStaging string
+	WorkOSAPIKeyProd      string
+	WorkOSClientIDProd    string
+	WorkOSRedirectURI     string
+	LogLevel              string
 }
 
 func LoadConfig() *Config {
@@ -35,12 +37,30 @@ func LoadConfig() *Config {
 	r2AccessKeyID := getEnv("R2_ACCESS_KEY_ID", getEnv("CLOUDFARE_ACCESS_KEY_ID", ""))
 	r2SecretAccessKey := getEnv("R2_SECRET_ACCESS_KEY", getEnv("CLOUDFARE_SECRET_KEY", ""))
 	r2Bucket := getEnv("R2_BUCKET", "lynqr-storage")
-	workosAPIKey := getEnv("WORKOS_API_KEY", "")
+
+	workosAPIKeyTest := getEnv("WORKOS_API_KEY_TEST", "")
+	workosClientIDStaging := getEnv("WORKOS_CLIENT_ID_STAGING", "")
 	workosAPIKeyProd := getEnv("WORKOS_API_KEY_PROD", "")
-	if workosAPIKeyProd == "" && workosAPIKey != "" && !strings.Contains(workosAPIKey, "test") {
-		workosAPIKeyProd = workosAPIKey
+	workosClientIDProd := getEnv("WORKOS_CLIENT_ID_PROD", "")
+
+	workosAPIKey := getEnv("WORKOS_API_KEY", "")
+	if workosAPIKey == "" {
+		if workosAPIKeyProd != "" {
+			workosAPIKey = workosAPIKeyProd
+		} else {
+			workosAPIKey = workosAPIKeyTest
+		}
 	}
+
 	workosClient := getEnv("WORKOS_CLIENT_ID", "")
+	if workosClient == "" {
+		if workosClientIDProd != "" {
+			workosClient = workosClientIDProd
+		} else {
+			workosClient = workosClientIDStaging
+		}
+	}
+
 	workosRedirectURI := getEnv("WORKOS_REDIRECT_URI", appURL+"/api/v1/auth/callback")
 	logLevel := getEnv("LOG_LEVEL", "info")
 
@@ -55,21 +75,24 @@ func LoadConfig() *Config {
 	}
 
 	return &Config{
-		Port:              port,
-		DBType:            dbType,
-		DBDSN:             dbDSN,
-		StorageType:       storageType,
-		StoragePath:       storagePath,
-		AppURL:            appURL,
-		R2Endpoint:        r2Endpoint,
-		R2AccessKeyID:     r2AccessKeyID,
-		R2SecretAccessKey: r2SecretAccessKey,
-		R2Bucket:          r2Bucket,
-		WorkOSAPIKey:      workosAPIKey,
-		WorkOSAPIKeyProd:  workosAPIKeyProd,
-		WorkOSClient:      workosClient,
-		WorkOSRedirectURI: workosRedirectURI,
-		LogLevel:          logLevel,
+		Port:                  port,
+		DBType:                dbType,
+		DBDSN:                 dbDSN,
+		StorageType:           storageType,
+		StoragePath:           storagePath,
+		AppURL:                appURL,
+		R2Endpoint:            r2Endpoint,
+		R2AccessKeyID:         r2AccessKeyID,
+		R2SecretAccessKey:     r2SecretAccessKey,
+		R2Bucket:              r2Bucket,
+		WorkOSAPIKey:          workosAPIKey,
+		WorkOSClient:          workosClient,
+		WorkOSAPIKeyTest:      workosAPIKeyTest,
+		WorkOSClientIDStaging: workosClientIDStaging,
+		WorkOSAPIKeyProd:      workosAPIKeyProd,
+		WorkOSClientIDProd:    workosClientIDProd,
+		WorkOSRedirectURI:     workosRedirectURI,
+		LogLevel:              logLevel,
 	}
 }
 
