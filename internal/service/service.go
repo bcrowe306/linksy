@@ -65,6 +65,7 @@ type Service struct {
 	storage storage.StorageProvider
 	appURL  string
 	ipSalt  string
+	live    *liveHub
 }
 
 func New(repo *repository.Repository, storage storage.StorageProvider, appURL string) *Service {
@@ -72,6 +73,7 @@ func New(repo *repository.Repository, storage storage.StorageProvider, appURL st
 		repo:    repo,
 		storage: storage,
 		appURL:  strings.TrimRight(appURL, "/"),
+		live:    newLiveHub(),
 	}
 }
 
@@ -846,50 +848,6 @@ func (s *Service) hashIP(ip string) string {
 	}
 	sum := sha256.Sum256([]byte(s.ipSalt + "|" + ip))
 	return hex.EncodeToString(sum[:16])
-}
-
-func (s *Service) TrackEvent(e *models.AnalyticsEvent) {
-	// Parse basic user agent info
-	ua := strings.ToLower(e.UserAgent)
-	switch {
-	case strings.Contains(ua, "ipad") || strings.Contains(ua, "tablet"):
-		e.Device = "Tablet"
-	case strings.Contains(ua, "mobile") || strings.Contains(ua, "android") || strings.Contains(ua, "iphone"):
-		e.Device = "Mobile"
-	default:
-		e.Device = "Desktop"
-	}
-
-	switch {
-	case strings.Contains(ua, "edg"):
-		e.Browser = "Edge"
-	case strings.Contains(ua, "chrome") || strings.Contains(ua, "crios"):
-		e.Browser = "Chrome"
-	case strings.Contains(ua, "firefox") || strings.Contains(ua, "fxios"):
-		e.Browser = "Firefox"
-	case strings.Contains(ua, "safari"):
-		e.Browser = "Safari"
-	default:
-		e.Browser = "Other"
-	}
-
-	switch {
-	case strings.Contains(ua, "windows"):
-		e.OS = "Windows"
-	case strings.Contains(ua, "iphone") || strings.Contains(ua, "ipad"):
-		e.OS = "iOS"
-	case strings.Contains(ua, "macintosh") || strings.Contains(ua, "mac os"):
-		e.OS = "macOS"
-	case strings.Contains(ua, "android"):
-		e.OS = "Android"
-	case strings.Contains(ua, "linux"):
-		e.OS = "Linux"
-	default:
-		e.OS = "Other"
-	}
-
-	e.IPHash = s.hashIP(e.IP)
-	_ = s.repo.RecordEvent(e)
 }
 
 type AnalyticsQuery struct {
