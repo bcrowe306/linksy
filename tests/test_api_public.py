@@ -75,7 +75,7 @@ def test_auth_config_and_oauth_providers(session):
     assert r_cfg.status_code == 200, f"GET /api/v1/auth/config failed: {r_cfg.status_code}"
     cfg = r_cfg.json()
     assert cfg.get("enabled") is True
-    assert "client_id" in cfg and "providers" in cfg
+    assert "providers" in cfg and cfg.get("dev_login") is False, "dev login must never be enabled on a deployed host"
 
     # Verify Hosted AuthKit redirect
     r_login = session.get(f"{BASE_URL}/api/v1/auth/login", allow_redirects=False, timeout=10)

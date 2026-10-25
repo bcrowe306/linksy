@@ -1,60 +1,51 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
+const STORAGE_KEY = 'lynqr_theme_pref'
+const media = window.matchMedia('(prefers-color-scheme: dark)')
+
+function readPreference() {
+  const saved = localStorage.getItem(STORAGE_KEY)
+  return ['system', 'dark', 'light'].includes(saved) ? saved : 'dark' // Dark by default (PRD §1.12)
+}
+
+// Applies the theme class before Vue mounts to avoid a flash of the wrong theme.
+export function applyTheme(pref = readPreference()) {
+  const dark = pref === 'dark' || (pref === 'system' && media.matches)
+  const root = document.documentElement
+  root.classList.toggle('dark', dark)
+  root.style.colorScheme = dark ? 'dark' : 'light'
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0c0c0e' : '#f8f8fa')
+  return dark
+}
+
 export const useThemeStore = defineStore('theme', () => {
   // 'system' | 'dark' | 'light'
-  const preference = ref(localStorage.getItem('lynqr_theme_pref') || localStorage.getItem('linqr_theme_pref') || localStorage.getItem('linksy_theme_pref') || 'system')
-  const systemPrefersDark = ref(window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const preference = ref(readPreference())
+  const systemPrefersDark = ref(media.matches)
 
   const effectiveTheme = computed(() => {
-    if (preference.value === 'system') {
-      return systemPrefersDark.value ? 'dark' : 'light'
-    }
+    if (preference.value === 'system') return systemPrefersDark.value ? 'dark' : 'light'
     return preference.value
   })
 
-  function applyTheme() {
-    const isDark = effectiveTheme.value === 'dark'
-    if (isDark) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-  }
-
   function setTheme(pref) {
     preference.value = pref
-    localStorage.setItem('lynqr_theme_pref', pref)
-    localStorage.setItem('linksy_theme_pref', pref)
-    applyTheme()
+    localStorage.setItem(STORAGE_KEY, pref)
+    applyTheme(pref)
   }
 
   function cycleTheme() {
-    if (preference.value === 'system') {
-      setTheme('dark')
-    } else if (preference.value === 'dark') {
-      setTheme('light')
-    } else {
-      setTheme('system')
-    }
+    const order = ['dark', 'light', 'system']
+    setTheme(order[(order.indexOf(preference.value) + 1) % order.length])
   }
 
-  // Listen to OS system preference changes in real-time
-  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-  mediaQuery.addEventListener('change', (e) => {
+  media.addEventListener('change', (e) => {
     systemPrefersDark.value = e.matches
-    if (preference.value === 'system') {
-      applyTheme()
-    }
+    if (preference.value === 'system') applyTheme('system')
   })
 
-  // Initialize on load
-  applyTheme()
+  applyTheme(preference.value)
 
-  return {
-    preference,
-    effectiveTheme,
-    setTheme,
-    cycleTheme
-  }
+  return { preference, effectiveTheme, setTheme, cycleTheme }
 })

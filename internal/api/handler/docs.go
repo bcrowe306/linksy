@@ -28,6 +28,8 @@ func (h *Handler) HandleAPIDocs(c fiber.Ctx) error {
 </html>`
 
 	c.Set("Content-Type", "text/html; charset=utf-8")
+	// Embedded in the app's API Reference page, so same-origin framing is allowed.
+	c.Set("X-Frame-Options", "SAMEORIGIN")
 	// Scalar is loaded from jsDelivr and injects inline styles and fonts.
 	c.Set("Content-Security-Policy", "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "+
 		"style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:; img-src 'self' data: https:; "+

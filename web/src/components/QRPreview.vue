@@ -52,28 +52,28 @@
       <div class="grid grid-cols-2 gap-2">
         <a
           :href="`/api/v1/qr/${qrId}/export?format=png&download=true`"
-          class="py-2 px-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-xs font-medium text-center transition-colors flex items-center justify-center gap-1.5"
+          class="py-2 px-3 bg-gray-700 hover:bg-gray-600 text-gray-50 rounded-lg text-xs font-medium text-center transition-colors flex items-center justify-center gap-1.5"
         >
           <Download class="w-3.5 h-3.5 text-lynqr-400" />
           <span>PNG (HD)</span>
         </a>
         <a
           :href="`/api/v1/qr/${qrId}/export?format=jpeg&download=true`"
-          class="py-2 px-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-xs font-medium text-center transition-colors flex items-center justify-center gap-1.5"
+          class="py-2 px-3 bg-gray-700 hover:bg-gray-600 text-gray-50 rounded-lg text-xs font-medium text-center transition-colors flex items-center justify-center gap-1.5"
         >
           <Download class="w-3.5 h-3.5 text-amber-400" />
           <span>JPEG</span>
         </a>
         <a
           :href="`/api/v1/qr/${qrId}/export?format=pdf&download=true`"
-          class="py-2 px-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-xs font-medium text-center transition-colors flex items-center justify-center gap-1.5"
+          class="py-2 px-3 bg-gray-700 hover:bg-gray-600 text-gray-50 rounded-lg text-xs font-medium text-center transition-colors flex items-center justify-center gap-1.5"
         >
           <FileText class="w-3.5 h-3.5 text-rose-400" />
           <span>Print PDF</span>
         </a>
         <a
           :href="`/api/v1/qr/${qrId}/export?format=svg&download=true`"
-          class="py-2 px-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-xs font-medium text-center transition-colors flex items-center justify-center gap-1.5"
+          class="py-2 px-3 bg-gray-700 hover:bg-gray-600 text-gray-50 rounded-lg text-xs font-medium text-center transition-colors flex items-center justify-center gap-1.5"
         >
           <Download class="w-3.5 h-3.5 text-emerald-400" />
           <span>SVG Vector</span>

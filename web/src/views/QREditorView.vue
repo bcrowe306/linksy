@@ -5,14 +5,14 @@
       <div class="flex items-center gap-3">
         <button
           @click="navigateBack"
-          class="p-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
+          class="p-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-50 transition-colors"
           title="Back to QR Codes"
         >
           <ArrowLeft class="w-4 h-4" />
         </button>
         <div>
           <div class="flex items-center gap-2.5">
-            <h1 class="text-xl font-bold text-white flex items-center gap-2">
+            <h1 class="text-xl font-bold text-gray-50 flex items-center gap-2">
               <span>{{ isEditing ? 'Edit QR Code' : 'QR Code Design Studio' }}</span>
               <span class="text-[10px] px-2 py-0.5 rounded-full bg-lynqr-500/20 text-lynqr-400 font-mono">PRO</span>
             </h1>
@@ -517,28 +517,28 @@
             <div class="grid grid-cols-2 gap-2">
               <button
                 @click="downloadFormat('png')"
-                class="py-2 px-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+                class="py-2 px-3 bg-gray-700 hover:bg-gray-600 text-gray-50 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
               >
                 <Download class="w-3.5 h-3.5 text-lynqr-400" />
                 <span>PNG (3000px)</span>
               </button>
               <button
                 @click="downloadFormat('jpeg')"
-                class="py-2 px-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+                class="py-2 px-3 bg-gray-700 hover:bg-gray-600 text-gray-50 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
               >
                 <Download class="w-3.5 h-3.5 text-amber-400" />
                 <span>JPEG (HD)</span>
               </button>
               <button
                 @click="downloadFormat('pdf')"
-                class="py-2 px-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+                class="py-2 px-3 bg-gray-700 hover:bg-gray-600 text-gray-50 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
               >
                 <FileText class="w-3.5 h-3.5 text-rose-400" />
                 <span>Printable PDF</span>
               </button>
               <button
                 @click="downloadFormat('svg')"
-                class="py-2 px-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+                class="py-2 px-3 bg-gray-700 hover:bg-gray-600 text-gray-50 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
               >
                 <Download class="w-3.5 h-3.5 text-emerald-400" />
                 <span>Vector SVG</span>

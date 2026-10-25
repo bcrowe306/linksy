@@ -1,97 +1,106 @@
 <template>
-  <aside class="w-64 bg-gray-900 border-r border-gray-800 flex flex-col justify-between select-none">
-    <div>
-      <!-- Brand Logo -->
-      <div class="h-16 flex items-center px-6 gap-3 border-b border-gray-800">
-        <div class="w-8 h-8 rounded-lg bg-lynqr-600 flex items-center justify-center text-white shadow-lg shadow-lynqr-500/20">
-          <QrCode class="w-5 h-5" />
-        </div>
-        <div class="flex flex-col">
-          <span class="font-extrabold text-xl tracking-tight text-white flex items-center gap-1.5">
-            Lynqr
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-lynqr-500/20 text-lynqr-400 font-mono">v1</span>
-          </span>
-        </div>
-      </div>
+  <!-- Mobile backdrop -->
+  <Transition enter-active-class="transition-opacity duration-200" enter-from-class="opacity-0" leave-active-class="transition-opacity duration-150" leave-to-class="opacity-0">
+    <div v-if="mobileOpen" class="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm lg:hidden" @click="$emit('close-mobile')" />
+  </Transition>
 
-      <!-- Navigation Links -->
-      <nav class="p-3 space-y-1">
-        <router-link
-          v-for="item in navItems"
-          :key="item.path"
-          :to="item.path"
-          v-slot="{ isActive }"
-          class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group"
-          :class="[
-            $route.path === item.path
-              ? 'bg-lynqr-600/15 text-lynqr-400 font-semibold'
-              : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800/60'
-          ]"
-        >
-          <component
-            :is="item.icon"
-            class="w-4 h-4 transition-transform group-hover:scale-110"
-            :class="$route.path === item.path ? 'text-lynqr-400' : 'text-gray-400 group-hover:text-gray-200'"
-          />
-          <span>{{ item.label }}</span>
-          <span v-if="item.badge" class="ml-auto text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-400">
-            {{ item.badge }}
-          </span>
-        </router-link>
-      </nav>
+  <aside
+    class="fixed inset-y-0 left-0 z-40 flex flex-col border-r border-line bg-surface transition-all duration-200 lg:static lg:translate-x-0"
+    :class="[mobileOpen ? 'translate-x-0' : '-translate-x-full', collapsed ? 'lg:w-[72px]' : 'lg:w-64', 'w-64']"
+    aria-label="Primary"
+  >
+    <div class="flex h-16 items-center justify-between gap-2 px-4 border-b border-line">
+      <router-link to="/" class="min-w-0" @click="$emit('close-mobile')">
+        <LynqrLogo :icon-only="collapsed" />
+      </router-link>
+      <button class="btn-ghost btn-icon lg:hidden" aria-label="Close navigation" @click="$emit('close-mobile')">
+        <X class="w-4 h-4" />
+      </button>
     </div>
 
-    <!-- Quick Help & Documentation Card -->
-    <div class="p-4 border-t border-gray-800">
-      <div class="bg-gradient-to-br from-gray-800/80 to-gray-800/40 rounded-xl p-3.5 border border-gray-700/60">
-        <div class="flex items-center gap-2 text-xs font-semibold text-lynqr-400 mb-1">
-          <BookOpen class="w-3.5 h-3.5" />
-          <span>Quick Guidance</span>
+    <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+      <div v-for="group in groups" :key="group.label">
+        <p v-if="!collapsed" class="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">{{ group.label }}</p>
+        <div class="space-y-0.5">
+          <Tip v-for="item in group.items" :key="item.path" :text="collapsed ? item.label : ''" placement="right" class="w-full">
+            <router-link
+              :to="item.path"
+              class="group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors"
+              :class="isActive(item) ? 'bg-brand-500/10 text-brand-600 dark:text-brand-300' : 'text-fg-muted hover:bg-subtle hover:text-fg'"
+              :data-testid="`nav-${item.id}`"
+              @click="$emit('close-mobile')"
+            >
+              <span v-if="isActive(item)" class="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-r bg-brand-500" />
+              <component :is="item.icon" class="w-[18px] h-[18px] shrink-0" />
+              <span v-if="!collapsed" class="truncate">{{ item.label }}</span>
+              <span v-if="!collapsed && item.badge" class="ml-auto rounded-full bg-subtle px-2 py-0.5 text-[10px] font-semibold text-fg-muted">{{ item.badge }}</span>
+            </router-link>
+          </Tip>
         </div>
-        <p class="text-[11px] text-gray-400 leading-relaxed mb-3">
-          Explore interactive guides, payload types, and dynamic QR tutorials.
-        </p>
-        <button
-          @click="$emit('open-help')"
-          class="w-full py-1.5 px-3 rounded-lg bg-gray-700 hover:bg-gray-600 text-xs font-medium text-white transition-colors flex items-center justify-center gap-1.5"
-        >
-          <HelpCircle class="w-3.5 h-3.5" />
-          Open Docs & Help
-        </button>
       </div>
+    </nav>
+
+    <div class="border-t border-line p-3 space-y-1">
+      <button
+        class="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-fg-muted hover:bg-subtle hover:text-fg"
+        @click="$emit('open-help')"
+      >
+        <LifeBuoy class="w-[18px] h-[18px] shrink-0" />
+        <span v-if="!collapsed" class="flex-1 text-left">Help & Quick Docs</span>
+        <span v-if="!collapsed" class="kbd">?</span>
+      </button>
+      <button
+        class="hidden lg:flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-fg-muted hover:bg-subtle hover:text-fg"
+        :aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+        @click="$emit('toggle-collapse')"
+      >
+        <PanelLeftOpen v-if="collapsed" class="w-[18px] h-[18px] shrink-0" />
+        <PanelLeftClose v-else class="w-[18px] h-[18px] shrink-0" />
+        <span v-if="!collapsed">Collapse</span>
+      </button>
     </div>
   </aside>
 </template>
 
 <script setup>
 import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import {
-  LayoutDashboard,
-  Link2,
-  QrCode,
-  Wand2,
-  FileText,
-  BarChart3,
-  Code2,
-  Settings,
-  UserCircle,
-  BookOpen,
-  HelpCircle
+  LayoutDashboard, Link2, QrCode, Wand2, FileText, BarChart3, Code2, Settings, UserCircle, LifeBuoy, X,
+  PanelLeftClose, PanelLeftOpen
 } from 'lucide-vue-next'
 import { useLynqrStore } from '../stores/lynqr'
+import LynqrLogo from './ui/LynqrLogo.vue'
+import Tip from './ui/Tip.vue'
 
-defineEmits(['open-help'])
+defineProps({ collapsed: Boolean, mobileOpen: Boolean })
+defineEmits(['open-help', 'toggle-collapse', 'close-mobile'])
 const store = useLynqrStore()
+const route = useRoute()
 
-const navItems = computed(() => [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/links', label: 'Short Links', icon: Link2, badge: store.links.length || null },
-  { path: '/qr-codes', label: 'QR Codes', icon: QrCode, badge: store.qrCodes.length || null },
-  { path: '/qr-studio', label: 'QR Design Studio', icon: Wand2 },
-  { path: '/documents', label: 'Documents', icon: FileText, badge: store.documents.length || null },
-  { path: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { path: '/api-docs', label: 'API Reference', icon: Code2 },
-  { path: '/profile', label: 'Account Profile', icon: UserCircle },
-  { path: '/settings', label: 'Team & Settings', icon: Settings },
+const groups = computed(() => [
+  {
+    label: 'Workspace',
+    items: [
+      { id: 'dashboard', path: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+      { id: 'links', path: '/links', label: 'Short Links', icon: Link2, badge: store.links.length || null },
+      { id: 'qr-codes', path: '/qr-codes', label: 'QR Codes', icon: QrCode, badge: store.qrCodes.length || null },
+      { id: 'qr-studio', path: '/qr-studio', label: 'QR Studio', icon: Wand2 },
+      { id: 'documents', path: '/documents', label: 'Documents', icon: FileText, badge: store.documents.length || null },
+      { id: 'analytics', path: '/analytics', label: 'Analytics', icon: BarChart3 }
+    ]
+  },
+  {
+    label: 'Account',
+    items: [
+      { id: 'settings', path: '/settings', label: 'Team & Settings', icon: Settings },
+      { id: 'profile', path: '/profile', label: 'Profile', icon: UserCircle },
+      { id: 'api-docs', path: '/api-docs', label: 'API Reference', icon: Code2 }
+    ]
+  }
 ])
+
+function isActive(item) {
+  return item.exact ? route.path === item.path : route.path === item.path || route.path.startsWith(item.path + '/')
+}
 </script>

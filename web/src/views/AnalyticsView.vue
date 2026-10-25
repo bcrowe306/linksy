@@ -2,7 +2,7 @@
   <div class="space-y-6">
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h1 class="text-xl font-bold text-white">Tracking & Analytics Reports</h1>
+        <h1 class="text-xl font-bold text-gray-50">Tracking & Analytics Reports</h1>
         <p class="text-xs text-gray-400 mt-0.5">Filter by asset and generate on-demand performance reports.</p>
       </div>
 
