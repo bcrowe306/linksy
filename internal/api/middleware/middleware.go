@@ -39,8 +39,25 @@ const DefaultCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'uns
 	"font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' wss: ws:; " +
 	"frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.workos.com; object-src 'none'"
 
+// CanonicalHost permanently redirects www.lynqr.app to lynqr.app (path and
+// query kept), so links printed with www keep working, sign-in uses a single
+// callback URL, and search engines see one site.
+func CanonicalHost() fiber.Handler {
+	return func(c fiber.Ctx) error {
+		host := c.Get("X-Forwarded-Host")
+		if host == "" {
+			host = c.Host()
+		}
+		if strings.EqualFold(strings.TrimSpace(strings.Split(host, ",")[0]), "www.lynqr.app") {
+			return c.Redirect().Status(fiber.StatusMovedPermanently).To("https://lynqr.app" + c.OriginalURL())
+		}
+		return c.Next()
+	}
+}
+
 func SetupCommon(app *fiber.App) {
 	app.Use(recover.New())
+	app.Use(CanonicalHost())
 	app.Use(logger.New(logger.Config{
 		Format: "[${time}] ${status} - ${latency} ${method} ${path} client=${reqHeader:CF-Connecting-IP}\n",
 	}))

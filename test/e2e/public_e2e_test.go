@@ -54,3 +54,13 @@ func TestPublicQRGenerator(t *testing.T) {
 	r = k.Do("POST", "/api/v1/public/qr", "", map[string]any{"type": "website", "target_url": "https://login.evil.example"})
 	k.Expect(r, http.StatusBadRequest, "blocked domain")
 }
+
+func TestWWWRedirectsToApex(t *testing.T) {
+	k := testkit.New(t)
+	r := k.Do("GET", "/s/spring-menu?utm_source=qr", "", nil, "X-Forwarded-Host", "www.lynqr.app")
+	k.Expect(r, http.StatusMovedPermanently, "www redirect")
+	if loc := r.Header.Get("Location"); loc != "https://lynqr.app/s/spring-menu?utm_source=qr" {
+		t.Fatalf("location: %s", loc)
+	}
+	k.Expect(k.Do("GET", "/health", "", nil, "X-Forwarded-Host", "lynqr.app"), http.StatusOK, "apex untouched")
+}
