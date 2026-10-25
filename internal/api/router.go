@@ -182,8 +182,11 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	})
 
 	// If web/dist directory exists, serve Vue 3 SPA frontend
-	if _, err := os.Stat("./web/dist"); err == nil {
-		app.Use("/", static.New("./web/dist"))
+	app.Get("/robots.txt", h.RobotsTxt)
+	app.Get("/sitemap.xml", h.SitemapXML)
+	if _, err := os.Stat(handler.DistDir); err == nil {
+		app.Get("/", h.Home)
+		app.Use("/", static.New(handler.DistDir))
 		app.Get("/*", func(c fiber.Ctx) error {
 			return c.SendFile("./web/dist/index.html")
 		})

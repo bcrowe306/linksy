@@ -134,10 +134,11 @@ def test_unauthenticated_route_blocks_and_redirects(page: Page, base_url: str):
     page.context.clear_cookies()
     page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
 
-    # 1. Visiting / (dashboard) redirects to /login
+    # 1. Visiting / shows the public landing page, which leads to sign-up
     page.goto(f"{base_url}/")
     page.wait_for_load_state("networkidle")
-    assert "/login" in page.url, f"Expected redirect to /login from /, got {page.url}"
+    expect(page.locator("h1")).to_contain_text("keep working for you")
+    expect(page.locator("[data-cta=hero]")).to_have_attribute("href", "/signup")
 
     # 2. Visiting /profile redirects to /login
     page.goto(f"{base_url}/profile")

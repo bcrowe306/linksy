@@ -5,6 +5,12 @@ const backend = { target: 'http://localhost:8080', changeOrigin: true }
 
 export default defineConfig({
   plugins: [vue()],
+  build: {
+    rollupOptions: {
+      // The app (index.html) and the public landing page (home.html)
+      input: { main: 'index.html', home: 'home.html' }
+    }
+  },
   server: {
     port: 3000,
     // Guides live in ../docs/guides so the Go server can reuse them for public pages.
