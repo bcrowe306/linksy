@@ -15,8 +15,9 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 | 5 | Team & user management UI | `feat/team-management-ui` | ⏳ |
 | 6 | Dashboard & analytics (charts, ranges, geo, export, live feed, CF geo headers) | `feat/analytics` | ⏳ |
 | 7 | Tooltips, Quick Docs, shortcuts, user guides | `feat/help-docs` | ⏳ |
-| 8 | Test suites (Go, Vitest, Playwright, live test-drive) | `feat/test-suites` | ⏳ (tests also added per area) |
-| 9 | Stripe billing + email notifications | `feat/billing-email` | ⏸ deferred by user (2026-10-25); revisit last |
+| 8 | Stripe billing (7-day no-card trial · $5/mo annual or $8.99 monthly · per workspace) | `feat/billing` | ⏳ keys + pricing received 2026-10-25 |
+| 9 | Test suites (Go, Vitest, Playwright, live test-drive) | `feat/test-suites` | ⏳ (tests also added per area) |
+| 10 | Email notifications | `feat/email` | ⏸ waiting on email provider choice |
 
 ## 1. Auth & tenancy (feat/auth-tenancy)
 - [x] Opaque, server-side sessions (`lqs_` tokens, SHA-256 at rest, HttpOnly + Secure + SameSite=Lax cookie, 30-day sliding expiry, revocable)
@@ -64,7 +65,7 @@ Status legend: ✅ done · 🚧 in progress · ⏳ queued · ❓ blocked on inpu
 - [ ] CI + merge + live test-drive
 
 ## Open questions / blocked items
-- Stripe: need `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and the plan/pricing structure.
+- Stripe: decided (see item 8). The live key is used on test.lynqr.app by choice, so automated tests stop at the Checkout page.
 - Email: need a provider + API key (Resend, Postmark or SES) and a verified sending domain on lynqr.app.
 - WorkOS: confirm whether the environment emails password-reset links itself (otherwise item 8 sends them).
 
