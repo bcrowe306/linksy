@@ -12,6 +12,17 @@ jobs:
     name: Test & Build
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: lynqr
+          POSTGRES_PASSWORD: lynqr
+          POSTGRES_DB: lynqr_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U lynqr" --health-interval 5s --health-timeout 5s --health-retries 10
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -29,10 +40,15 @@ jobs:
           cache: 'npm'
           cache-dependency-path: web/package.json
 
-      - name: Verify Go Backend
+      - name: Verify Go Backend (SQLite)
         run: |
           go vet ./...
-          go test -v -race ./...
+          go test -race ./...
+
+      - name: Verify Go Backend (PostgreSQL 16)
+        env:
+          LYNQR_TEST_POSTGRES_URL: postgres://lynqr:lynqr@localhost:5432/lynqr_test?sslmode=disable
+        run: go test -race ./test/... ./internal/service/...
 
       - name: Install Frontend Dependencies & Build SPA
         working-directory: web

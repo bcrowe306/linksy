@@ -423,6 +423,7 @@
 </template>
 
 <script setup>
+import { useAuthStore } from '../stores/auth'
 import { ref, computed, onMounted } from 'vue'
 import {
   ShieldCheck,
@@ -494,6 +495,8 @@ function canManageMember(m) {
   return m.role === 'member'
 }
 
+const authStore = useAuthStore()
+
 onMounted(async () => {
   await loadTeam()
   await loadApiKeys()
@@ -504,15 +507,9 @@ async function loadTeam() {
     const res = await api.getTeamMembers()
     members.value = res.members || []
     pendingInvitations.value = res.pending_invitations || []
-    currentUserRole.value = res.current_user_role || 'owner'
-
-    const localUser = JSON.parse(localStorage.getItem('lynqr_user') || localStorage.getItem('linqr_user') || localStorage.getItem('linksy_user') || '{}')
-    currentUserEmail.value = localUser.email || ''
-    currentUserId.value = res.current_user_id || localUser.id || ''
-
-    if (currentUserEmail.value && (currentUserEmail.value.toLowerCase() === 'bcrowe306@gmail.com' || currentUserEmail.value.toLowerCase() === 'bcrowe@nltst.com')) {
-      currentUserRole.value = 'owner'
-    }
+    currentUserRole.value = res.current_user_role
+    currentUserEmail.value = authStore.user?.email || ''
+    currentUserId.value = res.current_user_id
   } catch (err) {
     statusMessage.value = { type: 'error', text: err.message || 'Failed to load team members' }
   }
@@ -520,7 +517,7 @@ async function loadTeam() {
 
 async function loadApiKeys() {
   try {
-    const res = await api.listAPIKeys()
+    const res = await api.getApiKeys()
     apiKeys.value = res.api_keys || []
   } catch (err) {
     // ignore
@@ -620,7 +617,7 @@ async function triggerRevokeInvitation(inv) {
 async function executeCreateKey() {
   try {
     const name = newKeyName.value.trim() || 'API Key'
-    const res = await api.createAPIKey(name, 365)
+    const res = await api.createApiKey(name, 365)
     newlyGeneratedKey.value = res.api_key?.key || ''
     showCreateKeyModal.value = false
     newKeyName.value = ''
@@ -633,7 +630,7 @@ async function executeCreateKey() {
 async function revokeApiKey(id) {
   if (!confirm('Are you sure you want to revoke this API key?')) return
   try {
-    await api.revokeAPIKey(id)
+    await api.revokeApiKey(id)
     await loadApiKeys()
     statusMessage.value = { type: 'success', text: 'API key revoked successfully.' }
   } catch (err) {

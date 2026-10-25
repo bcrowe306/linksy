@@ -26,7 +26,7 @@
         <div class="space-y-2.5 mb-6">
           <!-- Google -->
           <button
-            @click="authStore.loginWithOAuth('google')"
+            @click="authStore.loginWithOAuth('google', { redirect: route.query.redirect })"
             type="button"
             class="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-gray-700 rounded-xl text-sm font-semibold text-gray-200 bg-gray-800/80 hover:bg-gray-800 hover:border-gray-600 transition-all shadow-sm active:scale-[0.98]"
           >
@@ -41,7 +41,7 @@
 
           <!-- Microsoft -->
           <button
-            @click="authStore.loginWithOAuth('microsoft')"
+            @click="authStore.loginWithOAuth('microsoft', { redirect: route.query.redirect })"
             type="button"
             class="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-gray-700 rounded-xl text-sm font-semibold text-gray-200 bg-gray-800/80 hover:bg-gray-800 hover:border-gray-600 transition-all shadow-sm active:scale-[0.98]"
           >
@@ -56,7 +56,7 @@
 
           <!-- GitHub -->
           <button
-            @click="authStore.loginWithOAuth('github')"
+            @click="authStore.loginWithOAuth('github', { redirect: route.query.redirect })"
             type="button"
             class="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-gray-700 rounded-xl text-sm font-semibold text-gray-200 bg-gray-800/80 hover:bg-gray-800 hover:border-gray-600 transition-all shadow-sm active:scale-[0.98]"
           >
@@ -82,8 +82,17 @@
           <span>{{ errorMessage }}</span>
         </div>
 
+        <!-- Email verification step (WorkOS emails a one-time code) -->
+        <VerifyEmailForm
+          v-if="verification"
+          :pending-token="verification.pendingToken"
+          :email="verification.email || email"
+          @verified="finish"
+          @cancel="verification = null"
+        />
+
         <!-- Direct Email / Password Sign In Form -->
-        <form @submit.prevent="handleSubmit" class="space-y-4">
+        <form v-else @submit.prevent="handleSubmit" class="space-y-4">
           <div>
             <label class="block text-xs font-medium text-gray-300 mb-1">Work Email</label>
             <input
@@ -98,13 +107,12 @@
           <div>
             <div class="flex items-center justify-between mb-1">
               <label class="block text-xs font-medium text-gray-300">Password</label>
-              <button
-                type="button"
-                @click="authStore.loginWithOAuth('authkit')"
+              <router-link
+                :to="{ path: '/reset-password', query: { email } }"
                 class="text-[11px] text-lynqr-400 hover:text-lynqr-300 transition-colors"
               >
                 Forgot password?
-              </button>
+              </router-link>
             </div>
             <div class="relative">
               <input
@@ -135,6 +143,16 @@
           </button>
         </form>
 
+        <!-- Local development sign-in (only when the server enables DEV_LOGIN on localhost) -->
+        <form v-if="authStore.authConfig.dev_login && !verification" @submit.prevent="devLogin" class="mt-6 p-3 rounded-xl border border-dashed border-amber-500/40 space-y-2" data-testid="dev-login">
+          <p class="text-[11px] font-semibold text-amber-300 uppercase tracking-wider">Local dev sign-in</p>
+          <div class="flex gap-2">
+            <input v-model="devEmail" type="email" required placeholder="you@example.com"
+              class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500" />
+            <button type="submit" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-xs font-semibold text-white">Continue</button>
+          </div>
+        </form>
+
         <div class="mt-6 text-center">
           <p class="text-xs text-gray-400">
             Don't have an account?
@@ -153,6 +171,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { QrCode, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/auth'
+import VerifyEmailForm from '../components/VerifyEmailForm.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -163,6 +182,27 @@ const password = ref('')
 const showPassword = ref(false)
 const isSubmitting = ref(false)
 const errorMessage = ref('')
+const verification = ref(null)
+const devEmail = ref('')
+
+async function devLogin() {
+  errorMessage.value = ''
+  try {
+    await authStore.devLogin({ email: devEmail.value, first_name: devEmail.value.split('@')[0] })
+    finish()
+  } catch (err) {
+    errorMessage.value = err.message
+  }
+}
+
+function finish() {
+  router.push(safeRedirect(route.query.redirect))
+}
+
+function safeRedirect(target) {
+  const t = String(target || '/')
+  return t.startsWith('/') && !t.startsWith('//') ? t : '/'
+}
 
 onMounted(() => {
   const err = route.query.auth_error
@@ -175,9 +215,12 @@ async function handleSubmit() {
   errorMessage.value = ''
   isSubmitting.value = true
   try {
-    await authStore.loginWithPassword(email.value, password.value)
-    const target = route.query.redirect || '/'
-    router.push(target)
+    const result = await authStore.loginWithPassword(email.value, password.value)
+    if (result.verificationRequired) {
+      verification.value = result
+      return
+    }
+    finish()
   } catch (err) {
     errorMessage.value = err.message || 'Invalid email or password'
   } finally {

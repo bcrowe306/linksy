@@ -41,9 +41,9 @@ type SMSData struct {
 }
 
 type AppData struct {
-	AppStoreURL string `json:"app_store_url"`
+	AppStoreURL  string `json:"app_store_url"`
 	PlayStoreURL string `json:"play_store_url"`
-	WebURL      string `json:"web_url"`
+	WebURL       string `json:"web_url"`
 }
 
 // BuildPayload formats raw typed data into standardized QR payloads

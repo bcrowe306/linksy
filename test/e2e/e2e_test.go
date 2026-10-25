@@ -2,262 +2,327 @@ package e2e_test
 
 import (
 	"bytes"
-	"encoding/json"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/gofiber/fiber/v3"
-
-	"github.com/bcrowe306/linksy/internal/api"
-	"github.com/bcrowe306/linksy/internal/config"
-	"github.com/bcrowe306/linksy/internal/db"
 	"github.com/bcrowe306/linksy/internal/models"
-	"github.com/bcrowe306/linksy/internal/repository"
-	"github.com/bcrowe306/linksy/internal/service"
-	"github.com/bcrowe306/linksy/internal/storage"
+	"github.com/bcrowe306/linksy/test/testkit"
 )
 
-func setupTestApp(t *testing.T) (*fiber.App, func()) {
-	tmpDir, err := os.MkdirTemp("", "linksy-e2e-*")
-	if err != nil {
-		t.Fatalf("failed creating temp dir: %v", err)
-	}
-
-	dbPath := filepath.Join(tmpDir, "test.db")
-	database, err := db.Connect("sqlite", dbPath)
-	if err != nil {
-		t.Fatalf("failed connecting sqlite db: %v", err)
-	}
-
-	repo := repository.New(database)
-	_ = repo.EnsureDefaultTeam("team_default", "Default Team", "usr_demo123")
-
-	store, err := storage.NewLocalStorage(filepath.Join(tmpDir, "storage"), "http://example.com")
-	if err != nil {
-		t.Fatalf("failed initializing storage: %v", err)
-	}
-
-	svc := service.New(repo, store, "http://example.com")
-
-	cfg := &config.Config{
-		AppURL: "http://example.com",
-	}
-
-	app := fiber.New()
-	api.SetupRouter(app, svc, cfg)
-
-	cleanup := func() {
-		database.Close()
-		os.RemoveAll(tmpDir)
-	}
-
-	return app, cleanup
-}
-
 func TestHealthEndpoint(t *testing.T) {
-	app, cleanup := setupTestApp(t)
-	defer cleanup()
-
-	req := httptest.NewRequest("GET", "/health", nil)
-	resp, err := app.Test(req)
-	if err != nil {
-		t.Fatalf("health check failed: %v", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200 OK, got %d", resp.StatusCode)
+	k := testkit.New(t)
+	r := k.Do("GET", "/health", "", nil)
+	k.Expect(r, http.StatusOK, "health")
+	for _, h := range []string{"X-Content-Type-Options", "X-Frame-Options", "Content-Security-Policy"} {
+		if r.Header.Get(h) == "" {
+			t.Errorf("missing security header %s", h)
+		}
 	}
 }
 
 func TestLinksAndRedirectE2E(t *testing.T) {
-	app, cleanup := setupTestApp(t)
-	defer cleanup()
+	k := testkit.New(t)
+	u := k.Login("links@acme.test")
 
-	// 1. Create short link
-	body, _ := json.Marshal(map[string]interface{}{
-		"target_url":  "https://google.com",
-		"custom_slug": "my-goog",
-		"title":       "Google Search",
-	})
-
-	req := httptest.NewRequest("POST", "/api/v1/links", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer sess_user_demo123_test")
-	resp, err := app.Test(req)
-	if err != nil {
-		t.Fatalf("failed creating link: %v", err)
-	}
-	if resp.StatusCode != http.StatusCreated {
-		t.Fatalf("expected 201 Created, got %d", resp.StatusCode)
-	}
-
+	r := k.Do("POST", "/api/v1/links", u.Token, map[string]any{"target_url": "https://google.com", "custom_slug": "my-goog", "title": "Google"})
+	k.Expect(r, http.StatusCreated, "create link")
 	var link models.Link
-	_ = json.NewDecoder(resp.Body).Decode(&link)
+	_ = r.JSON(&link)
 
-	// 2. Perform redirect
-	redReq := httptest.NewRequest("GET", "/s/my-goog", nil)
-	redResp, err := app.Test(redReq)
-	if err != nil {
-		t.Fatalf("redirect failed: %v", err)
-	}
-	if redResp.StatusCode != http.StatusFound {
-		t.Errorf("expected 302 Found, got %d", redResp.StatusCode)
-	}
-	if loc := redResp.Header.Get("Location"); loc != "https://google.com" {
-		t.Errorf("expected redirect to https://google.com, got %s", loc)
+	k.Expect(k.Do("POST", "/api/v1/links", u.Token, map[string]any{"target_url": "https://google.com", "custom_slug": "my-goog"}), http.StatusConflict, "duplicate slug")
+	k.Expect(k.Do("POST", "/api/v1/links", u.Token, map[string]any{"target_url": "http://169.254.169.254/"}), http.StatusBadRequest, "SSRF target")
+
+	red := k.Do("GET", "/s/my-goog", "", nil)
+	k.Expect(red, http.StatusFound, "redirect")
+	if loc := red.Header.Get("Location"); loc != "https://google.com" {
+		t.Errorf("redirect to %q", loc)
 	}
 
-	// 3. Update destination URL dynamically
-	updateBody, _ := json.Marshal(map[string]interface{}{
-		"target_url": "https://duckduckgo.com",
-	})
-	upReq := httptest.NewRequest("PUT", "/api/v1/links/"+link.ID, bytes.NewReader(updateBody))
-	upReq.Header.Set("Content-Type", "application/json")
-	upReq.Header.Set("Authorization", "Bearer sess_user_demo123_test")
-	upResp, err := app.Test(upReq)
-	if err != nil {
-		t.Fatalf("update failed: %v", err)
-	}
-	if upResp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200 OK for update, got %d", upResp.StatusCode)
+	k.Expect(k.Do("PUT", "/api/v1/links/"+link.ID, u.Token, map[string]any{"target_url": "https://duckduckgo.com"}), http.StatusOK, "update")
+	if loc := k.Do("GET", "/s/my-goog", "", nil).Header.Get("Location"); loc != "https://duckduckgo.com" {
+		t.Errorf("updated redirect to %q", loc)
 	}
 
-	// 4. Verify changed redirection
-	redResp2, _ := app.Test(redReq)
-	if loc := redResp2.Header.Get("Location"); loc != "https://duckduckgo.com" {
-		t.Errorf("expected updated redirect to https://duckduckgo.com, got %s", loc)
+	k.Expect(k.Do("GET", "/api/v1/links/"+link.ID, u.Token, nil), http.StatusOK, "get")
+	k.Expect(k.Do("DELETE", "/api/v1/links/"+link.ID, u.Token, nil), http.StatusNoContent, "delete")
+	k.Expect(k.Do("GET", "/s/my-goog", "", nil, "Accept", "application/json"), http.StatusNotFound, "deleted redirect")
+}
+
+func TestBrandedErrorEscapesInput(t *testing.T) {
+	k := testkit.New(t)
+	r := k.Do("GET", "/s/%3Cscript%3Ealert(1)%3C%2Fscript%3E", "", nil, "Accept", "text/html")
+	k.Expect(r, http.StatusNotFound, "missing slug")
+	if strings.Contains(string(r.Body), "<script>alert(1)") {
+		t.Fatal("slug reflected unescaped into HTML error page")
 	}
 }
 
 func TestQRCodeAndExportE2E(t *testing.T) {
-	app, cleanup := setupTestApp(t)
-	defer cleanup()
+	k := testkit.New(t)
+	u := k.Login("qr@acme.test")
 
-	// 1. Create dynamic QR code
-	body, _ := json.Marshal(map[string]interface{}{
-		"title":      "Office Website",
-		"type":       "website",
-		"target_url": "https://example.com",
-		"is_dynamic": true,
-	})
-
-	req := httptest.NewRequest("POST", "/api/v1/qr", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer sess_user_demo123_test")
-	resp, err := app.Test(req)
-	if err != nil {
-		t.Fatalf("create QR failed: %v", err)
-	}
-	if resp.StatusCode != http.StatusCreated {
-		t.Fatalf("expected 201 Created, got %d", resp.StatusCode)
-	}
-
+	r := k.Do("POST", "/api/v1/qr", u.Token, map[string]any{"title": "Office", "type": "website", "target_url": "https://example.com", "is_dynamic": true})
+	k.Expect(r, http.StatusCreated, "create QR")
 	var qr models.QRCode
-	_ = json.NewDecoder(resp.Body).Decode(&qr)
+	_ = r.JSON(&qr)
 
-	// 2. Export QR as PNG
-	exportReq := httptest.NewRequest("GET", "/api/v1/qr/"+qr.ID+"/export?format=png", nil)
-	exportReq.Header.Set("Authorization", "Bearer sess_user_demo123_test")
-	exportResp, err := app.Test(exportReq)
-	if err != nil {
-		t.Fatalf("export failed: %v", err)
+	for format, mime := range map[string]string{"png": "image/png", "jpeg": "image/jpeg", "svg": "image/svg+xml", "pdf": "application/pdf"} {
+		e := k.Do("GET", "/api/v1/qr/"+qr.ID+"/export?format="+format, u.Token, nil)
+		k.Expect(e, http.StatusOK, "export "+format)
+		if ct := e.Header.Get("Content-Type"); ct != mime {
+			t.Errorf("export %s content type %q", format, ct)
+		}
 	}
-	if exportResp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200 OK for export, got %d", exportResp.StatusCode)
-	}
-	if ct := exportResp.Header.Get("Content-Type"); ct != "image/png" {
-		t.Errorf("expected image/png, got %s", ct)
-	}
+	k.Expect(k.Do("GET", "/api/v1/qr/"+qr.ID+"/export?format=png", "", nil), http.StatusUnauthorized, "anonymous export")
 
-	// 3. Export QR as PDF
-	pdfReq := httptest.NewRequest("GET", "/api/v1/qr/"+qr.ID+"/export?format=pdf", nil)
-	pdfReq.Header.Set("Authorization", "Bearer sess_user_demo123_test")
-	pdfResp, _ := app.Test(pdfReq)
-	if pdfResp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200 OK for PDF export, got %d", pdfResp.StatusCode)
-	}
+	scan := k.Do("GET", "/qr/r/"+qr.ID, "", nil)
+	k.Expect(scan, http.StatusFound, "scan redirect")
+
+	k.Expect(k.Do("PUT", "/api/v1/qr/"+qr.ID, u.Token, map[string]any{"title": "Office 2", "target_url": "https://example.org"}), http.StatusOK, "update QR")
+	k.Expect(k.Do("DELETE", "/api/v1/qr/"+qr.ID, u.Token, nil), http.StatusNoContent, "delete QR")
+}
+
+func upload(k *testkit.Kit, path, method, token, name string, content []byte) *testkit.Response {
+	var b bytes.Buffer
+	w := multipart.NewWriter(&b)
+	part, _ := w.CreateFormFile("file", name)
+	_, _ = part.Write(content)
+	w.Close()
+	req := httptest.NewRequest(method, path, &b)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+token)
+	return k.Send(req)
 }
 
 func TestDocumentUploadAndSharingE2E(t *testing.T) {
-	app, cleanup := setupTestApp(t)
-	defer cleanup()
+	k := testkit.New(t)
+	u := k.Login("docs@acme.test")
 
-	var b bytes.Buffer
-	w := multipart.NewWriter(&b)
-	part, _ := w.CreateFormFile("file", "report.pdf")
-	_, _ = part.Write([]byte("%PDF-1.4 sample pdf content for testing"))
-	w.Close()
-
-	req := httptest.NewRequest("POST", "/api/v1/documents/upload", &b)
-	req.Header.Set("Content-Type", w.FormDataContentType())
-	req.Header.Set("Authorization", "Bearer sess_user_demo123_test")
-
-	resp, err := app.Test(req)
-	if err != nil {
-		t.Fatalf("doc upload failed: %v", err)
-	}
-	if resp.StatusCode != http.StatusCreated {
-		t.Fatalf("expected 201 Created, got %d", resp.StatusCode)
-	}
-
-	var uploadResp struct {
+	r := upload(k, "/api/v1/documents/upload", "POST", u.Token, "report.pdf", []byte("%PDF-1.4 sample pdf content"))
+	k.Expect(r, http.StatusCreated, "upload")
+	var res struct {
 		Document    models.Document `json:"document"`
 		DownloadURL string          `json:"download_url"`
+		QRCode      models.QRCode   `json:"qr_code"`
 	}
-	_ = json.NewDecoder(resp.Body).Decode(&uploadResp)
-	if uploadResp.Document.Filename != "report.pdf" {
-		t.Errorf("expected filename 'report.pdf', got %s", uploadResp.Document.Filename)
+	_ = r.JSON(&res)
+	if res.Document.Filename != "report.pdf" || res.QRCode.DocumentID == nil || *res.QRCode.DocumentID != res.Document.ID {
+		t.Fatalf("unexpected upload response: %s", r.Body)
 	}
+
+	path := strings.TrimPrefix(res.DownloadURL, testkit.AppURL)
+	dl := k.Do("GET", path, "", nil)
+	k.Expect(dl, http.StatusOK, "public download")
+	if !strings.HasPrefix(string(dl.Body), "%PDF") {
+		t.Fatal("download body mismatch")
+	}
+
+	// HTML uploads are never served inline
+	h := upload(k, "/api/v1/documents/upload", "POST", u.Token, "x.html", []byte("<html><script>alert(1)</script></html>"))
+	k.Expect(h, http.StatusCreated, "html upload")
+	var hres struct {
+		DownloadURL string `json:"download_url"`
+	}
+	_ = h.JSON(&hres)
+	hd := k.Do("GET", strings.TrimPrefix(hres.DownloadURL, testkit.AppURL), "", nil)
+	if !strings.HasPrefix(hd.Header.Get("Content-Disposition"), "attachment") || strings.Contains(hd.Header.Get("Content-Type"), "html") {
+		t.Fatalf("html served inline: %v", hd.Header)
+	}
+
+	// Replace keeps the document ID and bumps the version
+	rep := upload(k, "/api/v1/documents/"+res.Document.ID, "PUT", u.Token, "report-v2.pdf", []byte("%PDF-1.4 v2"))
+	k.Expect(rep, http.StatusOK, "replace")
+	var repRes struct {
+		Document models.Document `json:"document"`
+	}
+	_ = rep.JSON(&repRes)
+	if repRes.Document.ID != res.Document.ID || repRes.Document.Version != 2 {
+		t.Fatalf("replace changed identity: %+v", repRes.Document)
+	}
+
+	k.Expect(k.Do("DELETE", "/api/v1/documents/"+res.Document.ID+"?delete_qr=true", u.Token, nil), http.StatusOK, "delete doc")
+	k.Expect(k.Do("GET", "/api/v1/qr/"+res.QRCode.ID, u.Token, nil), http.StatusNotFound, "doc QR deleted")
 }
 
 func TestOpenAPISpecAndDocsEndpoint(t *testing.T) {
-	app, cleanup := setupTestApp(t)
-	defer cleanup()
+	k := testkit.New(t)
+	k.Expect(k.Do("GET", "/api/v1/openapi.json", "", nil), http.StatusOK, "spec")
+	k.Expect(k.Do("GET", "/api/docs", "", nil), http.StatusOK, "docs")
+	k.Expect(k.Do("GET", "/api/v1/does-not-exist", "", nil), http.StatusUnauthorized, "unknown api route requires auth")
+}
 
-	specReq := httptest.NewRequest("GET", "/api/v1/openapi.json", nil)
-	specResp, err := app.Test(specReq)
-	if err != nil {
-		t.Fatalf("openapi spec request failed: %v", err)
-	}
-	if specResp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200 OK, got %d", specResp.StatusCode)
-	}
+func TestUnauthenticatedAndForgedCredentials(t *testing.T) {
+	k := testkit.New(t)
+	victim := k.Login("victim@acme.test")
+	k.Expect(k.Do("POST", "/api/v1/links", victim.Token, map[string]any{"target_url": "https://victim.example"}), http.StatusCreated, "seed")
 
-	docsReq := httptest.NewRequest("GET", "/api/docs", nil)
-	docsResp, err := app.Test(docsReq)
-	if err != nil {
-		t.Fatalf("docs request failed: %v", err)
+	forged := []string{
+		"",
+		victim.ID,                        // raw user id used to be accepted
+		"sess_" + victim.ID + "_1700000", // legacy unsigned session format
+		"workos_sess_" + victim.ID,
+		"eyJhbGciOiJub25lIn0.eyJzdWIiOiJ1c2VyX3ZpY3RpbV9hY21lX3Rlc3QifQ.", // unsigned JWT
+		"lqs_forged",
+		"lk_live_forged",
+		"randomgarbage",
 	}
-	if docsResp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200 OK, got %d", docsResp.StatusCode)
+	for _, tok := range forged {
+		r := k.Do("GET", "/api/v1/links", tok, nil)
+		if r.Status != http.StatusUnauthorized {
+			t.Errorf("token %q: expected 401, got %d", tok, r.Status)
+		}
+	}
+	k.Expect(k.Do("GET", "/api/v1/user/profile", "", nil), http.StatusUnauthorized, "anonymous profile")
+
+	me := k.Do("GET", "/api/v1/auth/me", "", nil).Map()
+	if me["authenticated"] != false || me["user"] != nil {
+		t.Fatalf("anonymous /me leaked a user: %v", me)
 	}
 }
 
-func TestUnauthenticatedRouteProtection(t *testing.T) {
-	app, cleanup := setupTestApp(t)
-	defer cleanup()
+func TestTeamHeaderSpoofingIsRejected(t *testing.T) {
+	k := testkit.New(t)
+	alice := k.Login("alice@acme.test")
+	mallory := k.Login("mallory@evil.test")
+	k.Expect(k.Do("POST", "/api/v1/links", alice.Token, map[string]any{"target_url": "https://alice.example"}), http.StatusCreated, "seed")
 
-	// 1. Unauthenticated request to /api/v1/links must return 401
-	req := httptest.NewRequest("GET", "/api/v1/links", nil)
-	resp, err := app.Test(req)
-	if err != nil {
-		t.Fatalf("request failed: %v", err)
+	r := k.Do("GET", "/api/v1/links", mallory.Token, nil, "X-Team-ID", alice.TeamID)
+	k.Expect(r, http.StatusForbidden, "spoofed X-Team-ID")
+
+	r = k.Do("GET", "/api/v1/analytics/summary", mallory.Token, nil, "X-Team-ID", "team_default")
+	k.Expect(r, http.StatusForbidden, "legacy default team")
+
+	var list struct {
+		Data []models.Link `json:"data"`
 	}
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("expected 401 Unauthorized for unauthenticated /api/v1/links, got %d", resp.StatusCode)
+	_ = k.Do("GET", "/api/v1/links", mallory.Token, nil).JSON(&list)
+	if len(list.Data) != 0 {
+		t.Fatalf("mallory sees %d foreign links", len(list.Data))
+	}
+}
+
+func TestCookieAuthRequiresSameOrigin(t *testing.T) {
+	k := testkit.New(t)
+	u := k.Login("cookie@acme.test")
+
+	send := func(origin string) int {
+		req := httptest.NewRequest("POST", "/api/v1/links", strings.NewReader(`{"target_url":"https://example.com"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(&http.Cookie{Name: "lynqr_session", Value: u.Token})
+		if origin != "" {
+			req.Header.Set("Origin", origin)
+		}
+		return k.Send(req).Status
+	}
+	if s := send("https://evil.example"); s != http.StatusForbidden {
+		t.Fatalf("cross-origin cookie POST: expected 403, got %d", s)
+	}
+	if s := send("http://example.com"); s != http.StatusCreated {
+		t.Fatalf("same-origin cookie POST: expected 201, got %d", s)
+	}
+}
+
+func TestAPIKeyLifecycleAndScope(t *testing.T) {
+	k := testkit.New(t)
+	u := k.Login("dev@acme.test")
+
+	r := k.Do("POST", "/api/v1/api-keys", u.Token, map[string]any{"name": "CI"})
+	k.Expect(r, http.StatusCreated, "create key")
+	var created struct {
+		APIKey models.APIKey `json:"api_key"`
+	}
+	_ = r.JSON(&created)
+	key := created.APIKey.Key
+	if !strings.HasPrefix(key, "lk_live_") {
+		t.Fatalf("bad key %q", key)
 	}
 
-	// 2. Unauthenticated request to /api/v1/user/profile must return 401
-	reqProfile := httptest.NewRequest("GET", "/api/v1/user/profile", nil)
-	respProfile, err := app.Test(reqProfile)
-	if err != nil {
-		t.Fatalf("request failed: %v", err)
+	k.Expect(k.Do("POST", "/api/v1/links", key, map[string]any{"target_url": "https://example.com"}), http.StatusCreated, "key creates link")
+	k.Expect(k.Do("POST", "/api/v1/api-keys", key, map[string]any{"name": "nested"}), http.StatusForbidden, "keys cannot mint keys")
+
+	other := k.Login("other@acme.test")
+	k.Expect(k.Do("GET", "/api/v1/links", key, nil, "X-Team-ID", other.TeamID), http.StatusOK, "key ignores X-Team-ID")
+
+	k.Expect(k.Do("DELETE", "/api/v1/api-keys/"+created.APIKey.ID, u.Token, nil), http.StatusOK, "revoke")
+	k.Expect(k.Do("GET", "/api/v1/links", key, nil), http.StatusUnauthorized, "revoked key")
+}
+
+func TestTeamManagementOverHTTP(t *testing.T) {
+	k := testkit.New(t)
+	owner := k.Login("boss@acme.test")
+	friend := k.Login("friend@acme.test")
+
+	r := k.Do("POST", "/api/v1/team/members/invite", owner.Token, map[string]any{"email": "friend@acme.test", "role": "viewer"})
+	k.Expect(r, http.StatusCreated, "invite")
+	var inv struct {
+		Invitation models.Invitation `json:"invitation"`
 	}
-	if respProfile.StatusCode != http.StatusUnauthorized {
-		t.Errorf("expected 401 Unauthorized for unauthenticated /api/v1/user/profile, got %d", respProfile.StatusCode)
+	_ = r.JSON(&inv)
+	token := inv.Invitation.AcceptURL[strings.LastIndex(inv.Invitation.AcceptURL, "/")+1:]
+
+	prev := k.Do("GET", "/api/v1/invitations/"+token, "", nil)
+	k.Expect(prev, http.StatusOK, "preview")
+	if prev.Map()["email"] != "friend@acme.test" {
+		t.Fatalf("preview: %s", prev.Body)
+	}
+
+	k.Expect(k.Do("POST", "/api/v1/invitations/"+token+"/accept", friend.Token, nil), http.StatusOK, "accept")
+
+	me := k.Do("GET", "/api/v1/auth/me", friend.Token, nil).Map()
+	if me["role"] != "viewer" || len(me["teams"].([]any)) != 2 {
+		t.Fatalf("after accept, /me = %v", me)
+	}
+
+	// Viewer can read but not write in the shared workspace
+	k.Expect(k.Do("GET", "/api/v1/links", friend.Token, nil), http.StatusOK, "viewer list")
+	k.Expect(k.Do("POST", "/api/v1/links", friend.Token, map[string]any{"target_url": "https://example.com"}), http.StatusForbidden, "viewer create")
+	k.Expect(k.Do("POST", "/api/v1/team/members/invite", friend.Token, map[string]any{"email": "x@y.test"}), http.StatusForbidden, "viewer invite")
+	k.Expect(k.Do("GET", "/api/v1/team/audit", friend.Token, nil), http.StatusForbidden, "viewer audit")
+
+	// Switch back to personal workspace where the friend is owner
+	k.Expect(k.Do("POST", "/api/v1/teams/switch", friend.Token, map[string]any{"team_id": friend.TeamID}), http.StatusOK, "switch")
+	k.Expect(k.Do("POST", "/api/v1/links", friend.Token, map[string]any{"target_url": "https://example.com"}), http.StatusCreated, "owner create")
+	k.Expect(k.Do("POST", "/api/v1/teams/switch", friend.Token, map[string]any{"team_id": "team_nope"}), http.StatusForbidden, "switch to foreign team")
+
+	// Owner manages the member
+	k.Expect(k.Do("PUT", "/api/v1/team/members/"+friend.ID+"/role", owner.Token, map[string]any{"role": "member"}), http.StatusOK, "promote")
+	k.Expect(k.Do("POST", "/api/v1/team/members/"+friend.ID+"/suspend", owner.Token, nil), http.StatusOK, "suspend")
+	k.Expect(k.Do("GET", "/api/v1/links", friend.Token, nil, "X-Team-ID", owner.TeamID), http.StatusForbidden, "suspended access")
+	k.Expect(k.Do("POST", "/api/v1/team/members/"+friend.ID+"/reactivate", owner.Token, nil), http.StatusOK, "reactivate")
+	k.Expect(k.Do("DELETE", "/api/v1/team/members/"+friend.ID, owner.Token, nil), http.StatusOK, "remove")
+	k.Expect(k.Do("GET", "/api/v1/links", friend.Token, nil, "X-Team-ID", owner.TeamID), http.StatusForbidden, "removed access")
+
+	k.Expect(k.Do("PUT", "/api/v1/team", owner.Token, map[string]any{"name": "Acme HQ"}), http.StatusOK, "rename")
+	audit := k.Do("GET", "/api/v1/team/audit", owner.Token, nil)
+	k.Expect(audit, http.StatusOK, "audit")
+	if !strings.Contains(string(audit.Body), "member.suspend") {
+		t.Fatalf("audit log missing suspend event: %s", audit.Body)
+	}
+
+	k.Expect(k.Do("DELETE", "/api/v1/team", owner.Token, map[string]any{"confirm_name": "wrong"}), http.StatusBadRequest, "delete needs confirmation")
+	k.Expect(k.Do("DELETE", "/api/v1/team", owner.Token, map[string]any{"confirm_name": "Acme HQ"}), http.StatusOK, "delete team")
+	me = k.Do("GET", "/api/v1/auth/me", owner.Token, nil).Map()
+	if me["authenticated"] != true || me["team"] == nil {
+		t.Fatalf("owner should land in a fresh workspace after deletion: %v", me)
+	}
+}
+
+func TestLogoutRevokesSession(t *testing.T) {
+	k := testkit.New(t)
+	u := k.Login("bye@acme.test")
+	k.Expect(k.Do("GET", "/api/v1/links", u.Token, nil), http.StatusOK, "before logout")
+	k.Expect(k.Do("POST", "/api/v1/auth/logout", u.Token, nil), http.StatusOK, "logout")
+	k.Expect(k.Do("GET", "/api/v1/links", u.Token, nil), http.StatusUnauthorized, "after logout")
+}
+
+func TestDevLoginDisabledByDefault(t *testing.T) {
+	k := testkit.New(t)
+	k.Expect(k.Do("POST", "/api/v1/auth/dev-login", "", map[string]any{"email": "a@b.test"}), http.StatusNotFound, "dev login")
+	r := k.Do("POST", "/api/v1/auth/password-reset", "", map[string]any{"email": "a@b.test"})
+	if strings.Contains(string(r.Body), "password_reset_url") {
+		t.Fatal("password reset must never return the reset URL")
 	}
 }

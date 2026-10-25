@@ -38,22 +38,23 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
 import Header from './components/Header.vue'
 import CreateModal from './components/CreateModal.vue'
 import HelpDrawer from './components/HelpDrawer.vue'
 import { useLynqrStore } from './stores/lynqr'
+import { useAuthStore } from './stores/auth'
 
 const route = useRoute()
 const store = useLynqrStore()
+const authStore = useAuthStore()
 const isCreateOpen = ref(false)
 const isHelpOpen = ref(false)
 
-const isAuthRoute = computed(() => {
-  return route.path === '/signup' || route.path === '/login'
-})
+// Auth, invitation and password-reset pages render without the app chrome.
+const isAuthRoute = computed(() => !!route.meta.bare)
 
 function handleSearch(q) {
   // Filter store links or QRs
@@ -63,7 +64,13 @@ function onAssetCreated() {
   store.refreshAll()
 }
 
-onMounted(() => {
-  store.refreshAll()
-})
+// Load workspace data whenever the user signs in or switches workspace.
+watch(
+  () => authStore.isAuthenticated && authStore.team?.id,
+  (teamId) => {
+    if (teamId) store.refreshAll()
+    else store.reset()
+  },
+  { immediate: true }
+)
 </script>

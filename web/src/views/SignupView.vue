@@ -26,7 +26,7 @@
         <div class="space-y-2.5 mb-6">
           <!-- Google -->
           <button
-            @click="authStore.loginWithOAuth('google')"
+            @click="authStore.loginWithOAuth('google', { redirect: route.query.redirect })"
             type="button"
             class="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-gray-700 rounded-xl text-sm font-semibold text-gray-200 bg-gray-800/80 hover:bg-gray-800 hover:border-gray-600 transition-all shadow-sm active:scale-[0.98]"
           >
@@ -41,7 +41,7 @@
 
           <!-- Microsoft -->
           <button
-            @click="authStore.loginWithOAuth('microsoft')"
+            @click="authStore.loginWithOAuth('microsoft', { redirect: route.query.redirect })"
             type="button"
             class="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-gray-700 rounded-xl text-sm font-semibold text-gray-200 bg-gray-800/80 hover:bg-gray-800 hover:border-gray-600 transition-all shadow-sm active:scale-[0.98]"
           >
@@ -56,7 +56,7 @@
 
           <!-- GitHub -->
           <button
-            @click="authStore.loginWithOAuth('github')"
+            @click="authStore.loginWithOAuth('github', { redirect: route.query.redirect })"
             type="button"
             class="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-gray-700 rounded-xl text-sm font-semibold text-gray-200 bg-gray-800/80 hover:bg-gray-800 hover:border-gray-600 transition-all shadow-sm active:scale-[0.98]"
           >
@@ -83,7 +83,15 @@
         </div>
 
         <!-- Custom Direct Email / Password Form -->
-        <form @submit.prevent="handleSubmit" class="space-y-4">
+        <VerifyEmailForm
+          v-if="verification"
+          :pending-token="verification.pendingToken"
+          :email="verification.email || email"
+          @verified="finish"
+          @cancel="verification = null"
+        />
+
+        <form v-else @submit.prevent="handleSubmit" class="space-y-4">
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-medium text-gray-300 mb-1">First Name</label>
@@ -178,6 +186,7 @@ import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { QrCode, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/auth'
+import VerifyEmailForm from '../components/VerifyEmailForm.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -191,6 +200,12 @@ const confirmPassword = ref('')
 const showPassword = ref(false)
 const isSubmitting = ref(false)
 const errorMessage = ref('')
+const verification = ref(null)
+
+function finish() {
+  const t = String(route.query.redirect || '/')
+  router.push(t.startsWith('/') && !t.startsWith('//') ? t : '/')
+}
 
 async function handleSubmit() {
   errorMessage.value = ''
@@ -207,14 +222,17 @@ async function handleSubmit() {
 
   isSubmitting.value = true
   try {
-    await authStore.signUpWithPassword({
+    const result = await authStore.signup({
       first_name: firstName.value,
       last_name: lastName.value,
       email: email.value,
       password: password.value,
     })
-    const target = route.query.redirect || '/'
-    router.push(target)
+    if (result.verificationRequired) {
+      verification.value = result
+      return
+    }
+    finish()
   } catch (err) {
     errorMessage.value = err.message || 'Registration failed'
   } finally {

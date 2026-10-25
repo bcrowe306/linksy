@@ -120,31 +120,26 @@ def test_user_signup_and_login(session):
     rand_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
     STATE["email"] = f"api_test_{int(time.time())}_{rand_suffix}@lynqr.app"
 
-    # 1. Sign Up
-    signup_payload = {
-        "first_name": "API",
-        "last_name": f"Tester_{rand_suffix}",
-        "email": STATE["email"],
-        "password": STATE["password"],
-    }
-    r_signup = session.post(f"{BASE_URL}/api/v1/auth/signup", json=signup_payload, timeout=15)
-    assert r_signup.status_code in (200, 201), f"Signup failed ({r_signup.status_code}): {r_signup.text}"
-    signup_data = r_signup.json()
-    STATE["token"] = signup_data.get("token")
-    STATE["user_id"] = signup_data.get("user", {}).get("id")
-    assert STATE["token"], "Missing session token from signup response"
-    assert STATE["user_id"], "Missing user ID from signup response"
+    # 1. Sign-up endpoint contract (WorkOS may require an emailed verification code)
+    probe = requests.Session()
+    r_signup = probe.post(f"{BASE_URL}/api/v1/auth/signup", json={
+        "first_name": "API", "last_name": f"Probe_{rand_suffix}",
+        "email": STATE["email"].replace("api_test_", "api_probe_"), "password": STATE["password"],
+    }, timeout=15)
+    assert r_signup.status_code in (200, 202), f"Signup failed ({r_signup.status_code}): {r_signup.text}"
+    assert "token" not in r_signup.json(), "Signup must not return a raw session token"
+    probe_user = WorkOSClient().find_user_by_email(STATE["email"].replace("api_test_", "api_probe_"))
+    if probe_user:
+        WorkOSClient().delete_user(probe_user["id"])
 
-    # 2. Login
-    login_payload = {
-        "email": STATE["email"],
-        "password": STATE["password"],
-    }
-    r_login = session.post(f"{BASE_URL}/api/v1/auth/login", json=login_payload, timeout=15)
+    # 2. Pre-verified fixture user + password login (session arrives as an HttpOnly cookie)
+    created = WorkOSClient().create_user(STATE["email"], STATE["password"], "API", f"Tester_{rand_suffix}")
+    STATE["user_id"] = created.get("id")
+    assert STATE["user_id"], f"WorkOS fixture creation failed: {created}"
+    r_login = session.post(f"{BASE_URL}/api/v1/auth/login", json={"email": STATE["email"], "password": STATE["password"]}, timeout=15)
     assert r_login.status_code == 200, f"Login failed ({r_login.status_code}): {r_login.text}"
-    login_data = r_login.json()
-    STATE["token"] = login_data.get("token")
-    assert STATE["token"], "Missing session token from login response"
+    STATE["token"] = session.cookies.get("lynqr_session")
+    assert STATE["token"] and STATE["token"].startswith("lqs_"), "Missing HttpOnly session cookie"
 
     # 3. Authenticated /auth/me check
     r_me = session.get(f"{BASE_URL}/api/v1/auth/me", headers=auth_headers(), timeout=10)
@@ -170,11 +165,12 @@ def test_user_profile_and_password_lifecycle(session):
     # 3. Request Password Reset
     r_reset = session.post(f"{BASE_URL}/api/v1/auth/password-reset", json={"email": STATE["email"]}, timeout=10)
     assert r_reset.status_code == 200, f"Password reset request failed: {r_reset.text}"
+    assert "password_reset_url" not in r_reset.json(), "Reset URL must never be returned to the caller"
 
     # 4. Change Password via User endpoint
     r_change = session.post(
         f"{BASE_URL}/api/v1/user/change-password",
-        json={"new_password": STATE["new_password"]},
+        json={"current_password": STATE["password"], "new_password": STATE["new_password"]},
         headers=auth_headers(),
         timeout=10,
     )
@@ -187,7 +183,7 @@ def test_user_profile_and_password_lifecycle(session):
         timeout=15,
     )
     assert r_relogin.status_code == 200, f"Re-login failed with new password: {r_relogin.text}"
-    STATE["token"] = r_relogin.json().get("token")
+    STATE["token"] = session.cookies.get("lynqr_session")
 
 # ==============================================================================
 # 5. DEVELOPER API KEYS FULL CRUD & AUTHENTICATION

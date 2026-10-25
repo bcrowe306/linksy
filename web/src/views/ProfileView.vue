@@ -236,6 +236,18 @@
 
         <form @submit.prevent="changePassword" class="space-y-4">
           <div>
+            <label class="block text-xs font-medium text-gray-300 mb-1">Current Password</label>
+            <input
+              v-model="currentPassword"
+              type="password"
+              required
+              autocomplete="current-password"
+              placeholder="Your current password"
+              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lynqr-500"
+            />
+          </div>
+
+          <div>
             <label class="block text-xs font-medium text-gray-300 mb-1">New Password</label>
             <input
               v-model="newPassword"
@@ -488,6 +500,7 @@ const isSavingProfile = ref(false)
 const isSendingReset = ref(false)
 const isUpdatingPassword = ref(false)
 const passwordResetUrl = ref('')
+const currentPassword = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
 
@@ -610,13 +623,14 @@ async function changePassword() {
     const res = await fetch('/api/v1/user/change-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ new_password: newPassword.value })
+      body: JSON.stringify({ current_password: currentPassword.value, new_password: newPassword.value })
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Failed to update password')
 
     feedbackIsError.value = false
-    feedbackMessage.value = 'Password updated successfully across all sessions'
+    feedbackMessage.value = data.message || 'Password updated successfully'
+    currentPassword.value = ''
     newPassword.value = ''
     confirmPassword.value = ''
   } catch (err) {

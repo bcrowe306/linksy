@@ -10,11 +10,16 @@ import SettingsView from '../views/SettingsView.vue'
 import SignupView from '../views/SignupView.vue'
 import LoginView from '../views/LoginView.vue'
 import ProfileView from '../views/ProfileView.vue'
+import InviteView from '../views/InviteView.vue'
+import ResetPasswordView from '../views/ResetPasswordView.vue'
+import { useAuthStore } from '../stores/auth'
 
 const routes = [
   { path: '/', name: 'dashboard', component: DashboardView, meta: { requiresAuth: true } },
-  { path: '/signup', name: 'signup', component: SignupView, meta: { guestOnly: true } },
-  { path: '/login', name: 'login', component: LoginView, meta: { guestOnly: true } },
+  { path: '/signup', name: 'signup', component: SignupView, meta: { guestOnly: true, bare: true } },
+  { path: '/login', name: 'login', component: LoginView, meta: { guestOnly: true, bare: true } },
+  { path: '/invite/:token', name: 'invite', component: InviteView, meta: { bare: true } },
+  { path: '/reset-password', name: 'reset-password', component: ResetPasswordView, meta: { bare: true } },
   { path: '/profile', name: 'profile', component: ProfileView, meta: { requiresAuth: true } },
   { path: '/links', name: 'links', component: LinksView, meta: { requiresAuth: true } },
   { path: '/qr-codes', name: 'qr-codes', component: QRCodesView, meta: { requiresAuth: true } },
@@ -33,30 +38,18 @@ export const router = createRouter({
   routes
 })
 
-// Authentication Route Guard
-router.beforeEach((to, from, next) => {
-  // Check if this is an OAuth callback redirect arriving on root URL
-  const searchParams = new URLSearchParams(window.location.search)
-  const isOAuthCallback = searchParams.get('auth_success') === 'true' || !!searchParams.get('token')
+// Authentication route guard: the session lives in an HttpOnly cookie, so the
+// guard asks the server (once per page load) whether we're signed in.
+router.beforeEach(async (to) => {
+  const auth = useAuthStore()
+  await auth.ensureLoaded()
 
-  const token = localStorage.getItem('lynqr_token') || localStorage.getItem('linqr_token') || localStorage.getItem('linksy_token')
-  const user = localStorage.getItem('lynqr_user') || localStorage.getItem('linqr_user') || localStorage.getItem('linksy_user')
-  const hasAuthCookie = document.cookie.split(';').some(c => {
-    const trimmed = c.trim()
-    return trimmed.startsWith('lynqr_session=') || trimmed.startsWith('linqr_session=') || trimmed.startsWith('linksy_session=')
-  })
-  const isAuthenticated = !!(token && user) || hasAuthCookie || isOAuthCallback
-
-  if (to.meta.requiresAuth && !isAuthenticated) {
-    // Redirect unauthenticated user to login with original target path
-    next({
-      path: '/login',
-      query: to.fullPath !== '/' ? { redirect: to.fullPath } : {}
-    })
-  } else if (to.meta.guestOnly && isAuthenticated && !isOAuthCallback) {
-    // Already authenticated, redirect away from guest-only pages to dashboard
-    next({ path: '/' })
-  } else {
-    next()
+  if (to.meta.requiresAuth && !auth.isAuthenticated) {
+    return { path: '/login', query: to.fullPath !== '/' ? { redirect: to.fullPath } : {} }
   }
+  if (to.meta.guestOnly && auth.isAuthenticated) {
+    const redirect = String(to.query.redirect || '/')
+    return redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/'
+  }
+  return true
 })

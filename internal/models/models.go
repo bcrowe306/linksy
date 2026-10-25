@@ -40,32 +40,84 @@ type Team struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
 	Slug      string    `json:"slug"`
+	OwnerID   string    `json:"owner_id"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+// Membership status values
+const (
+	MemberActive    = "active"
+	MemberSuspended = "suspended"
+)
 
 type TeamMember struct {
 	ID        string    `json:"id"`
 	TeamID    string    `json:"team_id"`
 	UserID    string    `json:"user_id"`
 	Role      UserRole  `json:"role"`
+	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// TeamMembership is a team as seen by one of its members (used for team switching).
+type TeamMembership struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Slug        string    `json:"slug"`
+	OwnerID     string    `json:"owner_id"`
+	Role        UserRole  `json:"role"`
+	Status      string    `json:"status"`
+	MemberCount int       `json:"member_count"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type Session struct {
+	ID           string    `json:"id"`
+	UserID       string    `json:"user_id"`
+	ActiveTeamID string    `json:"active_team_id"`
+	IP           string    `json:"ip"`
+	UserAgent    string    `json:"user_agent"`
+	CreatedAt    time.Time `json:"created_at"`
+	LastSeenAt   time.Time `json:"last_seen_at"`
+	ExpiresAt    time.Time `json:"expires_at"`
+	Current      bool      `json:"current,omitempty"`
+}
+
+type AuditEvent struct {
+	ID         string    `json:"id"`
+	TeamID     string    `json:"team_id"`
+	ActorID    string    `json:"actor_id"`
+	ActorName  string    `json:"actor_name,omitempty"`
+	ActorEmail string    `json:"actor_email,omitempty"`
+	Action     string    `json:"action"`
+	TargetType string    `json:"target_type"`
+	TargetID   string    `json:"target_id"`
+	Metadata   string    `json:"metadata"`
+	IP         string    `json:"ip"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
 type Link struct {
-	ID          string     `json:"id"`
-	TeamID      string     `json:"team_id"`
-	UserID      string     `json:"user_id"`
-	Slug        string     `json:"slug"`
-	TargetURL   string     `json:"target_url"`
-	Title       string     `json:"title"`
-	Description string     `json:"description"`
-	IsActive    bool       `json:"is_active"`
-	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
-	Password    string     `json:"-"` // Hashed or empty
-	ClickCount  int64      `json:"click_count"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID           string     `json:"id"`
+	TeamID       string     `json:"team_id"`
+	UserID       string     `json:"user_id"`
+	Slug         string     `json:"slug"`
+	TargetURL    string     `json:"target_url"`
+	Title        string     `json:"title"`
+	Description  string     `json:"description"`
+	IsActive     bool       `json:"is_active"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+	PasswordHash string     `json:"-"`
+	HasPassword  bool       `json:"has_password"`
+	UTMSource    string     `json:"utm_source"`
+	UTMMedium    string     `json:"utm_medium"`
+	UTMCampaign  string     `json:"utm_campaign"`
+	UTMTerm      string     `json:"utm_term"`
+	UTMContent   string     `json:"utm_content"`
+	ClickCount   int64      `json:"click_count"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
 type QRStyle struct {
@@ -107,32 +159,37 @@ type QRStyle struct {
 }
 
 type QRCode struct {
-	ID        string    `json:"id"`
-	TeamID    string    `json:"team_id"`
-	UserID    string    `json:"user_id"`
-	LinkID    *string   `json:"link_id,omitempty"` // Linked short link for dynamic redirection
-	Type      QRType    `json:"type"`
-	Title     string    `json:"title"`
-	Payload   string    `json:"payload"`  // Encoded destination URL or raw payload
-	RawData   string    `json:"raw_data"` // JSON formatted raw type-specific data
-	Style     QRStyle   `json:"style"`
-	ScanCount int64     `json:"scan_count"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID         string    `json:"id"`
+	TeamID     string    `json:"team_id"`
+	UserID     string    `json:"user_id"`
+	LinkID     *string   `json:"link_id,omitempty"`     // Linked short link for dynamic redirection
+	DocumentID *string   `json:"document_id,omitempty"` // Hosted document served by this QR
+	Type       QRType    `json:"type"`
+	Title      string    `json:"title"`
+	Payload    string    `json:"payload"`  // Encoded destination URL or raw payload
+	RawData    string    `json:"raw_data"` // JSON formatted raw type-specific data
+	Style      QRStyle   `json:"style"`
+	ScanCount  int64     `json:"scan_count"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 type AnalyticsEvent struct {
 	ID        string    `json:"id"`
+	TeamID    string    `json:"team_id"`
 	LinkID    *string   `json:"link_id,omitempty"`
 	QRCodeID  *string   `json:"qr_code_id,omitempty"`
 	EventType string    `json:"event_type"` // "click" or "scan"
-	IP        string    `json:"ip"`
+	IP        string    `json:"-"`          // Raw IP is never stored; only a salted hash
+	IPHash    string    `json:"-"`
 	UserAgent string    `json:"user_agent"`
 	Browser   string    `json:"browser"`
 	OS        string    `json:"os"`
 	Device    string    `json:"device"`
 	Referrer  string    `json:"referrer"`
+	Channel   string    `json:"channel"` // direct, social, email, search, web
 	Country   string    `json:"country"`
+	Region    string    `json:"region"`
 	City      string    `json:"city"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -205,16 +262,16 @@ type CreateAPIKeyRequest struct {
 }
 
 type Invitation struct {
-	ID                 string     `json:"id"`
-	TeamID             string     `json:"team_id"`
-	Email              string     `json:"email"`
-	Role               UserRole   `json:"role"`
-	WorkOSInvitationID string     `json:"workos_invitation_id,omitempty"`
-	Token              string     `json:"token,omitempty"`
-	State              string     `json:"state"`
-	CreatedAt          time.Time  `json:"created_at"`
-	ExpiresAt          *time.Time `json:"expires_at,omitempty"`
-	AcceptURL          string     `json:"accept_url,omitempty"`
+	ID        string    `json:"id"`
+	TeamID    string    `json:"team_id"`
+	TeamName  string    `json:"team_name,omitempty"`
+	Email     string    `json:"email"`
+	Role      UserRole  `json:"role"`
+	InvitedBy string    `json:"invited_by"`
+	State     string    `json:"state"` // pending, accepted, revoked
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+	AcceptURL string    `json:"accept_url,omitempty"` // Only populated on creation
 }
 
 type TeamMemberDetail struct {
@@ -222,6 +279,7 @@ type TeamMemberDetail struct {
 	TeamID    string    `json:"team_id"`
 	UserID    string    `json:"user_id"`
 	Role      UserRole  `json:"role"`
+	Status    string    `json:"status"`
 	Email     string    `json:"email"`
 	FirstName string    `json:"first_name"`
 	LastName  string    `json:"last_name"`
