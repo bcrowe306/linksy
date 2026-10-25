@@ -63,14 +63,14 @@ class LinksyTestHarness:
         prefix = f"{colors.get(status, '')}[{status}]{reset}"
         print(f"{prefix} {step}: {msg}")
 
-    def request(self, method, path, data=None, headers=None):
+    def request(self, method, path, data=None, headers=None, auth=True):
         url = f"{self.base_url}{path}"
         body = json.dumps(data).encode("utf-8") if data else None
         req = urllib.request.Request(url, data=body, method=method)
         req.add_header("Content-Type", "application/json")
         req.add_header("Accept", "application/json")
         req.add_header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Linksy-TestDrive/2.0")
-        if self.token:
+        if auth and self.token and (not headers or "Authorization" not in headers):
             req.add_header("Authorization", f"Bearer {self.token}")
         if headers:
             for k, v in headers.items():
@@ -78,11 +78,12 @@ class LinksyTestHarness:
 
         try:
             with self.opener.open(req) as resp:
-                resp_body = resp.read().decode("utf-8")
+                raw_bytes = resp.read()
                 try:
+                    resp_body = raw_bytes.decode("utf-8")
                     return resp.status, json.loads(resp_body)
                 except Exception:
-                    return resp.status, resp_body
+                    return resp.status, raw_bytes
         except urllib.error.HTTPError as e:
             err_body = e.read().decode("utf-8")
             try:
@@ -268,13 +269,25 @@ class LinksyTestHarness:
             qr_payload = {
                 "type": "website",
                 "title": "Harness QR Code",
+                "target_url": "https://lynqr.app",
                 "payload": "https://lynqr.app",
+                "is_dynamic": True,
                 "style": {"fg_color": "#10b981", "bg_color": "#030712"}
             }
             status, data = self.request("POST", "/api/v1/qr", data=qr_payload, headers=auth_header)
             if status in (200, 201):
                 self.passed += 1
-                self.log("API Key Auth (Create QR)", "Created QR code via API key successfully", "PASS")
+                qr_id = data.get("id") if isinstance(data, dict) else None
+                self.log("API Key Auth (Create QR)", f"Created QR code via API key successfully (ID: {qr_id})", "PASS")
+                if qr_id:
+                    # Test export without auth header (<img> tag compatibility)
+                    exp_status, exp_body = self.request("GET", f"/api/v1/qr/{qr_id}/export?format=png&size=240", auth=False)
+                    if exp_status == 200 and isinstance(exp_body, (bytes, bytearray)) and len(exp_body) > 0:
+                        self.passed += 1
+                        self.log("Public QR Export", f"Fetched QR image preview without auth ({len(exp_body)} bytes)", "PASS")
+                    else:
+                        self.failed += 1
+                        self.log("Public QR Export", f"Failed public QR export ({exp_status}): {exp_body[:100] if isinstance(exp_body, (bytes, str)) else exp_body}", "FAIL")
             else:
                 self.failed += 1
                 self.log("API Key Auth (Create QR)", f"Failed creating QR via API key ({status}): {data}", "FAIL")

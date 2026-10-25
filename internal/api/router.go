@@ -44,6 +44,9 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	app.Get("/s/:slug", middleware.RedirectRateLimiter(), h.HandleShortLinkRedirect)
 	app.Get("/qr/r/:id", middleware.RedirectRateLimiter(), h.HandleQRScanRedirect)
 
+	// Public QR Code image export / preview (used in <img> tags and public downloads)
+	app.Get("/api/v1/qr/:id/export", h.ExportQR)
+
 	// Static Document file downloads
 	app.Get("/api/v1/documents/files/:filename", h.DownloadDocumentFile)
 
@@ -72,7 +75,6 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	api.Get("/qr/:id", h.GetQR)
 	api.Put("/qr/:id", h.UpdateQR)
 	api.Delete("/qr/:id", h.DeleteQR)
-	api.Get("/qr/:id/export", h.ExportQR)
 
 	// Documents
 	api.Post("/documents/upload", h.UploadDocument)

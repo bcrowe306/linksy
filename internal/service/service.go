@@ -305,22 +305,31 @@ func (s *Service) ExportQRCode(id string, format string, size int) ([]byte, stri
 		return nil, "", ErrQRNotFound
 	}
 
+	payload := strings.TrimSpace(qrCode.Payload)
+	if payload == "" {
+		if qrCode.RawData != "" {
+			payload = qrCode.RawData
+		} else {
+			payload = fmt.Sprintf("%s/qr/r/%s", s.appURL, qrCode.ID)
+		}
+	}
+
 	format = strings.ToLower(strings.TrimSpace(format))
 	switch format {
 	case "jpeg", "jpg":
-		data, err := qr.RenderJPEG(qrCode.Payload, size, qrCode.Style)
+		data, err := qr.RenderJPEG(payload, size, qrCode.Style)
 		return data, "image/jpeg", err
 
 	case "svg":
-		data, err := qr.RenderSVG(qrCode.Payload, size, qrCode.Style)
+		data, err := qr.RenderSVG(payload, size, qrCode.Style)
 		return data, "image/svg+xml", err
 
 	case "pdf":
-		data, err := qr.RenderPDF(qrCode.Payload, qrCode.Title, qrCode.Style)
+		data, err := qr.RenderPDF(payload, qrCode.Title, qrCode.Style)
 		return data, "application/pdf", err
 
 	case "png", "":
-		data, err := qr.RenderPNG(qrCode.Payload, size, qrCode.Style)
+		data, err := qr.RenderPNG(payload, size, qrCode.Style)
 		return data, "image/png", err
 
 	default:

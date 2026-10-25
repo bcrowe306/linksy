@@ -209,6 +209,7 @@ type CreateQRRequest struct {
 	Type      models.QRType  `json:"type"`
 	Title     string         `json:"title"`
 	TargetURL string         `json:"target_url"`
+	Payload   string         `json:"payload"`
 	RawData   string         `json:"raw_data"`
 	Style     models.QRStyle `json:"style"`
 	IsDynamic bool           `json:"is_dynamic"`
@@ -219,6 +220,16 @@ func (h *Handler) CreateQR(c fiber.Ctx) error {
 	var req CreateQRRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if req.TargetURL == "" && req.Payload != "" {
+		req.TargetURL = req.Payload
+	}
+	if req.RawData == "" && req.Payload != "" && req.Type != models.QRTypeWebsite {
+		req.RawData = req.Payload
+	}
+	if req.TargetURL == "" && req.RawData == "" {
+		req.TargetURL = "https://lynqr.app"
 	}
 
 	qrCode, err := h.svc.CreateQRCode(service.CreateQRInput{
@@ -267,6 +278,7 @@ func (h *Handler) GetQR(c fiber.Ctx) error {
 type UpdateQRRequest struct {
 	Title     string         `json:"title"`
 	TargetURL string         `json:"target_url"`
+	Payload   string         `json:"payload"`
 	RawData   string         `json:"raw_data"`
 	Style     models.QRStyle `json:"style"`
 }
@@ -276,6 +288,10 @@ func (h *Handler) UpdateQR(c fiber.Ctx) error {
 	var req UpdateQRRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if req.TargetURL == "" && req.Payload != "" {
+		req.TargetURL = req.Payload
 	}
 
 	updated, err := h.svc.UpdateQRCode(id, req.Title, req.TargetURL, req.RawData, req.Style)
