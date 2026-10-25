@@ -122,6 +122,7 @@ func (h *Handler) HandleQRScanRedirect(c fiber.Ctx) error {
 type CreateLinkRequest struct {
 	TargetURL   string     `json:"target_url"`
 	CustomSlug  string     `json:"custom_slug"`
+	Slug        string     `json:"slug"`
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
 	ExpiresAt   *time.Time `json:"expires_at"`
@@ -132,6 +133,10 @@ func (h *Handler) CreateLink(c fiber.Ctx) error {
 	var req CreateLinkRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if req.CustomSlug == "" && req.Slug != "" {
+		req.CustomSlug = req.Slug
 	}
 
 	link, err := h.svc.CreateShortLink(service.CreateLinkInput{
