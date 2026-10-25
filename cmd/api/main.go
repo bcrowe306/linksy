@@ -62,6 +62,16 @@ func main() {
 	}
 	svc.SetIPSalt(cfg.AppSecret)
 	svc.SetAdminEmails(cfg.AdminEmails)
+	suppress := cfg.EmailSuppress
+	switch suppress {
+	case "":
+		suppress = service.DefaultEmailSuppression
+	case "off":
+		suppress = ""
+	}
+	if err := svc.SuppressEmailsMatching(suppress); err != nil {
+		log.Fatalf("[Lynqr] invalid EMAIL_SUPPRESS_PATTERN: %v", err)
+	}
 	switch {
 	case cfg.ResendKey != "":
 		svc.SetMailer(email.NewResend(cfg.ResendKey, cfg.EmailFrom))
@@ -118,6 +128,10 @@ func main() {
 
 	api.SetupRouter(app, svc, cfg)
 
+	// Trial reminders and weekly reports
+	schedCtx, stopScheduler := context.WithCancel(context.Background())
+	svc.StartScheduler(schedCtx)
+
 	// Graceful shutdown handling
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -125,6 +139,7 @@ func main() {
 	go func() {
 		<-sigChan
 		log.Println("[Lynqr] Shutting down gracefully...")
+		stopScheduler()
 		_ = app.Shutdown()
 	}()
 
@@ -133,4 +148,5 @@ func main() {
 	if err := app.Listen(addr); err != nil {
 		log.Printf("[Lynqr] Server stopped: %v", err)
 	}
+	svc.FlushMail()
 }

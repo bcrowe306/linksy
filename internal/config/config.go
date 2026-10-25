@@ -38,6 +38,9 @@ type Config struct {
 	// Email delivery (Resend). Without a key, email is logged in local development only.
 	ResendKey string
 	EmailFrom string
+	// EmailSuppress is a regexp of recipients never emailed. Empty uses the
+	// built-in test-suite pattern; "off" disables suppression.
+	EmailSuppress string
 }
 
 // SecureCookies reports whether cookies should carry the Secure attribute.
@@ -129,6 +132,7 @@ func LoadConfig() *Config {
 		AdminEmails:           strings.Split(getEnv("ADMIN_EMAILS", ""), ","),
 		ResendKey:             getEnv("RESEND_API_KEY", ""),
 		EmailFrom:             getEnv("EMAIL_FROM", "Lynqr <noreply@lynqr.app>"),
+		EmailSuppress:         getEnv("EMAIL_SUPPRESS_PATTERN", ""),
 	}
 }
 

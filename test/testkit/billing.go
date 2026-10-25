@@ -2,6 +2,8 @@ package testkit
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -70,4 +72,26 @@ func (k *Kit) ExpireTrial(teamID string) {
 	if err := k.Repo.SetTeamTrialEnd(teamID, time.Now().Add(-time.Hour)); err != nil {
 		k.T.Fatal(err)
 	}
+}
+
+// Sub describes a fake Stripe subscription.
+type Sub struct {
+	ID, Customer, Status, TeamID string
+	Interval                     string // month (default) or year
+}
+
+// Build returns the subscription as Stripe would (via JSON, like the real client).
+func (s Sub) Build() *billing.Subscription {
+	interval := s.Interval
+	if interval == "" {
+		interval = "month"
+	}
+	raw := fmt.Sprintf(`{"id":%q,"customer":%q,"status":%q,"metadata":{"team_id":%q},
+		"items":{"data":[{"current_period_end":%d,"price":{"id":"price_x","recurring":{"interval":%q}}}]}}`,
+		s.ID, s.Customer, s.Status, s.TeamID, time.Now().Add(30*24*time.Hour).Unix(), interval)
+	var out billing.Subscription
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		panic(err)
+	}
+	return &out
 }

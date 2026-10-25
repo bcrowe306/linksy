@@ -915,7 +915,11 @@ func (s *Service) SubmitAbuseReport(in AbuseReportInput, ip string) error {
 	if s.repo.CountRecentReports(r.ReporterIP, time.Now().UTC().Add(-time.Hour)) >= 5 {
 		return errors.New("you've sent several reports recently. Please try again later")
 	}
-	return s.repo.CreateAbuseReport(r)
+	if err := s.repo.CreateAbuseReport(r); err != nil {
+		return err
+	}
+	s.notifyAbuseReport(r)
+	return nil
 }
 
 func (s *Service) AdminListReports(status string) ([]models.AbuseReport, error) {

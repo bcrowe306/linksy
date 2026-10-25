@@ -21,6 +21,8 @@ type Message struct {
 	HTML    string
 	// Tag groups messages in the provider dashboard (e.g. "admin_code").
 	Tag string
+	// Unsubscribe adds List-Unsubscribe headers (one-click, RFC 8058).
+	Unsubscribe string
 }
 
 // Sender delivers messages.
@@ -44,6 +46,9 @@ func (r *Resend) Send(ctx context.Context, m Message) error {
 	body := map[string]any{"from": r.From, "to": []string{m.To}, "subject": m.Subject, "text": m.Text}
 	if m.HTML != "" {
 		body["html"] = m.HTML
+	}
+	if m.Unsubscribe != "" {
+		body["headers"] = map[string]string{"List-Unsubscribe": "<" + m.Unsubscribe + ">", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"}
 	}
 	if m.Tag != "" {
 		body["tags"] = []map[string]string{{"name": "category", "value": m.Tag}}
@@ -98,4 +103,29 @@ func (s *Memory) Last(to string) (Message, bool) {
 		}
 	}
 	return Message{}, false
+}
+
+// LastTagged returns the most recent message of one kind to an address.
+func (s *Memory) LastTagged(to, tag string) (Message, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := len(s.Sent) - 1; i >= 0; i-- {
+		if s.Sent[i].To == to && s.Sent[i].Tag == tag {
+			return s.Sent[i], true
+		}
+	}
+	return Message{}, false
+}
+
+// Count returns how many messages of one kind went to an address.
+func (s *Memory) Count(to, tag string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, m := range s.Sent {
+		if m.To == to && m.Tag == tag {
+			n++
+		}
+	}
+	return n
 }

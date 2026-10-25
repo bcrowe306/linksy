@@ -354,6 +354,7 @@ type Invitation struct {
 	CreatedAt time.Time `json:"created_at"`
 	ExpiresAt time.Time `json:"expires_at"`
 	AcceptURL string    `json:"accept_url,omitempty"` // Only populated on creation
+	Emailed   bool      `json:"emailed,omitempty"`    // an invitation email was sent
 }
 
 type TeamMemberDetail struct {

@@ -48,6 +48,10 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	// Stripe webhooks (signature-verified)
 	app.Post("/api/webhooks/stripe", h.StripeWebhook)
 
+	// Signed one-click unsubscribe links from emails
+	app.Get("/email/unsubscribe", flowLimit, h.Unsubscribe)
+	app.Post("/email/unsubscribe", flowLimit, h.Unsubscribe)
+
 	// Public abuse reports (form + JSON)
 	app.Get("/report", flowLimit, h.ReportPage)
 	app.Post("/report", authLimit, h.SubmitReport)

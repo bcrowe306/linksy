@@ -38,6 +38,9 @@ func (s *Service) StartSession(u *models.User, ip, userAgent string) (string, *m
 		return "", nil, errors.New("identity provider returned an incomplete user")
 	}
 	u.Email = strings.ToLower(strings.TrimSpace(u.Email))
+	_, existsErr := s.repo.GetUserByID(u.ID)
+	isNew := existsErr != nil
+	previous, _ := s.repo.ListUserSessions(u.ID)
 	if err := s.repo.UpsertUser(u); err != nil {
 		return "", nil, fmt.Errorf("failed to record user: %w", err)
 	}
@@ -66,6 +69,11 @@ func (s *Service) StartSession(u *models.User, ip, userAgent string) (string, *m
 	}
 	if err := s.repo.CreateSession(sess, auth.HashToken(token)); err != nil {
 		return "", nil, fmt.Errorf("failed to create session: %w", err)
+	}
+	if isNew {
+		s.notifyWelcome(u)
+	} else {
+		s.notifyNewSignIn(u, ip, sess.UserAgent, previous)
 	}
 	return token, sess, nil
 }
@@ -347,6 +355,7 @@ func (s *Service) UpdateTeamMemberRole(a Actor, userID string, role models.UserR
 		return err
 	}
 	s.audit(a, "member.role_change", "user", userID, map[string]any{"from": target.Role, "to": role})
+	s.notifyRoleChanged(a, userID, role)
 	return nil
 }
 
@@ -428,6 +437,8 @@ func (s *Service) CreateInvitation(a Actor, email string, role models.UserRole) 
 	}
 	inv.AcceptURL = s.appURL + "/invite/" + token
 	s.audit(a, "member.invite", "invitation", inv.ID, map[string]any{"email": email, "role": role})
+	s.notifyInvitation(inv, a.UserID)
+	inv.Emailed = s.admin.mailer != nil
 	return inv, nil
 }
 
@@ -520,6 +531,7 @@ func (s *Service) acceptInvitation(inv *models.Invitation, userID, ip string) er
 		return err
 	}
 	s.audit(Actor{UserID: userID, TeamID: inv.TeamID, Role: inv.Role, IP: ip}, "member.join", "user", userID, map[string]any{"role": inv.Role})
+	s.notifyInviteAccepted(inv, u)
 	return nil
 }
 

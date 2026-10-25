@@ -68,3 +68,20 @@ func (h *Handler) SitemapXML(c fiber.Ctx) error {
 	c.Set("Content-Type", "application/xml; charset=utf-8")
 	return c.SendString(b.String())
 }
+
+// Unsubscribe handles signed one-click unsubscribe links from emails
+// (GET shows the result; POST is the RFC 8058 one-click request from mail apps).
+func (h *Handler) Unsubscribe(c fiber.Ctx) error {
+	label, err := h.svc.Unsubscribe(c.Query("u"), c.Query("k"), c.Query("s"))
+	c.Set("X-Robots-Tag", "noindex, nofollow")
+	if c.Method() == fiber.MethodPost {
+		if err != nil {
+			return c.SendStatus(fiber.StatusBadRequest)
+		}
+		return c.SendStatus(fiber.StatusOK)
+	}
+	if err != nil {
+		return h.renderBrandedError(c, "Link Not Valid", "This unsubscribe link is invalid or has been changed. You can manage email settings from your Lynqr profile.", fiber.StatusBadRequest)
+	}
+	return h.renderNotice(c, "You're unsubscribed", "You won't get emails about "+label+" any more. You can turn them back on any time in your profile's notification settings.")
+}
