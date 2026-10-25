@@ -6,8 +6,10 @@ from .config import get_secret
 
 class WorkOSClient:
     def __init__(self):
-        self.api_key = get_secret("WORKOS_API_KEY_PROD") or get_secret("WORKOS_API_KEY") or get_secret("WORKOS_API_KEY_TEST")
-        self.client_id = get_secret("WORKOS_CLIENT_ID_PROD") or get_secret("WORKOS_CLIENT_ID") or get_secret("WORKOS_CLIENT_ID_STAGING")
+        # The suites run against test.lynqr.app, which uses the WorkOS staging
+        # environment. Never point automated tests at production users.
+        self.api_key = get_secret("WORKOS_API_KEY_TEST")
+        self.client_id = get_secret("WORKOS_CLIENT_ID_STAGING")
         self.base_url = "https://api.workos.com/user_management"
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
