@@ -51,6 +51,22 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function signUpWithPassword(payloadOrFirst, lastName, email, password) {
+    let fn, ln, em, pw
+    if (typeof payloadOrFirst === 'object' && payloadOrFirst !== null) {
+      fn = payloadOrFirst.first_name || payloadOrFirst.firstName || ''
+      ln = payloadOrFirst.last_name || payloadOrFirst.lastName || ''
+      em = payloadOrFirst.email || ''
+      pw = payloadOrFirst.password || ''
+    } else {
+      fn = payloadOrFirst
+      ln = lastName
+      em = email
+      pw = password
+    }
+    return signup(fn, ln, em, pw)
+  }
+
   async function signup(firstName, lastName, email, password) {
     loading.value = true
     error.value = ''
@@ -146,6 +162,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     initials,
     signup,
+    signUpWithPassword,
     loginWithPassword,
     loginWithOAuth,
     logout
