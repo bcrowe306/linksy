@@ -801,7 +801,7 @@ func (h *Handler) renderBrandedError(c fiber.Ctx, title, message string, statusC
       <span>Return to Lynqr Home</span>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
     </a>
-    <div class="footer">Lynqr short links &amp; QR codes · <a href="/report" style="color:#9ca3af">Report abuse</a></div>
+    <div class="footer">Powered by <a href="https://lynqr.app/qr-code-generator" style="color:#9ca3af">Lynqr · Free QR Code Generator</a> · <a href="/report" style="color:#9ca3af">Report abuse</a></div>
   </div>
 </body>
 </html>`, html.EscapeString(title), html.EscapeString(title), html.EscapeString(message))
@@ -823,7 +823,8 @@ body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:c
 .card{max-width:380px;width:100%%;text-align:center;background:#16161a;border:1px solid #2c2c32;border-radius:20px;padding:32px}
 h1{font-size:20px;margin:0 0 8px}p{color:#acacb4;font-size:14px;margin:0 0 24px}
 .btn{display:block;margin-top:12px;padding:12px 16px;border-radius:12px;background:#4f46e5;color:#fff;text-decoration:none;font-weight:600}
-</style></head><body><div class="card"><h1>%s</h1><p>Choose your app store to continue.</p>%s%s</div></body></html>`,
+.foot{margin-top:20px;font-size:12px;color:#7c7c86}.foot a{color:#acacb4;text-decoration:none}
+</style></head><body><div class="card"><h1>%s</h1><p>Choose your app store to continue.</p>%s%s<div class="foot">Powered by <a href="https://lynqr.app/qr-code-generator">Lynqr · Free QR Code Generator</a></div></div></body></html>`,
 		html.EscapeString(title), html.EscapeString(title), btn(ios, "Download on the App Store"), btn(android, "Get it on Google Play"))
 	return c.Type("html").SendString(page)
 }
@@ -855,12 +856,12 @@ h1{font-size:20px;margin:0 0 6px}p{color:#acacb4;font-size:14px;margin:0 0 20px}
 input{width:100%%;padding:12px 14px;border-radius:12px;border:1px solid #3c3c44;background:#0c0c0e;color:#f4f4f6;font-size:15px;outline:none}
 input:focus{border-color:#6366f1;box-shadow:0 0 0 4px rgba(99,102,241,.2)}
 button{margin-top:12px;width:100%%;padding:12px;border:0;border-radius:12px;background:linear-gradient(#6366f1,#4f46e5);color:#fff;font-weight:600;font-size:15px;cursor:pointer}
-.err{color:#fb7185;font-size:13px;margin:0 0 12px}.foot{margin-top:20px;font-size:12px;color:#7c7c86}
+.err{color:#fb7185;font-size:13px;margin:0 0 12px}.foot{margin-top:20px;font-size:12px;color:#7c7c86}.foot a{color:#acacb4;text-decoration:none}
 </style></head><body><form class="card" method="POST" action="%s">
 <div class="icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
 <h1>This link is protected</h1><p>Enter the password to continue.</p>%s
 <input type="password" name="password" placeholder="Password" autocomplete="current-password" autofocus required aria-label="Password">
-<button type="submit">Continue</button><div class="foot">Secured by Lynqr</div></form></body></html>`,
+<button type="submit">Continue</button><div class="foot">Secured by <a href="https://lynqr.app/qr-code-generator">Lynqr · Free QR Code Generator</a></div></form></body></html>`,
 		html.EscapeString(action), errHTML)
 	// form-action also governs the redirect that follows a correct password, and
 	// that redirect goes to the link's (external) destination.

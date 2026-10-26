@@ -76,8 +76,8 @@ Each iteration is self-contained, verified locally (`make test`), committed and 
 - [x] **Enrich Guide JSON-LD & Template (`internal/api/handler/public.go` & `internal/web/templates/doc.html`):** Add `BreadcrumbList` and `dateModified` to `TechArticle` schema, and link directly to the free generator and signup from guide footers.
 
 ### Iteration 4: Built-in Viral Referral Loop ("Powered by Lynqr") & Full Production Audit
-- [ ] **Viral Loop on Public Interstitials (`internal/api/handler/handlers.go`):** Upgrade the footer on password-protected link pages (`renderPasswordPage`), app store choosers (`renderAppChooser`), and branded status pages (`renderBrandedError`) to include a clean link to `https://lynqr.app/qr-code-generator` ("Powered by Lynqr · Free QR Code Generator").
-- [ ] **End-to-End Verification:** Run full test suite + verify live production (`https://lynqr.app`) across all new routes, schemas, and sitemaps.
+- [x] **Viral Loop on Public Interstitials (`internal/api/handler/handlers.go`):** Upgrade the footer on password-protected link pages (`renderPasswordPage`), app store choosers (`renderAppChooser`), and branded status pages (`renderBrandedError`) to include a clean link to `https://lynqr.app/qr-code-generator` ("Powered by Lynqr · Free QR Code Generator").
+- [x] **End-to-End Verification:** Run full test suite + verify live production (`https://lynqr.app`) across all new routes, schemas, and sitemaps.
 
 ---
 

@@ -29,6 +29,11 @@ func TestRobotsAndSitemap(t *testing.T) {
 	if body := string(r.Body); !strings.Contains(body, "# Lynqr (https://lynqr.app)") || !strings.Contains(body, "https://lynqr.app/qr-code-generator/google-review") {
 		t.Fatalf("llms.txt: %s", body)
 	}
+	r = k.Do("GET", "/s/missing-link-404", "", nil)
+	k.Expect(r, http.StatusNotFound, "missing short link")
+	if !strings.Contains(string(r.Body), "https://lynqr.app/qr-code-generator") {
+		t.Fatalf("branded error missing viral referral link: %s", r.Body)
+	}
 }
 
 func TestPublicQRGenerator(t *testing.T) {
