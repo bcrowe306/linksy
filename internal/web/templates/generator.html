@@ -20,7 +20,7 @@
             <fieldset class="space-y-4">
               <legend class="mb-1 text-sm font-semibold text-fg">1. Content</legend>
               {{if eq $d.Type "website"}}
-              <div><label class="label" for="g-url">Website URL</label><input id="g-url" data-target class="input" inputmode="url" autocomplete="url" placeholder="https://example.com/menu" value="https://lynqr.app" /></div>
+              <div><label class="label" for="g-url">{{$d.URLLabel}}</label><input id="g-url" data-target class="input" inputmode="url" autocomplete="url" placeholder="{{$d.URLPlaceholder}}" value="https://lynqr.app" /></div>
               {{else if eq $d.Type "text"}}
               <div><label class="label" for="g-text">Text</label><textarea id="g-text" data-raw="text" rows="4" maxlength="1000" class="input" placeholder="Any text, up to about 1,000 characters">Hello from Lynqr!</textarea></div>
               {{else if eq $d.Type "wifi"}}

@@ -21,12 +21,12 @@ func TestRobotsAndSitemap(t *testing.T) {
 	}
 	r = k.Do("GET", "/sitemap.xml", "", nil)
 	k.Expect(r, http.StatusOK, "sitemap")
-	if body := string(r.Body); !strings.Contains(body, "<loc>https://lynqr.app/</loc>") || !strings.Contains(body, "<lastmod>") || !strings.Contains(body, "<loc>https://lynqr.app/qr-code-generator</loc>") {
+	if body := string(r.Body); !strings.Contains(body, "<loc>https://lynqr.app/</loc>") || !strings.Contains(body, "<lastmod>") || !strings.Contains(body, "<loc>https://lynqr.app/qr-code-generator</loc>") || !strings.Contains(body, "<loc>https://lynqr.app/qr-code-generator/google-review</loc>") || !strings.Contains(body, "<loc>https://lynqr.app/qr-code-generator/pdf</loc>") {
 		t.Fatalf("sitemap: %s", body)
 	}
 	r = k.Do("GET", "/llms.txt", "", nil)
 	k.Expect(r, http.StatusOK, "llms.txt")
-	if body := string(r.Body); !strings.Contains(body, "# Lynqr (https://lynqr.app)") || !strings.Contains(body, "https://lynqr.app/qr-code-generator") {
+	if body := string(r.Body); !strings.Contains(body, "# Lynqr (https://lynqr.app)") || !strings.Contains(body, "https://lynqr.app/qr-code-generator/google-review") {
 		t.Fatalf("llms.txt: %s", body)
 	}
 }

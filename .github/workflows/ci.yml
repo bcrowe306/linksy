@@ -76,7 +76,10 @@ jobs:
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
-          echo "Triggering deployment on Render for srv-dbejv15g1s2s73frgh90..."
+          echo "Triggering deployment on Render for test (srv-dbejv15g1s2s73frgh90) and production (srv-dbf6qa8m7kps73fvogf0)..."
           curl -s -X POST -H "Authorization: Bearer $RENDER_API_KEY" \
             -H "Content-Type: application/json" \
             https://api.render.com/v1/services/srv-dbejv15g1s2s73frgh90/deploys
+          curl -s -X POST -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" \
+            https://api.render.com/v1/services/srv-dbf6qa8m7kps73fvogf0/deploys

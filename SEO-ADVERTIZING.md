@@ -61,14 +61,14 @@ Each iteration is self-contained, verified locally (`make test`), committed and 
   - Enrich homepage JSON-LD (`SoftwareApplication` `featureList`).
 
 ### Iteration 2: High-Intent Use-Case Generator Pages & Rich Schema (`HowTo` + `BreadcrumbList`)
-- [ ] **Add Niche Use-Case Generators (`internal/api/handler/generator_pages.go` & `internal/web/templates/generator.html`):**
+- [x] **Add Niche Use-Case Generators (`internal/api/handler/generator_pages.go` & `internal/web/templates/generator.html`):**
   - Add `/qr-code-generator/google-review` (Google Review QR Code Generator)
   - Add `/qr-code-generator/pdf` (PDF & Restaurant Menu QR Code Generator)
   - Add `/qr-code-generator/whatsapp` (WhatsApp QR Code Generator)
   - Add `/qr-code-generator/instagram` (Instagram QR Code Generator)
   - Support custom input label and placeholder for URL-based niche generators.
-- [ ] **Optimize Titles & Meta Descriptions:** Emphasize *"Free ... QR Code Generator (No Sign-Up, Never Expires)"* to boost click-through rates (CTR) in SERPs.
-- [ ] **Add `HowTo` and `BreadcrumbList` JSON-LD Schema:** Emit `HowTo`, `BreadcrumbList`, `WebApplication`, and `FAQPage` in the `@graph` of every generator page.
+- [x] **Optimize Titles & Meta Descriptions:** Emphasize *"Free ... QR Code Generator (No Sign-Up, Never Expires)"* to boost click-through rates (CTR) in SERPs.
+- [x] **Add `HowTo` and `BreadcrumbList` JSON-LD Schema:** Emit `HowTo`, `BreadcrumbList`, `WebApplication`, and `FAQPage` in the `@graph` of every generator page.
 
 ### Iteration 3: Bottom-of-Funnel Comparison & Anti-Expiration Guides + Guide Schema
 - [ ] **Create `/guides/free-qr-code-generator-no-expiration` (`docs/guides/free-qr-code-generator-no-expiration.md`):** Comprehensive guide explaining why "free" QR codes from other providers deactivate after 14 days, when to use free static codes vs. dynamic codes, and print-size best practices.
