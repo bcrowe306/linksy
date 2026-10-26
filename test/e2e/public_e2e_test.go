@@ -16,13 +16,18 @@ func TestRobotsAndSitemap(t *testing.T) {
 		t.Fatalf("test host must not be indexed: %s", r.Body)
 	}
 	r = k.Do("GET", "/robots.txt", "", nil, "X-Forwarded-Host", "lynqr.app")
-	if body := string(r.Body); !strings.Contains(body, "Sitemap: https://lynqr.app/sitemap.xml") || !strings.Contains(body, "Disallow: /admin") {
+	if body := string(r.Body); !strings.Contains(body, "Sitemap: https://lynqr.app/sitemap.xml") || !strings.Contains(body, "Disallow: /admin") || !strings.Contains(body, "Allow: /qr-code-generator") || !strings.Contains(body, "Allow: /llms.txt") {
 		t.Fatalf("production robots: %s", body)
 	}
 	r = k.Do("GET", "/sitemap.xml", "", nil)
 	k.Expect(r, http.StatusOK, "sitemap")
-	if !strings.Contains(string(r.Body), "<loc>https://lynqr.app/</loc>") {
-		t.Fatalf("sitemap: %s", r.Body)
+	if body := string(r.Body); !strings.Contains(body, "<loc>https://lynqr.app/</loc>") || !strings.Contains(body, "<lastmod>") || !strings.Contains(body, "<loc>https://lynqr.app/qr-code-generator</loc>") {
+		t.Fatalf("sitemap: %s", body)
+	}
+	r = k.Do("GET", "/llms.txt", "", nil)
+	k.Expect(r, http.StatusOK, "llms.txt")
+	if body := string(r.Body); !strings.Contains(body, "# Lynqr (https://lynqr.app)") || !strings.Contains(body, "https://lynqr.app/qr-code-generator") {
+		t.Fatalf("llms.txt: %s", body)
 	}
 }
 

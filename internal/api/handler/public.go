@@ -49,39 +49,78 @@ func (h *Handler) RobotsTxt(c fiber.Ctx) error {
 	if !h.indexable(c) {
 		return c.SendString("User-agent: *\nDisallow: /\n")
 	}
-	return c.SendString("User-agent: *\nAllow: /$\nAllow: /api-docs\nAllow: /signup\nAllow: /login\nAllow: /marketing/\n" +
+	return c.SendString("User-agent: *\nAllow: /$\nAllow: /qr-code-generator\nAllow: /guides\nAllow: /api-docs\nAllow: /llms.txt\nAllow: /signup\nAllow: /login\nAllow: /terms\nAllow: /privacy\nAllow: /acceptable-use\nAllow: /marketing/\n" +
 		"Disallow: /api/\nDisallow: /admin\nDisallow: /s/\nDisallow: /q/\nDisallow: /d/\nDisallow: /qr/\nDisallow: /settings\n\n" +
 		"Sitemap: https://lynqr.app/sitemap.xml\n")
 }
 
-var sitemapPages = []struct{ path, freq, priority string }{
-	{"/", "weekly", "1.0"},
-	{"/signup", "monthly", "0.8"},
-	{"/guides", "weekly", "0.7"},
-	{"/terms", "yearly", "0.2"},
-	{"/privacy", "yearly", "0.2"},
-	{"/acceptable-use", "yearly", "0.2"},
-	{"/api-docs", "monthly", "0.5"},
-	{"/login", "yearly", "0.3"},
+type sitemapEntry struct {
+	path, freq, priority, lastmod string
+}
+
+const defaultSitemapDate = "2026-10-26"
+
+var sitemapPages = []sitemapEntry{
+	{"/", "weekly", "1.0", defaultSitemapDate},
+	{"/signup", "monthly", "0.8", defaultSitemapDate},
+	{"/guides", "weekly", "0.7", defaultSitemapDate},
+	{"/terms", "yearly", "0.2", "2026-10-25"},
+	{"/privacy", "yearly", "0.2", "2026-10-25"},
+	{"/acceptable-use", "yearly", "0.2", "2026-10-25"},
+	{"/api-docs", "monthly", "0.5", defaultSitemapDate},
+	{"/login", "yearly", "0.3", defaultSitemapDate},
 }
 
 func (h *Handler) SitemapXML(c fiber.Ctx) error {
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n" + `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
-	pages := append([]struct{ path, freq, priority string }{}, sitemapPages...)
+	pages := append([]sitemapEntry{}, sitemapPages...)
 	for _, slug := range GeneratorSlugs() {
-		pages = append(pages, struct{ path, freq, priority string }{generatorPath(slug), "monthly", "0.9"})
+		pages = append(pages, sitemapEntry{generatorPath(slug), "monthly", "0.9", defaultSitemapDate})
 	}
 	if h.site != nil {
 		for _, g := range h.site.Guides {
-			pages = append(pages, struct{ path, freq, priority string }{"/guides/" + g.Slug, "monthly", "0.6"})
+			mod := g.Updated
+			if mod == "" {
+				mod = defaultSitemapDate
+			}
+			pages = append(pages, sitemapEntry{"/guides/" + g.Slug, "monthly", "0.7", mod})
 		}
 	}
 	for _, p := range pages {
-		fmt.Fprintf(&b, "  <url><loc>https://lynqr.app%s</loc><changefreq>%s</changefreq><priority>%s</priority></url>\n", p.path, p.freq, p.priority)
+		fmt.Fprintf(&b, "  <url><loc>https://lynqr.app%s</loc><lastmod>%s</lastmod><changefreq>%s</changefreq><priority>%s</priority></url>\n", p.path, p.lastmod, p.freq, p.priority)
 	}
 	b.WriteString("</urlset>\n")
 	c.Set("Content-Type", "application/xml; charset=utf-8")
+	return c.SendString(b.String())
+}
+
+// LLMsTxt serves a concise Markdown index of Lynqr's public pages, tools, and pricing for AI search agents.
+func (h *Handler) LLMsTxt(c fiber.Ctx) error {
+	c.Set("Content-Type", "text/plain; charset=utf-8")
+	var b strings.Builder
+	b.WriteString("# Lynqr (https://lynqr.app)\n\n")
+	b.WriteString("> Dynamic QR codes, hosted PDF documents, and branded short links with real-time scan and click analytics for teams, plus a genuinely free static QR code generator that never expires.\n\n")
+	b.WriteString("## Pricing & Philosophy\n")
+	b.WriteString("- **Free Static QR Code Generator (`https://lynqr.app/qr-code-generator`):** 100% free for personal and commercial use, no sign-up, no watermark, and never expires.\n")
+	b.WriteString("- **Lynqr Pro (`https://lynqr.app/signup`):** $5/month billed annually ($60/year) or $8.99/month billed monthly per workspace. Includes unlimited team members, unlimited dynamic QR codes, unlimited short links, hosted PDF replacement, real-time analytics, and REST API access. 7-day free trial with no credit card required.\n\n")
+	b.WriteString("## Free QR Code Generator Tools\n")
+	for _, g := range generators {
+		fmt.Fprintf(&b, "- [%s](https://lynqr.app%s): %s\n", g.Heading, generatorPath(g.Slug), g.Description)
+	}
+	if h.site != nil && len(h.site.Guides) > 0 {
+		b.WriteString("\n## Product Guides & Comparisons\n")
+		for _, g := range h.site.Guides {
+			fmt.Fprintf(&b, "- [%s](https://lynqr.app/guides/%s): %s\n", g.Title, g.Slug, g.Description)
+		}
+	}
+	b.WriteString("\n## Developer API & Legal\n")
+	b.WriteString("- [Interactive API Reference](https://lynqr.app/api-docs)\n")
+	b.WriteString("- [OpenAPI 3.0 Spec (JSON)](https://lynqr.app/api/v1/openapi.json)\n")
+	b.WriteString("- [OpenAPI 3.0 Spec (YAML)](https://lynqr.app/api/v1/openapi.yaml)\n")
+	b.WriteString("- [Terms of Service](https://lynqr.app/terms)\n")
+	b.WriteString("- [Privacy Policy](https://lynqr.app/privacy)\n")
+	b.WriteString("- [Acceptable Use Policy](https://lynqr.app/acceptable-use)\n")
 	return c.SendString(b.String())
 }
 

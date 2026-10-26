@@ -193,6 +193,7 @@ func SetupRouter(app *fiber.App, svc *service.Service, cfg *config.Config) {
 	// If web/dist directory exists, serve Vue 3 SPA frontend
 	app.Get("/robots.txt", h.RobotsTxt)
 	app.Get("/sitemap.xml", h.SitemapXML)
+	app.Get("/llms.txt", h.LLMsTxt)
 	if _, err := os.Stat(handler.DistDir); err == nil {
 		if site, err := web.Load(handler.DistDir); err != nil {
 			log.Printf("[Lynqr] public pages disabled: %v", err)
