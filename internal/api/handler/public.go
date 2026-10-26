@@ -173,9 +173,26 @@ func (h *Handler) GuidePage(c fiber.Ctx) error {
 			others = append(others, o)
 		}
 	}
+	mod := g.Updated
+	if mod == "" {
+		mod = defaultSitemapDate
+	}
 	ld, _ := json.Marshal(map[string]any{
-		"@context": "https://schema.org", "@type": "TechArticle", "headline": g.Title, "description": g.Description,
-		"url": "https://lynqr.app/guides/" + g.Slug, "publisher": map[string]any{"@type": "Organization", "name": "Lynqr", "url": "https://lynqr.app/"},
+		"@context": "https://schema.org",
+		"@graph": []any{
+			map[string]any{
+				"@type": "TechArticle", "headline": g.Title, "description": g.Description, "dateModified": mod,
+				"url": "https://lynqr.app/guides/" + g.Slug, "publisher": map[string]any{"@type": "Organization", "name": "Lynqr", "url": "https://lynqr.app/"},
+			},
+			map[string]any{
+				"@type": "BreadcrumbList",
+				"itemListElement": []map[string]any{
+					{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://lynqr.app/"},
+					{"@type": "ListItem", "position": 2, "name": "Guides", "item": "https://lynqr.app/guides"},
+					{"@type": "ListItem", "position": 3, "name": g.Title, "item": "https://lynqr.app/guides/" + g.Slug},
+				},
+			},
+		},
 	})
 	return h.renderPage(c, "doc", web.View{Title: g.Title, Description: g.Description, Path: "/guides/" + g.Slug, Page: g, Guides: others, JSONLD: template.JS(ld)})
 }

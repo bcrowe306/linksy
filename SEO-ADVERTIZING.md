@@ -71,9 +71,9 @@ Each iteration is self-contained, verified locally (`make test`), committed and 
 - [x] **Add `HowTo` and `BreadcrumbList` JSON-LD Schema:** Emit `HowTo`, `BreadcrumbList`, `WebApplication`, and `FAQPage` in the `@graph` of every generator page.
 
 ### Iteration 3: Bottom-of-Funnel Comparison & Anti-Expiration Guides + Guide Schema
-- [ ] **Create `/guides/free-qr-code-generator-no-expiration` (`docs/guides/free-qr-code-generator-no-expiration.md`):** Comprehensive guide explaining why "free" QR codes from other providers deactivate after 14 days, when to use free static codes vs. dynamic codes, and print-size best practices.
-- [ ] **Create `/guides/bitly-qr-code-alternative` (`docs/guides/bitly-qr-code-alternative.md`):** Side-by-side comparison of Lynqr vs. Bitly, QR Code Generator Pro, and Uniqode (workspace flat pricing vs. per-seat pricing, hosted PDF replacement, custom short links, and live analytics).
-- [ ] **Enrich Guide JSON-LD & Template (`internal/api/handler/public.go` & `internal/web/templates/doc.html`):** Add `BreadcrumbList` and `dateModified` to `TechArticle` schema, and link directly to the free generator and signup from guide footers.
+- [x] **Create `/guides/free-qr-code-generator-no-expiration` (`docs/guides/free-qr-code-generator-no-expiration.md`):** Comprehensive guide explaining why "free" QR codes from other providers deactivate after 14 days, when to use free static codes vs. dynamic codes, and print-size best practices.
+- [x] **Create `/guides/bitly-qr-code-alternative` (`docs/guides/bitly-qr-code-alternative.md`):** Side-by-side comparison of Lynqr vs. Bitly, QR Code Generator Pro, and Uniqode (workspace flat pricing vs. per-seat pricing, hosted PDF replacement, custom short links, and live analytics).
+- [x] **Enrich Guide JSON-LD & Template (`internal/api/handler/public.go` & `internal/web/templates/doc.html`):** Add `BreadcrumbList` and `dateModified` to `TechArticle` schema, and link directly to the free generator and signup from guide footers.
 
 ### Iteration 4: Built-in Viral Referral Loop ("Powered by Lynqr") & Full Production Audit
 - [ ] **Viral Loop on Public Interstitials (`internal/api/handler/handlers.go`):** Upgrade the footer on password-protected link pages (`renderPasswordPage`), app store choosers (`renderAppChooser`), and branded status pages (`renderBrandedError`) to include a clean link to `https://lynqr.app/qr-code-generator` ("Powered by Lynqr · Free QR Code Generator").
